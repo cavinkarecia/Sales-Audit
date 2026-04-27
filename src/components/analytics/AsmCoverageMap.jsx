@@ -6,8 +6,8 @@ import {
   Marker,
 } from 'react-simple-maps';
 import { MapPin, X, Users, Map as MapIcon, Layers } from 'lucide-react';
-import indiaTopo from '../data/india_topo.json';
-import asmTerritory from '../data/asm_territory.json';
+import indiaTopo from '../../data/india_topo.json';
+import asmTerritory from '../../data/asm_territory.json';
 
 // Monotone chain algorithm for Convex Hull
 const getConvexHull = (points) => {
