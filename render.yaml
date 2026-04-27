@@ -2,6 +2,6 @@ services:
   - type: web
     name: sales-audit-intelligence
     env: static
-    buildCommand: npm install && npm run build
+    buildCommand: npm install --legacy-peer-deps && npm run build
     staticPublishPath: dist
     autoDeploy: true
