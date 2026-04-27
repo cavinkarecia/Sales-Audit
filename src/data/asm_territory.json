@@ -1,0 +1,4533 @@
+{
+  "Ajith V": {
+    "points": [
+      {
+        "city": "NEEDAMANGALAM",
+        "lat": 10.7681,
+        "lng": 79.4006
+      },
+      {
+        "city": "MADUKKUR",
+        "lat": 10.48,
+        "lng": 79.4
+      },
+      {
+        "city": "TANJORE",
+        "lat": 10.787,
+        "lng": 79.1378
+      },
+      {
+        "city": "MANNARKUDI",
+        "lat": 10.6631,
+        "lng": 79.4447
+      },
+      {
+        "city": "PAPANASAM",
+        "lat": 10.9231,
+        "lng": 79.2731
+      },
+      {
+        "city": "THIRUVAIYARU",
+        "lat": 10.88,
+        "lng": 79.13
+      },
+      {
+        "city": "ORATHANADU",
+        "lat": 10.62,
+        "lng": 79.25
+      },
+      {
+        "city": "MANNACHANALLUR",
+        "lat": 10.89,
+        "lng": 78.7
+      },
+      {
+        "city": "LALGUDI",
+        "lat": 10.87,
+        "lng": 78.82
+      },
+      {
+        "city": "MANAPPARAI",
+        "lat": 10.6,
+        "lng": 78.41
+      },
+      {
+        "city": "TRICHY",
+        "lat": 10.7905,
+        "lng": 78.7047
+      },
+      {
+        "city": "PALANI",
+        "lat": 10.45,
+        "lng": 77.52
+      },
+      {
+        "city": "VADAMADURAI",
+        "lat": 10.44,
+        "lng": 78.1
+      },
+      {
+        "city": "ODDENCHTRAM",
+        "lat": 10.48,
+        "lng": 77.75
+      },
+      {
+        "city": "KARUR",
+        "lat": 10.9601,
+        "lng": 78.0766
+      },
+      {
+        "city": "DINDIGUL",
+        "lat": 10.3673,
+        "lng": 77.9803
+      },
+      {
+        "city": "Mayiladuthurai",
+        "lat": 11.1085,
+        "lng": 79.6521
+      },
+      {
+        "city": "TIRUVARUR",
+        "lat": 10.7661,
+        "lng": 79.6344
+      },
+      {
+        "city": "THIRUNAGESWARAM",
+        "lat": 10.97,
+        "lng": 79.43
+      },
+      {
+        "city": "TIRUTHURAIPOONDI",
+        "lat": 10.53,
+        "lng": 79.64
+      },
+      {
+        "city": "ADUTHURAI",
+        "lat": 11.02,
+        "lng": 79.48
+      },
+      {
+        "city": "SIRKALI",
+        "lat": 11.24,
+        "lng": 79.73
+      },
+      {
+        "city": "THIRUMARUGAL",
+        "lat": 10.85,
+        "lng": 79.63
+      },
+      {
+        "city": "NAGAPATTINAM",
+        "lat": 10.7672,
+        "lng": 79.8444
+      },
+      {
+        "city": "KARAIKAL",
+        "lat": 10.92,
+        "lng": 79.83
+      },
+      {
+        "city": "KARAMBAKKUDI",
+        "lat": 10.46,
+        "lng": 79.14
+      },
+      {
+        "city": "PUDUKOTTAI",
+        "lat": 10.3797,
+        "lng": 78.8202
+      },
+      {
+        "city": "KOVILPATTI",
+        "lat": 9.17,
+        "lng": 77.87
+      },
+      {
+        "city": "ARANTANGI",
+        "lat": 10.16,
+        "lng": 78.99
+      },
+      {
+        "city": "RAYAVARAM",
+        "lat": 10.25,
+        "lng": 78.81
+      },
+      {
+        "city": "PERAMBALUR",
+        "lat": 11.2342,
+        "lng": 78.882
+      },
+      {
+        "city": "JEYAKONDAM",
+        "lat": 11.21,
+        "lng": 79.35
+      },
+      {
+        "city": "THURAIYUR",
+        "lat": 11.15,
+        "lng": 78.6
+      },
+      {
+        "city": "TIRUMANGALAM",
+        "lat": 9.82,
+        "lng": 77.99
+      },
+      {
+        "city": "THOTIYAM",
+        "lat": 10.99,
+        "lng": 78.34
+      }
+    ],
+    "cities": [
+      "NEEDAMANGALAM",
+      "MADUKKUR",
+      "TANJORE",
+      "MANNARKUDI",
+      "PAPANASAM",
+      "THIRUVAIYARU",
+      "ORATHANADU",
+      "MANNACHANALLUR",
+      "LALGUDI",
+      "MANAPPARAI",
+      "TRICHY",
+      "PALANI",
+      "VADAMADURAI",
+      "ODDENCHTRAM",
+      "KARUR",
+      "DINDIGUL",
+      "Mayiladuthurai",
+      "TIRUVARUR",
+      "THIRUNAGESWARAM",
+      "TIRUTHURAIPOONDI",
+      "ADUTHURAI",
+      "SIRKALI",
+      "THIRUMARUGAL",
+      "NAGAPATTINAM",
+      "KARAIKAL",
+      "KARAMBAKKUDI",
+      "PUDUKOTTAI",
+      "KOVILPATTI",
+      "ARANTANGI",
+      "RAYAVARAM",
+      "PERAMBALUR",
+      "JEYAKONDAM",
+      "THURAIYUR",
+      "TIRUMANGALAM",
+      "THOTIYAM"
+    ],
+    "states": [
+      "Tamil Nadu"
+    ]
+  },
+  "Ashok Kumar R": {
+    "points": [
+      {
+        "city": "ULUNDURPET",
+        "lat": 11.69,
+        "lng": 79.29
+      },
+      {
+        "city": "VILLUPURAM",
+        "lat": 11.9401,
+        "lng": 79.4861
+      },
+      {
+        "city": "GINGEE",
+        "lat": 12.25,
+        "lng": 79.42
+      },
+      {
+        "city": "KANDACHIPURAM",
+        "lat": 11.9126,
+        "lng": 79.3789
+      },
+      {
+        "city": "KALLAKURUCHI",
+        "lat": 11.74,
+        "lng": 78.96
+      },
+      {
+        "city": "TIRUKOILUR",
+        "lat": 11.9675,
+        "lng": 79.2056
+      },
+      {
+        "city": "THIYAGADURGAM",
+        "lat": 11.7418,
+        "lng": 79.0734
+      },
+      {
+        "city": "THIRUVENNAINALLUR",
+        "lat": 11.862,
+        "lng": 79.3663
+      },
+      {
+        "city": "CHENNAI",
+        "lat": 13.0827,
+        "lng": 80.2707
+      },
+      {
+        "city": "WALAJABAD",
+        "lat": 12.7969,
+        "lng": 79.8176
+      },
+      {
+        "city": "UTHIRAMERUR",
+        "lat": 12.6171,
+        "lng": 79.7599
+      },
+      {
+        "city": "VANDAVASI",
+        "lat": 12.5029,
+        "lng": 79.6025
+      },
+      {
+        "city": "CHENGLEPUT",
+        "lat": 12.6819,
+        "lng": 79.9888
+      },
+      {
+        "city": "MADURANTAKAM",
+        "lat": 12.51,
+        "lng": 79.8878
+      },
+      {
+        "city": "THIRUPORUR",
+        "lat": 12.726,
+        "lng": 80.1893
+      },
+      {
+        "city": "CUDDALORE",
+        "lat": 11.748,
+        "lng": 79.7714
+      },
+      {
+        "city": "PONDY",
+        "lat": 11.9416,
+        "lng": 79.8083
+      },
+      {
+        "city": "NEYVELI",
+        "lat": 11.5432364,
+        "lng": 79.4760133
+      },
+      {
+        "city": "TINDIVANAM",
+        "lat": 12.22,
+        "lng": 79.65
+      }
+    ],
+    "cities": [
+      "ULUNDURPET",
+      "VILLUPURAM",
+      "GINGEE",
+      "KANDACHIPURAM",
+      "KALLAKURUCHI",
+      "TIRUKOILUR",
+      "THIYAGADURGAM",
+      "THIRUVENNAINALLUR",
+      "CHENNAI",
+      "WALAJABAD",
+      "UTHIRAMERUR",
+      "VANDAVASI",
+      "CHENGLEPUT",
+      "MADURANTAKAM",
+      "THIRUPORUR",
+      "THIRUKKAZHUKUNDRAM",
+      "CHIDAMBARAM",
+      "PANRUTI",
+      "SRIMUSHNAM",
+      "VIRUDHACHALAM",
+      "TITAGUDI",
+      "KATTUMANARKOIL",
+      "KEERAPALAYAM",
+      "CUDDALORE",
+      "PONDY",
+      "NEYVELI",
+      "MARAKANAM",
+      "TINDIVANAM"
+    ],
+    "states": [
+      "Tamil Nadu"
+    ]
+  },
+  "SUNDARAPANDIAN N": {
+    "points": [
+      {
+        "city": "TIRUNELVELI",
+        "lat": 8.7139,
+        "lng": 77.7567
+      },
+      {
+        "city": "NAGERCOIL",
+        "lat": 8.1833,
+        "lng": 77.4119
+      },
+      {
+        "city": "MADURAI",
+        "lat": 9.9252,
+        "lng": 78.1198
+      },
+      {
+        "city": "TIRUMANGALAM",
+        "lat": 9.82,
+        "lng": 77.99
+      },
+      {
+        "city": "THENI",
+        "lat": 10.0104,
+        "lng": 77.4777
+      },
+      {
+        "city": "Thoothukudi",
+        "lat": 8.8049,
+        "lng": 78.1348
+      },
+      {
+        "city": "TENKASI",
+        "lat": 8.9591,
+        "lng": 77.3151
+      },
+      {
+        "city": "SIVAGANGAI",
+        "lat": 9.8433,
+        "lng": 78.48
+      },
+      {
+        "city": "RAMANATHAPURAM",
+        "lat": 9.3639,
+        "lng": 78.8395
+      },
+      {
+        "city": "RAJAPALAYAM",
+        "lat": 9.451559,
+        "lng": 77.554355
+      },
+      {
+        "city": "KOVILPATTI",
+        "lat": 9.17,
+        "lng": 77.87
+      },
+      {
+        "city": "VIRUDHUNAGAR",
+        "lat": 9.5872,
+        "lng": 77.9514
+      }
+    ],
+    "cities": [
+      "TIRUNELVELI",
+      "ELAVUVILAI",
+      "ALANGULAM",
+      "Ambasamudram",
+      "NAGERCOIL",
+      "TISAIYANVILLAI",
+      "MADURAI",
+      "PERAIYUR",
+      "TIRUMANGALAM",
+      "THENUR",
+      "KARUPATTI",
+      "NILAKOTTAI",
+      "ANDIPATTY",
+      "CHINNAMANUR",
+      "THENI",
+      "UTHAMAPALAYAM",
+      "BATHALAGUNDU",
+      "PERIYAKULAM",
+      "KULATHUR",
+      "SURANDAI",
+      "SATHANGULAM",
+      "Thoothukudi",
+      "TUTICORIN",
+      "PULIANGUDI",
+      "VILATHIKULAM",
+      "TENKASI",
+      "SIVAGANGAI",
+      "RAMANATHAPURAM",
+      "DEVIPATTINAM",
+      "PATTUKOTTAI",
+      "KEELAKARAI",
+      "OKKUR PUTHUR",
+      "KARIAPATTI",
+      "RAJAPALAYAM",
+      "SRIVILLIPUTHUR",
+      "ARUPPUKOTTAI",
+      "SIVAKASI",
+      "KOVILPATTI",
+      "VIRUDHUNAGAR",
+      "SATTUR"
+    ],
+    "states": [
+      "Tamil Nadu"
+    ]
+  },
+  "Thirumeni V R": {
+    "points": [
+      {
+        "city": "SALEM",
+        "lat": 11.6643,
+        "lng": 78.146
+      },
+      {
+        "city": "NAMAKKAL",
+        "lat": 11.2189,
+        "lng": 78.1674
+      },
+      {
+        "city": "TIRUNELVELI",
+        "lat": 8.7139,
+        "lng": 77.7567
+      },
+      {
+        "city": "TIRUPUR",
+        "lat": 11.1085242,
+        "lng": 77.3410656
+      },
+      {
+        "city": "ERODE",
+        "lat": 11.341,
+        "lng": 77.7172
+      },
+      {
+        "city": "OOTY",
+        "lat": 11.4064138,
+        "lng": 76.6932438
+      },
+      {
+        "city": "POLLACHI",
+        "lat": 10.6572737,
+        "lng": 77.0106693
+      },
+      {
+        "city": "COIMBATORE",
+        "lat": 11.0168,
+        "lng": 76.9558
+      },
+      {
+        "city": "DHARMAPURI",
+        "lat": 12.1273,
+        "lng": 78.1582
+      }
+    ],
+    "cities": [
+      "THARAMANGALAM",
+      "NAGIAMPATTI",
+      "KULATHUPALAYAM",
+      "KUMARAPALAYAM",
+      "TIRUCHENCODE",
+      "SALEM",
+      "RASIPURAM",
+      "ATTUR",
+      "SANKAGIRI",
+      "THOTTILPATTI",
+      "NAMAKKAL",
+      "MECHERI",
+      "Gobi",
+      "TIRUNELVELI",
+      "PALAVANJI PALAYAM",
+      "TIRUPUR",
+      "SATHYAMANGALAM",
+      "PALLADAM",
+      "ERODE",
+      "PULIAMPATTI",
+      "NASIYANUR",
+      "KANGAAYAM",
+      "KADAYAMPATI",
+      "AVINASHI",
+      "UTHUKULI",
+      "OOTY",
+      "DHARAPURAM",
+      "POLLACHI",
+      "COIMBATORE",
+      "UDUMALPET",
+      "ANAIMALAI",
+      "METTUPALAYAM",
+      "SULUR",
+      "VADAVALLI",
+      "UTHANGARAI",
+      "DHARMAPURI",
+      "DENKANIKOTTA",
+      "OMALUR",
+      "VENNADUR",
+      "BOMMIDI",
+      "HARUR",
+      "AMMAPET",
+      "ANJEHALLI",
+      "KAVERIPATTNAM"
+    ],
+    "states": [
+      "Tamil Nadu"
+    ]
+  },
+  "VENKATESH MOHAN": {
+    "points": [
+      {
+        "city": "TIRUVANNAMALAI",
+        "lat": 12.2273,
+        "lng": 79.0747
+      },
+      {
+        "city": "VELLORE",
+        "lat": 12.9165,
+        "lng": 79.1325
+      },
+      {
+        "city": "GUDIYATHAM",
+        "lat": 12.9447361,
+        "lng": 78.8709019
+      },
+      {
+        "city": "KANCHIPURAM",
+        "lat": 12.8341735,
+        "lng": 79.7036402
+      },
+      {
+        "city": "SHOLINGUR",
+        "lat": 13.1119,
+        "lng": 79.4214
+      },
+      {
+        "city": "SRIPERUMBUDUR",
+        "lat": 12.9691,
+        "lng": 79.9482
+      },
+      {
+        "city": "CHENNAI",
+        "lat": 13.0827,
+        "lng": 80.2707
+      },
+      {
+        "city": "TIRUVOTTIYUR",
+        "lat": 13.161,
+        "lng": 80.301
+      },
+      {
+        "city": "KRISHNAGIRI",
+        "lat": 12.5186,
+        "lng": 78.2137
+      },
+      {
+        "city": "AMBUR",
+        "lat": 12.7914,
+        "lng": 78.7107
+      },
+      {
+        "city": "HOSUR",
+        "lat": 12.7409,
+        "lng": 77.8253
+      },
+      {
+        "city": "VANIAMBADI",
+        "lat": 12.6844,
+        "lng": 78.6186
+      }
+    ],
+    "cities": [
+      "CHENGAM",
+      "VENGIKKAL",
+      "MANALURPET",
+      "TIRUVANNAMALAI",
+      "NUDUNGUNAM",
+      "SANKARAPURAM",
+      "POLUR",
+      "VELLORE",
+      "GUDIYATHAM",
+      "ARANI",
+      "PANAPAKKAM",
+      "THIRUVALLUR",
+      "ARCOT",
+      "ARAKKONAM",
+      "THIRUTHANI",
+      "PALLIPATTU",
+      "KANCHIPURAM",
+      "SHOLINGUR",
+      "SRIPERUMBUDUR",
+      "CHENNAI",
+      "TIRUVOTTIYUR",
+      "KRISHNAGIRI",
+      "AMBUR",
+      "HOSUR",
+      "THIRUPATHUR",
+      "VANIAMBADI",
+      "SAMALPALLAM",
+      "ALANGAYAM",
+      "TIRUPATTUR",
+      "VEPPANAPPALLI",
+      "THIRUNINDRAVUR"
+    ],
+    "states": [
+      "Tamil Nadu"
+    ]
+  },
+  "Biswanath Chakraborty": {
+    "points": [
+      {
+        "city": "SHILLONG",
+        "lat": 25.5788,
+        "lng": 91.8833
+      },
+      {
+        "city": "TURA",
+        "lat": 25.5135,
+        "lng": 90.2201
+      },
+      {
+        "city": "DAM DAMA",
+        "lat": 26.31,
+        "lng": 91.5
+      },
+      {
+        "city": "KHARUPETIA",
+        "lat": 26.5167,
+        "lng": 92.1333
+      },
+      {
+        "city": "MANGALDAI",
+        "lat": 26.4333,
+        "lng": 92.0333
+      },
+      {
+        "city": "MANKACHAR",
+        "lat": 25.5333,
+        "lng": 89.8667
+      },
+      {
+        "city": "DHUBRI",
+        "lat": 26.0167,
+        "lng": 89.9667
+      },
+      {
+        "city": "BONGAIGAON",
+        "lat": 26.4833,
+        "lng": 90.5667
+      },
+      {
+        "city": "DIPHU",
+        "lat": 25.8333,
+        "lng": 93.4333
+      },
+      {
+        "city": "DIMAPUR",
+        "lat": 25.9,
+        "lng": 93.7333
+      },
+      {
+        "city": "MOKOKCHUNG",
+        "lat": 26.3333,
+        "lng": 94.5167
+      },
+      {
+        "city": "BADARPUR",
+        "lat": 24.9,
+        "lng": 92.6
+      },
+      {
+        "city": "SILCHAR",
+        "lat": 24.8332708,
+        "lng": 92.7789054
+      },
+      {
+        "city": "KARIMGANJ",
+        "lat": 24.8667,
+        "lng": 92.3667
+      },
+      {
+        "city": "IMPHAL",
+        "lat": 24.8170111,
+        "lng": 93.9368439
+      },
+      {
+        "city": "HAILAKANDI",
+        "lat": 24.6833,
+        "lng": 92.5667
+      }
+    ],
+    "cities": [
+      "NALBARI",
+      "SHILLONG",
+      "RANGIA",
+      "BARPETA ROAD",
+      "BARPETA",
+      "GUWAHATI-I",
+      "TURA",
+      "TANGLA",
+      "UDALGURI",
+      "JAGIROAD",
+      "DAM DAMA",
+      "KHARUPETIA",
+      "MANGALDAI",
+      "MANKACHAR",
+      "GOEALPARA",
+      "DHUBRI",
+      "BONGAIGAON",
+      "DIPHU",
+      "DIMAPUR",
+      "MOKOKCHUNG",
+      "BADARPUR",
+      "SILCHAR",
+      "AIZWAL",
+      "KARIMGANJ",
+      "IMPHAL",
+      "HAILAKANDI",
+      "CACHAR"
+    ],
+    "states": [
+      "Assam",
+      "Arunachal Pradesh",
+      "Manipur",
+      "Meghalaya",
+      "Mizoram",
+      "Nagaland",
+      "Sikkim",
+      "Tripura"
+    ]
+  },
+  "DIBAKAR SAHA": {
+    "points": [
+      {
+        "city": "JALPAIGURI",
+        "lat": 26.5162,
+        "lng": 88.7236
+      },
+      {
+        "city": "BIRPARA",
+        "lat": 26.7,
+        "lng": 89.15
+      },
+      {
+        "city": "HASIMARA",
+        "lat": 26.75,
+        "lng": 89.35
+      },
+      {
+        "city": "DINHATA",
+        "lat": 26.1333,
+        "lng": 89.4667
+      },
+      {
+        "city": "SILIGURI",
+        "lat": 26.7083818,
+        "lng": 88.4268741
+      },
+      {
+        "city": "JORTHANG",
+        "lat": 27.1333,
+        "lng": 88.25
+      },
+      {
+        "city": "COOCH BIHAR",
+        "lat": 26.3249,
+        "lng": 89.451
+      },
+      {
+        "city": "ALIPURDUAR",
+        "lat": 26.4833,
+        "lng": 89.5333
+      }
+    ],
+    "cities": [
+      "JALPAIGURI",
+      "BIRPARA",
+      "HASIMARA",
+      "DINHATA",
+      "SILIGURI",
+      "GANGTOK",
+      "JORTHANG",
+      "COOCH BIHAR",
+      "JAIGAON",
+      "ALIPURDUAR",
+      "KHARUBHANJ",
+      "CHILAKHANA"
+    ],
+    "states": [
+      "West Bengal"
+    ]
+  },
+  "Rahimuddin Ansari": {
+    "points": [
+      {
+        "city": "TINSUKIA",
+        "lat": 27.4921909,
+        "lng": 95.346775
+      },
+      {
+        "city": "SIBSAGAR",
+        "lat": 26.9833,
+        "lng": 94.6333
+      },
+      {
+        "city": "SARUPATHAR",
+        "lat": 26.1667,
+        "lng": 93.8333
+      },
+      {
+        "city": "GOLAGHAT",
+        "lat": 26.5167,
+        "lng": 93.9667
+      },
+      {
+        "city": "DEMOW",
+        "lat": 27.0167,
+        "lng": 94.75
+      },
+      {
+        "city": "JORAT",
+        "lat": 26.7509,
+        "lng": 94.2037
+      },
+      {
+        "city": "DIBRUGARH",
+        "lat": 27.4728327,
+        "lng": 94.9119621
+      },
+      {
+        "city": "DERGAON",
+        "lat": 26.7,
+        "lng": 93.9667
+      },
+      {
+        "city": "DULIAJAN",
+        "lat": 27.35,
+        "lng": 95.3333
+      },
+      {
+        "city": "TITABAR",
+        "lat": 26.6,
+        "lng": 94.1833
+      },
+      {
+        "city": "SONARI",
+        "lat": 27.0667,
+        "lng": 95.0333
+      },
+      {
+        "city": "DOOMDOOMA",
+        "lat": 27.5667,
+        "lng": 95.5667
+      },
+      {
+        "city": "NORTH LAKHIMPUR",
+        "lat": 27.2333,
+        "lng": 94.1
+      },
+      {
+        "city": "PASIGHAT",
+        "lat": 28.0667,
+        "lng": 95.3333
+      }
+    ],
+    "cities": [
+      "TINSUKIA",
+      "SIBSAGAR",
+      "SARUPATHAR",
+      "GOLAGHAT",
+      "DEMOW",
+      "JORAT",
+      "DIBRUGARH",
+      "DERGAON",
+      "DULIAJAN",
+      "TITABAR",
+      "SONARI",
+      "DOOMDOOMA",
+      "NORTH LAKHIMPUR",
+      "PASIGHAT"
+    ],
+    "states": [
+      "Assam",
+      "Arunachal Pradesh",
+      "Manipur",
+      "Meghalaya",
+      "Mizoram",
+      "Nagaland",
+      "Sikkim",
+      "Tripura"
+    ]
+  },
+  "SAJJAT JAKIR": {
+    "points": [
+      {
+        "city": "MALDA",
+        "lat": 25.0108,
+        "lng": 88.1411
+      },
+      {
+        "city": "SAMSI",
+        "lat": 25.1667,
+        "lng": 88
+      },
+      {
+        "city": "BELDANGA",
+        "lat": 23.8833,
+        "lng": 88.25
+      },
+      {
+        "city": "HATINAGAR",
+        "lat": 24.1167,
+        "lng": 88.2833
+      },
+      {
+        "city": "MOTHABARI",
+        "lat": 24.9333,
+        "lng": 88.0833
+      },
+      {
+        "city": "RAIGUNJ",
+        "lat": 25.6167,
+        "lng": 88.1167
+      },
+      {
+        "city": "ISLAMPUR",
+        "lat": 26.2667,
+        "lng": 88.2
+      },
+      {
+        "city": "GANGARAMPUR",
+        "lat": 25.4,
+        "lng": 88.5167
+      },
+      {
+        "city": "BALURGHAT",
+        "lat": 25.2167,
+        "lng": 88.7667
+      },
+      {
+        "city": "RANAGHAT",
+        "lat": 23.1833,
+        "lng": 88.5833
+      },
+      {
+        "city": "KHAGRA",
+        "lat": 24.1,
+        "lng": 88.25
+      },
+      {
+        "city": "DHULIYAN",
+        "lat": 24.6833,
+        "lng": 87.95
+      },
+      {
+        "city": "KANDI",
+        "lat": 23.95,
+        "lng": 88.0333
+      },
+      {
+        "city": "KARIMPUR",
+        "lat": 23.9667,
+        "lng": 88.6167
+      },
+      {
+        "city": "DOMKAL",
+        "lat": 24.2,
+        "lng": 88.55
+      },
+      {
+        "city": "KRISHNANAGAR",
+        "lat": 23.4,
+        "lng": 88.5
+      }
+    ],
+    "cities": [
+      "MALDA",
+      "SAMSI",
+      "BELDANGA",
+      "KARARI CHANDPUR",
+      "HATINAGAR",
+      "MOTHABARI",
+      "RAIGUNJ",
+      "NICHITPUR",
+      "ISLAMPUR",
+      "GANGARAMPUR",
+      "JUJHARPUR",
+      "BALURGHAT",
+      "RANAGHAT",
+      "SEIKHPARA",
+      "KHAGRA",
+      "DHULIYAN",
+      "KANDI",
+      "KARIMPUR",
+      "DOMKAL",
+      "KRISHNANAGAR"
+    ],
+    "states": [
+      "West Bengal"
+    ]
+  },
+  "Sanu Ghosh": {
+    "points": [
+      {
+        "city": "ASANSOLE",
+        "lat": 23.6739,
+        "lng": 86.9524
+      },
+      {
+        "city": "DURGAPORE",
+        "lat": 23.5204,
+        "lng": 87.3119
+      },
+      {
+        "city": "PURULIA",
+        "lat": 23.3320779,
+        "lng": 86.365208
+      },
+      {
+        "city": "PURBASTHALI",
+        "lat": 23.45,
+        "lng": 88.35
+      },
+      {
+        "city": "RANIGUNJ",
+        "lat": 23.6167,
+        "lng": 87.1167
+      }
+    ],
+    "cities": [
+      "SUBHASH PALLY",
+      "ASANSOLE",
+      "DURGAPORE",
+      "SITARAMPUR",
+      "PURULIA",
+      "PURBASTHALI",
+      "RANIGUNJ",
+      "HINDUSTAN CABLES"
+    ],
+    "states": [
+      "West Bengal"
+    ]
+  },
+  "TANMAY SAHA": {
+    "points": [
+      {
+        "city": "CHINSURAH",
+        "lat": 22.9,
+        "lng": 88.4
+      },
+      {
+        "city": "BALLY",
+        "lat": 22.65,
+        "lng": 88.35
+      },
+      {
+        "city": "SODEPUR",
+        "lat": 22.7,
+        "lng": 88.4
+      },
+      {
+        "city": "KANCHARAPARA",
+        "lat": 22.95,
+        "lng": 88.4333
+      },
+      {
+        "city": "NAIHATI",
+        "lat": 22.9,
+        "lng": 88.4167
+      },
+      {
+        "city": "BARASAT",
+        "lat": 22.7167,
+        "lng": 88.4833
+      },
+      {
+        "city": "SOUTH DUM DUM",
+        "lat": 22.6333,
+        "lng": 88.4
+      },
+      {
+        "city": "NYAZAT",
+        "lat": 22.45,
+        "lng": 88.85
+      },
+      {
+        "city": "BANGAON",
+        "lat": 23.05,
+        "lng": 88.8333
+      },
+      {
+        "city": "TAKI",
+        "lat": 22.5833,
+        "lng": 88.9167
+      },
+      {
+        "city": "SONARPUR",
+        "lat": 22.4333,
+        "lng": 88.4333
+      },
+      {
+        "city": "BUDGE BUDGE",
+        "lat": 22.4833,
+        "lng": 88.1833
+      },
+      {
+        "city": "GHATAKPUKUR",
+        "lat": 22.5,
+        "lng": 88.6833
+      },
+      {
+        "city": "DIAMOND HABRA",
+        "lat": 22.1833,
+        "lng": 88.2
+      },
+      {
+        "city": "CANNING TOWN",
+        "lat": 22.3167,
+        "lng": 88.6667
+      },
+      {
+        "city": "KAKDWIP",
+        "lat": 21.8833,
+        "lng": 88.1833
+      },
+      {
+        "city": "BAGHAJATIN",
+        "lat": 22.4833,
+        "lng": 88.3833
+      },
+      {
+        "city": "BANKURA",
+        "lat": 23.2333,
+        "lng": 87.0667
+      },
+      {
+        "city": "SONAMUKHI",
+        "lat": 23.3,
+        "lng": 87.4167
+      }
+    ],
+    "cities": [
+      "CHINSURAH",
+      "HOOGHLY",
+      "GOPAL NAGAR",
+      "BALLY",
+      "SODEPUR",
+      "KANCHARAPARA",
+      "NAIHATI",
+      "BARASAT",
+      "CALCUTTA (C)",
+      "NORTH TWENTY FOUR PA",
+      "SOUTH DUM DUM",
+      "NYAZAT",
+      "BANGAON",
+      "TAKI",
+      "SONARPUR",
+      "KASHIMPUR",
+      "BUDGE BUDGE",
+      "GHATAKPUKUR",
+      "DIAMOND HABRA",
+      "CANNING TOWN",
+      "KAKDWIP",
+      "BAGHAJATIN",
+      "BANKURA",
+      "Bardhaman(a)Burdwa",
+      "SONAMUKHI",
+      "KHARAGUPUR",
+      "KAKGECHIA"
+    ],
+    "states": [
+      "West Bengal"
+    ]
+  },
+  "Basavaraj R": {
+    "points": [
+      {
+        "city": "HOLALKERE",
+        "lat": 14.0333,
+        "lng": 76.1833
+      },
+      {
+        "city": "CHITRADURGA",
+        "lat": 14.2305594,
+        "lng": 76.3984537
+      },
+      {
+        "city": "SHIMOGA",
+        "lat": 13.9299299,
+        "lng": 75.568101
+      },
+      {
+        "city": "BELGAUM",
+        "lat": 15.8496953,
+        "lng": 74.4976741
+      },
+      {
+        "city": "GADAG",
+        "lat": 15.4324651,
+        "lng": 75.6380337
+      },
+      {
+        "city": "HUBLI",
+        "lat": 15.3647083,
+        "lng": 75.1239547
+      },
+      {
+        "city": "UDUPI",
+        "lat": 13.3371151,
+        "lng": 74.746596
+      },
+      {
+        "city": "MANGALORE",
+        "lat": 12.9141417,
+        "lng": 74.8559568
+      },
+      {
+        "city": "DAVANGERE",
+        "lat": 14.4663438,
+        "lng": 75.9238397
+      }
+    ],
+    "cities": [
+      "JAGALUR",
+      "HOLALKERE",
+      "CHITRADURGA",
+      "CHALLAKERE",
+      "HOSADURGA",
+      "SHIMOGA",
+      "BHADRAVATHI",
+      "Thirthahalli",
+      "SHIRALAKOPPA",
+      "SAGAR",
+      "GOKAK",
+      "DHARWAD",
+      "KHANAPUR",
+      "HALIYAL",
+      "RAIBAG",
+      "ATHANI",
+      "HIREBAGEWADI",
+      "BELGAUM",
+      "GADAG",
+      "SIRSI",
+      "HANGAL",
+      "MANVI",
+      "HUBLI",
+      "UPPOOR",
+      "UDUPI",
+      "KAMBADAKONE",
+      "HONAVAR",
+      "KUNDAPURA",
+      "MANGALORE",
+      "EKKUR",
+      "KULOOR",
+      "PUTTUR",
+      "SULYA",
+      "BANNUR",
+      "MALADI",
+      "MELKAR",
+      "NADSAL",
+      "HALIVANA",
+      "DAVANGERE",
+      "RANEBENNUR",
+      "CHENAGIRI",
+      "HARPANAHALLY",
+      "HONNALI",
+      "HARIHARA",
+      "KOTTUR",
+      "HUVINAHADAGALI"
+    ],
+    "states": [
+      "Karnataka"
+    ]
+  },
+  "Harishankar S": {
+    "points": [
+      {
+        "city": "BANGALORE",
+        "lat": 12.9716,
+        "lng": 77.5946
+      },
+      {
+        "city": "KOLAR",
+        "lat": 13.1357446,
+        "lng": 78.1325611
+      },
+      {
+        "city": "VIJAYAPURA",
+        "lat": 16.8302,
+        "lng": 75.71
+      },
+      {
+        "city": "CHIKBALLAPUR",
+        "lat": 13.4333,
+        "lng": 77.7333
+      },
+      {
+        "city": "MULBAGAL",
+        "lat": 13.1667,
+        "lng": 78.4
+      },
+      {
+        "city": "BANGARPET",
+        "lat": 12.9833,
+        "lng": 78.1833
+      }
+    ],
+    "cities": [
+      "BANGALORE",
+      "CHINTAMANI",
+      "GOWRIBINDANUR",
+      "PERESANDRA",
+      "KOLAR",
+      "VIJAYAPURA",
+      "CHIKBALLAPUR",
+      "KACHANAIKANAHALLI",
+      "BETHAMANGALA",
+      "K.G.F",
+      "MALUR",
+      "HOSKOTE , T.G.EXTENS",
+      "MULBAGAL",
+      "BANGARPET"
+    ],
+    "states": [
+      "Karnataka"
+    ]
+  },
+  "JOHN PATTI S": {
+    "points": [
+      {
+        "city": "BIDAR",
+        "lat": 17.9104,
+        "lng": 77.5199
+      },
+      {
+        "city": "RAICHUR",
+        "lat": 16.212,
+        "lng": 77.3439
+      },
+      {
+        "city": "MASKI",
+        "lat": 15.95,
+        "lng": 76.6667
+      },
+      {
+        "city": "SINDHANUR",
+        "lat": 15.7667,
+        "lng": 76.7667
+      },
+      {
+        "city": "SHORAPUR",
+        "lat": 16.5167,
+        "lng": 76.75
+      },
+      {
+        "city": "YADGIR",
+        "lat": 16.7667,
+        "lng": 77.1333
+      },
+      {
+        "city": "HUNASAGI",
+        "lat": 16.45,
+        "lng": 76.5167
+      },
+      {
+        "city": "HUNGUND",
+        "lat": 16.0667,
+        "lng": 76.05
+      },
+      {
+        "city": "BANHATTI",
+        "lat": 16.3333,
+        "lng": 75.25
+      },
+      {
+        "city": "BAGALKOTE",
+        "lat": 16.1833,
+        "lng": 75.7
+      },
+      {
+        "city": "VIJAYAPURA",
+        "lat": 16.8302,
+        "lng": 75.71
+      },
+      {
+        "city": "HAGARIBOMMANAHALLY",
+        "lat": 15.1167,
+        "lng": 76.1
+      },
+      {
+        "city": "GANGAWATHY",
+        "lat": 15.4333,
+        "lng": 76.5333
+      },
+      {
+        "city": "KUDLIGI",
+        "lat": 14.9,
+        "lng": 76.3833
+      },
+      {
+        "city": "YELBURGA",
+        "lat": 15.6,
+        "lng": 76.0167
+      },
+      {
+        "city": "HOSPET",
+        "lat": 15.2688542,
+        "lng": 76.3909241
+      },
+      {
+        "city": "BELLARY",
+        "lat": 15.1393932,
+        "lng": 76.9214428
+      },
+      {
+        "city": "SIRUGUPPA",
+        "lat": 15.6333,
+        "lng": 76.9
+      }
+    ],
+    "cities": [
+      "BIDAR",
+      "RAICHUR",
+      "MASKI",
+      "MANVI",
+      "SINDHANUR",
+      "KALABURAGI",
+      "SHORAPUR",
+      "YADGIR",
+      "HUNASAGI",
+      "HUNGUND",
+      "BANHATTI",
+      "BAGALKOTE",
+      "VIJAYAPURA",
+      "KOPPAL",
+      "HAGARIBOMMANAHALLY",
+      "GANGAWATHY",
+      "KUDLIGI",
+      "HOSAHALLI",
+      "MOLAKALMURU",
+      "YELBURGA",
+      "HOSPET",
+      "BELLARY",
+      "EMMIGANUR",
+      "SIRUGUPPA",
+      "DHARMASAGARA"
+    ],
+    "states": [
+      "Karnataka"
+    ]
+  },
+  "S SRINIVASA": {
+    "points": [
+      {
+        "city": "MANDYA",
+        "lat": 12.5218,
+        "lng": 76.8951
+      },
+      {
+        "city": "HAROHALLI",
+        "lat": 12.6667,
+        "lng": 77.5167
+      },
+      {
+        "city": "CHENNAPATNA",
+        "lat": 12.65,
+        "lng": 77.2167
+      },
+      {
+        "city": "MYSORE",
+        "lat": 12.2958104,
+        "lng": 76.6393805
+      },
+      {
+        "city": "NANJANGUD",
+        "lat": 12.1167,
+        "lng": 76.6833
+      },
+      {
+        "city": "KADUR",
+        "lat": 13.55,
+        "lng": 76.0167
+      },
+      {
+        "city": "HASSAN",
+        "lat": 13.0068142,
+        "lng": 76.0995519
+      },
+      {
+        "city": "CHIKMAGALUR",
+        "lat": 13.315258,
+        "lng": 75.7754018
+      },
+      {
+        "city": "TARIKERE",
+        "lat": 13.7167,
+        "lng": 75.8167
+      },
+      {
+        "city": "SAKLESHOUR",
+        "lat": 12.9667,
+        "lng": 75.7833
+      },
+      {
+        "city": "MADHUGIRI",
+        "lat": 13.65,
+        "lng": 77.2167
+      },
+      {
+        "city": "TUMKUR",
+        "lat": 13.345018,
+        "lng": 77.101945
+      },
+      {
+        "city": "SIRA",
+        "lat": 13.75,
+        "lng": 76.9167
+      },
+      {
+        "city": "KUNIGAL",
+        "lat": 13.0167,
+        "lng": 77.0333
+      },
+      {
+        "city": "HUNSUR",
+        "lat": 12.3167,
+        "lng": 76.2833
+      },
+      {
+        "city": "NAGAMANGALA",
+        "lat": 12.8167,
+        "lng": 76.7667
+      },
+      {
+        "city": "KUSHALNAGAR",
+        "lat": 12.45,
+        "lng": 75.9667
+      },
+      {
+        "city": "VIRAJPET",
+        "lat": 12.2,
+        "lng": 75.8
+      }
+    ],
+    "cities": [
+      "MANDYA",
+      "CHAMRAJNAGAR",
+      "HAROHALLI",
+      "RAMANAGARAM",
+      "CHENNAPATNA",
+      "HANUR",
+      "MYSORE",
+      "NANJANGUD",
+      "KADUR",
+      "HASSAN",
+      "CHIKMAGALUR",
+      "HOLENARASIPUR",
+      "HOLENARSIOURA",
+      "ARAKALGUD",
+      "TARIKERE",
+      "JAYAPURA",
+      "SAKLESHOUR",
+      "KUDUR",
+      "MADHUGIRI",
+      "GIBBI",
+      "TIRUVEKERE",
+      "PAVAGADA",
+      "CHIKNAYAKANHALLI",
+      "TUMKUR",
+      "TIPTUR",
+      "SIRA",
+      "KORATAGERE",
+      "KUNIGAL",
+      "HUNSUR",
+      "NAGAMANGALA",
+      "KUSHALNAGAR",
+      "K.R.PET",
+      "VIRAJPET",
+      "SALIGRAMA"
+    ],
+    "states": [
+      "Karnataka"
+    ]
+  },
+  "H D Chandan Kumar": {
+    "points": [
+      {
+        "city": "MALAPURAM",
+        "lat": 11.0735,
+        "lng": 76.074
+      },
+      {
+        "city": "KADAMPUZHA",
+        "lat": 10.9833,
+        "lng": 76.0167
+      },
+      {
+        "city": "KONDOTTY",
+        "lat": 11.1333,
+        "lng": 75.9667
+      },
+      {
+        "city": "KASARGODE",
+        "lat": 12.5,
+        "lng": 75
+      },
+      {
+        "city": "CHERKALA",
+        "lat": 12.55,
+        "lng": 75.0667
+      },
+      {
+        "city": "PALAKKAD",
+        "lat": 10.7867303,
+        "lng": 76.6547932
+      },
+      {
+        "city": "KOZHIKODE",
+        "lat": 11.2588,
+        "lng": 75.7804
+      }
+    ],
+    "cities": [
+      "MALAPURAM",
+      "KADAMPUZHA",
+      "KONDOTTY",
+      "KASARGODE",
+      "CHERKALA",
+      "KOTTUR",
+      "PALAKKAD",
+      "TRICHUR",
+      "KOZHIKODE"
+    ],
+    "states": [
+      "Kerala"
+    ]
+  },
+  "SURESH KUMAR B H": {
+    "points": [
+      {
+        "city": "PUNALUR",
+        "lat": 9.0167,
+        "lng": 76.9167
+      },
+      {
+        "city": "KOLLAM",
+        "lat": 8.8932118,
+        "lng": 76.6141396
+      },
+      {
+        "city": "ALAPUZHA",
+        "lat": 9.4833,
+        "lng": 76.3333
+      },
+      {
+        "city": "ERNAKULAM",
+        "lat": 9.9833,
+        "lng": 76.2833
+      }
+    ],
+    "cities": [
+      "PUNALUR",
+      "KOLLAM",
+      "PALLIPPURAM",
+      "ALAPUZHA",
+      "ERNAKULAM"
+    ],
+    "states": [
+      "Kerala"
+    ]
+  },
+  "Varri Anil Kumar": {
+    "points": [
+      {
+        "city": "KAIKALUR",
+        "lat": 16.55,
+        "lng": 81.2
+      },
+      {
+        "city": "GUDIVADA",
+        "lat": 16.4333,
+        "lng": 80.9833
+      },
+      {
+        "city": "MACHILIPATNAM",
+        "lat": 16.1833,
+        "lng": 81.1333
+      },
+      {
+        "city": "TIRUVURU",
+        "lat": 17.1167,
+        "lng": 80.6167
+      },
+      {
+        "city": "VUYYURU",
+        "lat": 16.3667,
+        "lng": 80.85
+      },
+      {
+        "city": "NUZIVIDU",
+        "lat": 16.7833,
+        "lng": 80.85
+      },
+      {
+        "city": "BADVEL",
+        "lat": 14.75,
+        "lng": 79.05
+      },
+      {
+        "city": "PODILI",
+        "lat": 15.6,
+        "lng": 79.6167
+      },
+      {
+        "city": "MARKAPUR",
+        "lat": 15.7333,
+        "lng": 79.2833
+      },
+      {
+        "city": "NELLORE",
+        "lat": 14.4425987,
+        "lng": 79.986456
+      },
+      {
+        "city": "ADDANKI",
+        "lat": 15.8167,
+        "lng": 80.1167
+      },
+      {
+        "city": "MANGALAGIRI",
+        "lat": 16.4333,
+        "lng": 80.5667
+      },
+      {
+        "city": "CHILAKALURIPET",
+        "lat": 16.1,
+        "lng": 80.1667
+      },
+      {
+        "city": "TENALI",
+        "lat": 16.2333,
+        "lng": 80.65
+      },
+      {
+        "city": "REPALLE",
+        "lat": 16.0167,
+        "lng": 80.85
+      },
+      {
+        "city": "GUNTUR",
+        "lat": 16.3066525,
+        "lng": 80.4365402
+      },
+      {
+        "city": "MACHERLA",
+        "lat": 16.4833,
+        "lng": 79.4333
+      },
+      {
+        "city": "NARASARAOPET",
+        "lat": 16.2333,
+        "lng": 80.05
+      },
+      {
+        "city": "VINUKONDA",
+        "lat": 16.05,
+        "lng": 79.75
+      },
+      {
+        "city": "PIDUGURALLA",
+        "lat": 16.4833,
+        "lng": 79.8833
+      },
+      {
+        "city": "GURAZALA",
+        "lat": 16.5833,
+        "lng": 79.5667
+      },
+      {
+        "city": "SATTENAPALLI",
+        "lat": 16.4,
+        "lng": 80.15
+      },
+      {
+        "city": "NAIDUPET",
+        "lat": 13.9167,
+        "lng": 79.9
+      },
+      {
+        "city": "ATMAKUR",
+        "lat": 15.8833,
+        "lng": 78.5833
+      },
+      {
+        "city": "GUDUR",
+        "lat": 14.15,
+        "lng": 79.85
+      },
+      {
+        "city": "NANDIGAMA",
+        "lat": 16.7667,
+        "lng": 80.2833
+      },
+      {
+        "city": "VIJAYAWADA I",
+        "lat": 16.5062,
+        "lng": 80.648
+      },
+      {
+        "city": "ONGOLE",
+        "lat": 15.5057,
+        "lng": 80.0499
+      },
+      {
+        "city": "KANDUKUR",
+        "lat": 15.2167,
+        "lng": 79.9
+      },
+      {
+        "city": "CHIRALA",
+        "lat": 15.8167,
+        "lng": 80.35
+      },
+      {
+        "city": "PAMURU",
+        "lat": 15.1,
+        "lng": 79.4167
+      }
+    ],
+    "cities": [
+      "KAIKALUR",
+      "APPANAVEEDU",
+      "GUDIVADA",
+      "MACHILIPATNAM",
+      "KUCHIPUDI",
+      "TIRUVURU",
+      "VUYYURU",
+      "NUZIVIDU",
+      "VISSANNAPETA",
+      "BADVEL",
+      "DORNALA",
+      "PODILI",
+      "MARKAPUR",
+      "BALLIKURAVA",
+      "NELLORE",
+      "ADDANKI",
+      "MANGALAGIRI",
+      "CHILAKALURIPET",
+      "TENALI",
+      "REPALLE",
+      "GUNTUR",
+      "MACHERLA",
+      "LEMALLE",
+      "NARASARAOPET",
+      "VINUKONDA",
+      "PIDUGURALLA",
+      "GURAZALA",
+      "SATTENAPALLI",
+      "RAPUR",
+      "NAIDUPET",
+      "VINJAMUR",
+      "ATMAKUR",
+      "KOTA",
+      "KONDURU",
+      "GUDUR",
+      "NANDIGAMA",
+      "VIJAYAWADA I",
+      "ONGOLE",
+      "KANDUKUR",
+      "CHIRALA",
+      "PAMURU"
+    ],
+    "states": [
+      "Andhra Pradesh"
+    ]
+  },
+  "Banoth Sravan Kumar": {
+    "points": [
+      {
+        "city": "BADRACHALAM",
+        "lat": 17.6667,
+        "lng": 80.8833
+      },
+      {
+        "city": "KOTHAGUDEM",
+        "lat": 17.55,
+        "lng": 80.6167
+      },
+      {
+        "city": "MIRYALGUDA",
+        "lat": 17,
+        "lng": 79.5667
+      },
+      {
+        "city": "SURYAPET",
+        "lat": 17.14,
+        "lng": 79.62
+      },
+      {
+        "city": "NALGONDA",
+        "lat": 17.05,
+        "lng": 79.2667
+      },
+      {
+        "city": "HYDERABAD",
+        "lat": 17.384934,
+        "lng": 78.486616
+      },
+      {
+        "city": "KHAMMAM",
+        "lat": 17.247318,
+        "lng": 80.151443
+      },
+      {
+        "city": "KODAD",
+        "lat": 17.1167,
+        "lng": 80
+      }
+    ],
+    "cities": [
+      "BADRACHALAM",
+      "TANDUR",
+      "ASHWAROAPET",
+      "KOTHAGUDEM",
+      "PALVANCHA",
+      "DEVARKONDA",
+      "MIRYALGUDA",
+      "TIRUMALAGIRI",
+      "HALIYA",
+      "CHITTYAL",
+      "SURYAPET",
+      "NALGONDA",
+      "KONDA MALLEPALLY",
+      "HYDERABAD",
+      "MEDCHAL",
+      "MADHIRA",
+      "HUZURNAGAR",
+      "KHAMMAM",
+      "KODAD",
+      "IBRAHIPATNAM"
+    ],
+    "states": [
+      "Telangana"
+    ]
+  },
+  "NARESH REDDY B": {
+    "points": [
+      {
+        "city": "ADILABAD",
+        "lat": 19.6759,
+        "lng": 78.532
+      },
+      {
+        "city": "JAGITIAL",
+        "lat": 18.8,
+        "lng": 78.9333
+      },
+      {
+        "city": "NIZAMABAD",
+        "lat": 18.6725,
+        "lng": 78.0941
+      },
+      {
+        "city": "KARIM NAGAR",
+        "lat": 18.4386,
+        "lng": 79.1288
+      },
+      {
+        "city": "SIDDIPET",
+        "lat": 18.1,
+        "lng": 78.85
+      },
+      {
+        "city": "SIRCILLA",
+        "lat": 18.3833,
+        "lng": 78.8333
+      },
+      {
+        "city": "ARMOOR",
+        "lat": 18.7833,
+        "lng": 78.2833
+      },
+      {
+        "city": "KAMAREDDY",
+        "lat": 18.3167,
+        "lng": 78.35
+      },
+      {
+        "city": "HANAMKONDA",
+        "lat": 18.0167,
+        "lng": 79.55
+      },
+      {
+        "city": "WARANGAL",
+        "lat": 17.9689,
+        "lng": 79.5941
+      },
+      {
+        "city": "JANAGOAN",
+        "lat": 17.7167,
+        "lng": 79.1667
+      },
+      {
+        "city": "BHONGIR",
+        "lat": 17.5167,
+        "lng": 78.8833
+      },
+      {
+        "city": "MANCHERIAL",
+        "lat": 18.87,
+        "lng": 79.45
+      },
+      {
+        "city": "GODAVARIKANI",
+        "lat": 18.8,
+        "lng": 79.4833
+      }
+    ],
+    "cities": [
+      "ADILABAD",
+      "METPALLY",
+      "NIRMAL",
+      "JAGITIAL",
+      "BOATH",
+      "NIZAMABAD",
+      "MAHABUBAD",
+      "NEKKONDA",
+      "MULUGU",
+      "HUSUNABAD",
+      "THORRUR",
+      "PARKAL",
+      "KARIM NAGAR",
+      "VEMULWADA",
+      "SIDDIPET",
+      "SIRCILLA",
+      "NAGARKURNOOL",
+      "ARMOOR",
+      "KAMAREDDY",
+      "BODHAN",
+      "HANAMKONDA",
+      "WARANGAL",
+      "JANAGOAN",
+      "BHONGIR",
+      "CHERIAL",
+      "PALAKURTHI",
+      "MANCHERIAL",
+      "CHENNUR",
+      "SIRPUR KHAGHAZNAGAR",
+      "PEDAPALLY",
+      "DHARMARAM",
+      "MANTHANI",
+      "GODAVARIKANI"
+    ],
+    "states": [
+      "Telangana"
+    ]
+  },
+  "SASANAPURI SAI GOUTHAM": {
+    "points": [
+      {
+        "city": "KAKINADA",
+        "lat": 16.9890648,
+        "lng": 82.2474648
+      },
+      {
+        "city": "DRAKSHARAMAM",
+        "lat": 16.7333,
+        "lng": 82.0667
+      },
+      {
+        "city": "RAVULAPALEM",
+        "lat": 16.75,
+        "lng": 81.85
+      },
+      {
+        "city": "PEDDAPURAM",
+        "lat": 17.0333,
+        "lng": 82.1333
+      },
+      {
+        "city": "PARVATHIPURAM",
+        "lat": 18.7833,
+        "lng": 83.4333
+      },
+      {
+        "city": "SALUR",
+        "lat": 18.5333,
+        "lng": 83.2167
+      },
+      {
+        "city": "RAJAM",
+        "lat": 18.4667,
+        "lng": 83.6667
+      },
+      {
+        "city": "BOBBILI",
+        "lat": 18.5667,
+        "lng": 83.3667
+      },
+      {
+        "city": "VIZAYANAGARAM",
+        "lat": 18.1167,
+        "lng": 83.4167
+      },
+      {
+        "city": "RAJAHMUNDRY",
+        "lat": 17.0005,
+        "lng": 81.772
+      },
+      {
+        "city": "Rajamahendravaram",
+        "lat": 17.0005383,
+        "lng": 81.8040345
+      },
+      {
+        "city": "TUNI",
+        "lat": 17.35,
+        "lng": 82.55
+      },
+      {
+        "city": "YELLAMANCHILI",
+        "lat": 17.55,
+        "lng": 82.85
+      },
+      {
+        "city": "NARSIPATNAM",
+        "lat": 17.6667,
+        "lng": 82.6167
+      },
+      {
+        "city": "CHODAVARAM",
+        "lat": 17.8333,
+        "lng": 82.95
+      },
+      {
+        "city": "PITHAPURAM",
+        "lat": 17.1167,
+        "lng": 82.2667
+      },
+      {
+        "city": "VISHAKAPATNAM",
+        "lat": 17.6868,
+        "lng": 83.2185
+      },
+      {
+        "city": "ANAKAPALLE",
+        "lat": 17.6833,
+        "lng": 83
+      },
+      {
+        "city": "PALAKOL",
+        "lat": 16.5167,
+        "lng": 81.7333
+      },
+      {
+        "city": "TANUKU",
+        "lat": 16.75,
+        "lng": 81.7
+      },
+      {
+        "city": "NARASAPUR",
+        "lat": 16.4333,
+        "lng": 81.7
+      },
+      {
+        "city": "TADEPALLIGUDEM",
+        "lat": 16.8333,
+        "lng": 81.5
+      },
+      {
+        "city": "SOMPETA",
+        "lat": 18.9333,
+        "lng": 84.6
+      },
+      {
+        "city": "SRIKAKULAM",
+        "lat": 18.3,
+        "lng": 83.9
+      },
+      {
+        "city": "TEKKALI",
+        "lat": 18.6167,
+        "lng": 84.2333
+      },
+      {
+        "city": "ELURU",
+        "lat": 16.7107,
+        "lng": 81.1035
+      },
+      {
+        "city": "BHIMAVARAM",
+        "lat": 16.5333,
+        "lng": 81.5333
+      }
+    ],
+    "cities": [
+      "SUNKARAPALEM",
+      "KAKINADA",
+      "AMALAPURAM",
+      "SIVAKODU",
+      "DRAKSHARAMAM",
+      "MUMMIDIVARAM",
+      "RAVULAPALEM",
+      "TATIPAKA",
+      "PEDDAPURAM",
+      "GOLLALAMAMIDADA",
+      "PARVATHIPURAM",
+      "SALUR",
+      "RAJAM",
+      "KOTA",
+      "BOBBILI",
+      "VIZAYANAGARAM",
+      "CHIPURUPALLI",
+      "GAJAPATHINAGARAM",
+      "GOKAVARAM",
+      "RAJAHMUNDRY",
+      "VEMAGIRI",
+      "RAMACHANDRAPURAM",
+      "KORUKONDA",
+      "Rajamahendravaram",
+      "TUNI",
+      "YELLAMANCHILI",
+      "NARSIPATNAM",
+      "RAVIKAMTHAM",
+      "PRATHIPADU",
+      "CHODAVARAM",
+      "CHEBROLLU",
+      "ROWTHULAPUDI",
+      "JAGGAMPETA",
+      "PITHAPURAM",
+      "VISHAKAPATNAM",
+      "ANAKAPALLE",
+      "KOTHAVALASA",
+      "PALAKOL",
+      "TANUKU",
+      "NARASAPUR",
+      "TADEPALLIGUDEM",
+      "POLAVARAM",
+      "ISUKAPATLAPANGIDI",
+      "SOMPETA",
+      "SRIKAKULAM",
+      "NARASANNAPET",
+      "KOTTURU",
+      "JR PURAM",
+      "PONDURA",
+      "TEKKALI",
+      "ELURU",
+      "DONDAPADU",
+      "BHIMAVARAM",
+      "KOYYALAGUDEM",
+      "MN palli",
+      "AKIVIDU",
+      "VISSAKODERU"
+    ],
+    "states": [
+      "Andhra Pradesh"
+    ]
+  },
+  "Shashank Katamvar": {
+    "points": [
+      {
+        "city": "VIKARABAD",
+        "lat": 17.3333,
+        "lng": 77.9
+      },
+      {
+        "city": "ZAHEERABAD",
+        "lat": 17.6833,
+        "lng": 77.6
+      },
+      {
+        "city": "MEDAK",
+        "lat": 18.0333,
+        "lng": 78.2667
+      },
+      {
+        "city": "SHAD NAGAR",
+        "lat": 17.0667,
+        "lng": 78.2
+      },
+      {
+        "city": "HYDERABAD",
+        "lat": 17.384934,
+        "lng": 78.486616
+      },
+      {
+        "city": "KAVALI",
+        "lat": 14.9167,
+        "lng": 79.9833
+      },
+      {
+        "city": "WANARPATHY",
+        "lat": 16.3667,
+        "lng": 78.0667
+      },
+      {
+        "city": "ACHAMPET",
+        "lat": 16.2333,
+        "lng": 78.9667
+      },
+      {
+        "city": "GAJWEL",
+        "lat": 17.85,
+        "lng": 78.6833
+      },
+      {
+        "city": "MAHABUBNAGAR",
+        "lat": 16.7367,
+        "lng": 77.9971
+      },
+      {
+        "city": "JADCHERLA",
+        "lat": 16.7667,
+        "lng": 78.15
+      },
+      {
+        "city": "GADWAL",
+        "lat": 16.2333,
+        "lng": 77.8
+      },
+      {
+        "city": "NARAYANAPET",
+        "lat": 16.7333,
+        "lng": 77.5
+      }
+    ],
+    "cities": [
+      "PARGI",
+      "VIKARABAD",
+      "NARSAPUR",
+      "TANDUR",
+      "SADASHIVPET",
+      "TANGATOOR",
+      "JOGIPET",
+      "ZAHEERABAD",
+      "MEDAK",
+      "SHAD NAGAR",
+      "HYDERABAD",
+      "KAVALI",
+      "KALWAKURTHY",
+      "KOTHUR",
+      "WANARPATHY",
+      "MEDCHAL",
+      "NAGARKURNOOL",
+      "ACHAMPET",
+      "AMANGAL",
+      "KOLLAPUR",
+      "GAJWEL",
+      "MAHABUBNAGAR",
+      "MALDAKALLU",
+      "JADCHERLA",
+      "GADWAL",
+      "KOSGI",
+      "NARAYANAPET",
+      "JOGULAMBA"
+    ],
+    "states": [
+      "Telangana"
+    ]
+  },
+  "VAMSHI KRISHNA": {
+    "points": [
+      {
+        "city": "TIRUPATHI",
+        "lat": 13.6288,
+        "lng": 79.4192
+      },
+      {
+        "city": "KURNOOL",
+        "lat": 15.8281257,
+        "lng": 78.0372792
+      },
+      {
+        "city": "ADONI",
+        "lat": 15.6333,
+        "lng": 77.2833
+      },
+      {
+        "city": "RAYADURGAM",
+        "lat": 14.7,
+        "lng": 76.85
+      },
+      {
+        "city": "GOOTY",
+        "lat": 15.1167,
+        "lng": 77.6333
+      },
+      {
+        "city": "TADIPATRI",
+        "lat": 14.9167,
+        "lng": 78.0167
+      },
+      {
+        "city": "GUNTAKAL",
+        "lat": 15.1667,
+        "lng": 77.3667
+      },
+      {
+        "city": "NANDHYAL",
+        "lat": 15.4833,
+        "lng": 78.4833
+      },
+      {
+        "city": "DHONE",
+        "lat": 15.4,
+        "lng": 77.8833
+      },
+      {
+        "city": "CUDDAPAH",
+        "lat": 14.4673,
+        "lng": 78.8242
+      },
+      {
+        "city": "RAYACHOTY",
+        "lat": 14.05,
+        "lng": 78.75
+      },
+      {
+        "city": "PRODATTUR",
+        "lat": 14.75,
+        "lng": 78.55
+      },
+      {
+        "city": "PULIVENDLA",
+        "lat": 14.4167,
+        "lng": 78.2333
+      },
+      {
+        "city": "BADVEL",
+        "lat": 14.75,
+        "lng": 79.05
+      },
+      {
+        "city": "PUNGANUR",
+        "lat": 13.3667,
+        "lng": 78.5833
+      },
+      {
+        "city": "MADANAPALLI",
+        "lat": 13.55,
+        "lng": 78.5
+      },
+      {
+        "city": "PILER",
+        "lat": 13.65,
+        "lng": 78.9333
+      },
+      {
+        "city": "KADIRI",
+        "lat": 14.1167,
+        "lng": 78.1667
+      },
+      {
+        "city": "PUTTAPARTHI",
+        "lat": 14.1667,
+        "lng": 77.8167
+      },
+      {
+        "city": "HINDUPUR",
+        "lat": 13.8333,
+        "lng": 77.4833
+      }
+    ],
+    "cities": [
+      "KUPPAM",
+      "TIRUPATHI",
+      "NARAYANAVARAM",
+      "VENKATAGIRIKOTA",
+      "PUTTUR",
+      "SRIKALAHASTHI",
+      "KURNOOL",
+      "ADONI",
+      "YEMMIGANUR",
+      "DEVANAKONDA",
+      "RAYADURGAM",
+      "KALYANDURG",
+      "ANATHAPUR",
+      "GOOTY",
+      "TADIPATRI",
+      "KANEKAL",
+      "VAJRAKARUR",
+      "GUNTAKAL",
+      "REDDY PALLI",
+      "NANDHYAL",
+      "DHONE",
+      "VELDURTHY",
+      "BANAGANAPALLI",
+      "VELGODE",
+      "CUDDAPAH",
+      "MYDUKUR",
+      "RAYACHOTY",
+      "CHILAMAKUR",
+      "PRODATTUR",
+      "PULIVENDLA",
+      "BADVEL",
+      "RAMAKUPPAM",
+      "CHITTOR",
+      "PUNGANUR",
+      "MADANAPALLI",
+      "PALAMANEER",
+      "RAJAMPET",
+      "KALLUR",
+      "SATHYAVEDU",
+      "KODUR",
+      "PILER",
+      "SRINIVASAMANGAPURAM",
+      "KADIRI",
+      "PENUKONDA",
+      "PUTTAPARTHI",
+      "HINDUPUR"
+    ],
+    "states": [
+      "Andhra Pradesh"
+    ]
+  },
+  "Thallam Zithin Kumar": {
+    "points": [
+      {
+        "city": "KURNOOL",
+        "lat": 15.8281257,
+        "lng": 78.0372792
+      }
+    ],
+    "cities": [
+      "KURNOOL"
+    ],
+    "states": [
+      "Andhra Pradesh"
+    ]
+  },
+  "Anand Kumar": {
+    "points": [
+      {
+        "city": "Navi Mumbai",
+        "lat": 19.033,
+        "lng": 73.0297
+      },
+      {
+        "city": "BHIWANDI",
+        "lat": 19.3,
+        "lng": 73.0667
+      },
+      {
+        "city": "PANVEL",
+        "lat": 18.9833,
+        "lng": 73.1167
+      },
+      {
+        "city": "MUMBAI",
+        "lat": 19.0759837,
+        "lng": 72.8776559
+      },
+      {
+        "city": "KALYAN",
+        "lat": 19.2433,
+        "lng": 73.135
+      },
+      {
+        "city": "ULHASNAGAR",
+        "lat": 19.2167,
+        "lng": 73.15
+      },
+      {
+        "city": "VASHI",
+        "lat": 19.07,
+        "lng": 73
+      }
+    ],
+    "cities": [
+      "Navi Mumbai",
+      "BHIWANDI",
+      "PANVEL",
+      "Thane",
+      "MUMBAI",
+      "KALYAN",
+      "SHAHAPUR",
+      "ULHASNAGAR",
+      "JAWHAR",
+      "BADLAPUR (E)",
+      "DAHANU",
+      "NALLASOPARA (E)",
+      "VIRAR",
+      "PALGHAR",
+      "VASHI"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "CHANDRA PRAKASH SINGH": {
+    "points": [
+      {
+        "city": "SILLOD",
+        "lat": 20.3,
+        "lng": 75.65
+      },
+      {
+        "city": "GEORAI",
+        "lat": 19.2667,
+        "lng": 75.75
+      },
+      {
+        "city": "SHRIRAMPUR",
+        "lat": 19.6167,
+        "lng": 74.65
+      }
+    ],
+    "cities": [
+      "BHOKARDHAN",
+      "SILLOD",
+      "JALNA-I",
+      "MANTHA",
+      "GEORAI",
+      "AURANGABAD-I",
+      "KANNAD",
+      "VAIJAPUR",
+      "WALUJ",
+      "BIDKIN",
+      "FULAMBRI",
+      "SHRIRAMPUR",
+      "RAHURI",
+      "KOPERGAON",
+      "AHMEDNAGAR-I"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "GAURAV CHATURVEDI": {
+    "points": [
+      {
+        "city": "CHANDRAPUR",
+        "lat": 19.95,
+        "lng": 79.3
+      },
+      {
+        "city": "GONDIA",
+        "lat": 21.45,
+        "lng": 80.2
+      },
+      {
+        "city": "BHANDARA",
+        "lat": 21.1667,
+        "lng": 79.65
+      },
+      {
+        "city": "KAMPTEE",
+        "lat": 21.2275312,
+        "lng": 79.1900834
+      },
+      {
+        "city": "HINGANGHAT",
+        "lat": 20.5505728,
+        "lng": 78.8411405
+      },
+      {
+        "city": "ACHALPUR",
+        "lat": 21.257584,
+        "lng": 77.5086754
+      }
+    ],
+    "cities": [
+      "PIPRI",
+      "PUSAD",
+      "YAVATMAL-I",
+      "DIGRAS",
+      "UMARKHED",
+      "BALLARPUR",
+      "CHANDRAPUR",
+      "GONDIA",
+      "PANDHARKAWADA",
+      "WANI",
+      "WARORA",
+      "ALLAPALLI",
+      "CHIMUR",
+      "DESAIGANJ",
+      "MOHADI",
+      "BHANDARA",
+      "PAUNI",
+      "AMGAON",
+      "NAGPUR-I",
+      "KAMPTEE",
+      "WADI",
+      "KANHAN",
+      "DAVLAMETI",
+      "HINGANGHAT",
+      "AMRAVATI-I",
+      "ACHALPUR"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "MOHAMMAD RAHIMUDDIN SIDDIKI": {
+    "points": [
+      {
+        "city": "BULDHANA",
+        "lat": 20.5333,
+        "lng": 76.1833
+      },
+      {
+        "city": "NANDED",
+        "lat": 19.1383,
+        "lng": 77.321
+      }
+    ],
+    "cities": [
+      "BULDHANA",
+      "MURTIZAPUR",
+      "MALKAPUR",
+      "KHAMGAON-I",
+      "BARSHI-I",
+      "CHIKHLI",
+      "AKOLA-I",
+      "MEHKAR",
+      "DHARMABAD",
+      "DEGLOOR",
+      "BARAD",
+      "HINGOLI",
+      "SENGAON",
+      "KARANJA",
+      "JAWALA BAZAR",
+      "NAIGAON",
+      "WASHIM",
+      "PARBHANI-I",
+      "SAILU",
+      "NANDED",
+      "GANGAKHED",
+      "PURNA",
+      "MUKHED",
+      "JINTUR",
+      "HIMAYATNAGAR",
+      "KINWAT",
+      "HADGAON",
+      "UMRI"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "PRASHANT PHADATARE": {
+    "points": [
+      {
+        "city": "SATARA",
+        "lat": 17.6804639,
+        "lng": 74.018261
+      },
+      {
+        "city": "ISLAMPUR",
+        "lat": 26.2667,
+        "lng": 88.2
+      }
+    ],
+    "cities": [
+      "SOLAPUR-I",
+      "BARSHI-I",
+      "MADHA",
+      "KARMALA",
+      "PUNE-I",
+      "DAUND",
+      "MAHAD",
+      "KOLAD",
+      "RAIGARH",
+      "ALIBAG",
+      "VANGANI",
+      "BARAMATI-I",
+      "SATARA",
+      "KARAD-I",
+      "SHIRALA",
+      "KUNDAL",
+      "ISLAMPUR",
+      "BHOR",
+      "LONAVALA",
+      "TALEGAON"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "RAKESH VISHWAKARMA": {
+    "points": [
+      {
+        "city": "Dhule",
+        "lat": 20.9042201,
+        "lng": 74.7748979
+      },
+      {
+        "city": "MALEGAON",
+        "lat": 20.55,
+        "lng": 74.5333
+      },
+      {
+        "city": "NANDURBAR",
+        "lat": 21.3755507,
+        "lng": 74.2427644
+      }
+    ],
+    "cities": [
+      "Dhule",
+      "SHIRPUR-I",
+      "MALEGAON",
+      "NAVAPUR",
+      "NANDURBAR",
+      "NER",
+      "DHONDAICHA",
+      "NASIK",
+      "MANMAD-I",
+      "LASALGOAN",
+      "DEOLA",
+      "YEOLA",
+      "SINNAR",
+      "SURGANA",
+      "BHUSAVAL",
+      "JALGAON-I",
+      "CHOPDA",
+      "PACHORA",
+      "KASODA"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "SAGAR KULKARNI": {
+    "points": [
+      {
+        "city": "OSMANABAD",
+        "lat": 18.1860659,
+        "lng": 76.0419409
+      }
+    ],
+    "cities": [
+      "BEED-I",
+      "AMBEJOGAI",
+      "SOLAPUR-I",
+      "KALAMB",
+      "WASHI",
+      "OMERGA",
+      "LATUR-I",
+      "MURUD BK",
+      "DEONI",
+      "OSMANABAD",
+      "LONI",
+      "CHAKUR",
+      "NILANGA"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "TSM_Kolhapur": {
+    "points": [
+      {
+        "city": "GOA",
+        "lat": 15.2993,
+        "lng": 74.124
+      },
+      {
+        "city": "RATNAGIRI",
+        "lat": 16.9902,
+        "lng": 73.312
+      },
+      {
+        "city": "ICHALKARANJI",
+        "lat": 16.7090008,
+        "lng": 74.4560807
+      }
+    ],
+    "cities": [
+      "GOA",
+      "SAWANTWADI",
+      "RATNAGIRI",
+      "CHIPLUN",
+      "KANKAVLI",
+      "SANGAMESHWAR",
+      "SANGLI-I",
+      "ICHALKARANJI",
+      "KOLHAPUR-I",
+      "BELANKI",
+      "CHANDGAD"
+    ],
+    "states": [
+      "Maharashtra",
+      "Goa"
+    ]
+  },
+  "Gaurav Sharma": {
+    "points": [
+      {
+        "city": "VADODARA",
+        "lat": 22.3072,
+        "lng": 73.1812
+      },
+      {
+        "city": "KALOL",
+        "lat": 23.2463895,
+        "lng": 72.5086513
+      },
+      {
+        "city": "ANAND",
+        "lat": 22.5645175,
+        "lng": 72.928871
+      }
+    ],
+    "cities": [
+      "BODELI",
+      "BAJWA",
+      "SAVLI",
+      "DASHRATH",
+      "PADRA",
+      "BARODA-1",
+      "KARJAN",
+      "VADODARA",
+      "ANAND-1",
+      "KALOL",
+      "KHED-1",
+      "LUNAWADA",
+      "GODHRA-1",
+      "SEVALIYA",
+      "BORSAD",
+      "KAPADWANJ-1",
+      "ANAND",
+      "NADIAD-1",
+      "PETLAD"
+    ],
+    "states": [
+      "Gujarat"
+    ]
+  },
+  "Harshita Agrawal": {
+    "points": [
+      {
+        "city": "PORBANDAR",
+        "lat": 21.6417069,
+        "lng": 69.6292654
+      },
+      {
+        "city": "BHUJ",
+        "lat": 23.242,
+        "lng": 69.6669
+      },
+      {
+        "city": "GONDAL",
+        "lat": 21.9619463,
+        "lng": 70.792297
+      },
+      {
+        "city": "GANDHIDHAM",
+        "lat": 23.0833,
+        "lng": 70.1333
+      },
+      {
+        "city": "MORBI",
+        "lat": 22.8119895,
+        "lng": 70.8236195
+      },
+      {
+        "city": "JETPUR",
+        "lat": 21.761778,
+        "lng": 70.621101
+      }
+    ],
+    "cities": [
+      "PORBANDAR",
+      "JAMNAGAR-1",
+      "KHAMBHALIA",
+      "KUTCH",
+      "BHUJ",
+      "RAPAR",
+      "BHANVAD",
+      "RAJKOT-1",
+      "GONDAL",
+      "GANDHIDHAM",
+      "MORBI",
+      "JETPUR",
+      "WANKANER",
+      "JASDAN"
+    ],
+    "states": [
+      "Gujarat"
+    ]
+  },
+  "Rupesh Tirthnath Mishra": {
+    "points": [
+      {
+        "city": "PALANPUR",
+        "lat": 24.174051,
+        "lng": 72.4330989
+      },
+      {
+        "city": "MEHSANA",
+        "lat": 23.5879607,
+        "lng": 72.3693252
+      },
+      {
+        "city": "DEESA",
+        "lat": 24.25,
+        "lng": 72.1833
+      },
+      {
+        "city": "KALOL",
+        "lat": 23.2463895,
+        "lng": 72.5086513
+      },
+      {
+        "city": "GANDHINAGAR",
+        "lat": 23.2156,
+        "lng": 72.6369
+      },
+      {
+        "city": "HIMMATNAGAR",
+        "lat": 23.6,
+        "lng": 72.95
+      },
+      {
+        "city": "MODASA",
+        "lat": 23.4667,
+        "lng": 73.3
+      }
+    ],
+    "cities": [
+      "THARA",
+      "KADI",
+      "UNJHA",
+      "PALANPUR",
+      "LAKHANI",
+      "BHABHAR",
+      "IQBALGADH",
+      "PATAN-1",
+      "MEHSANA",
+      "VISNAGAR-1",
+      "DEESA",
+      "DHANERA",
+      "VIJAPUR",
+      "BHILDI",
+      "CHHAPI",
+      "TALOD",
+      "KALOL",
+      "GANDHINAGAR",
+      "RAKHIYAL GAM",
+      "PRANTIJ",
+      "HIMMATNAGAR",
+      "MEGHRAJ",
+      "SATHAMBA",
+      "MAUTANDA",
+      "IDAR",
+      "MODASA"
+    ],
+    "states": [
+      "Gujarat"
+    ]
+  },
+  "SHRAVAN KUMAR SINGH": {
+    "points": [
+      {
+        "city": "RAJPIPLA",
+        "lat": 21.8667,
+        "lng": 73.5
+      },
+      {
+        "city": "NAVSARI",
+        "lat": 20.9467019,
+        "lng": 72.9520348
+      }
+    ],
+    "cities": [
+      "ANKLESHWAR-1",
+      "SURAT-1",
+      "RAJPIPLA",
+      "VYARA-1",
+      "VAPI-1",
+      "BHARUCH-1",
+      "NAVSARI",
+      "JAMBUSAR",
+      "Kim"
+    ],
+    "states": [
+      "Gujarat"
+    ]
+  },
+  "TBA Ahmadabad": {
+    "points": [
+      {
+        "city": "BOTAD",
+        "lat": 22.1704232,
+        "lng": 71.6684269
+      },
+      {
+        "city": "VERAVAL",
+        "lat": 20.91424,
+        "lng": 70.3611
+      }
+    ],
+    "cities": [
+      "SANAND",
+      "VIRAMGAM",
+      "DHANDHUKA",
+      "AHMEDABAD-1",
+      "SURENDRANAGAR-1",
+      "THANGADH",
+      "DHOLKA",
+      "BHAVNAGAR-1",
+      "AMRELI-1",
+      "BOTAD",
+      "UNA-1",
+      "KODINAR",
+      "VERAVAL",
+      "JUNAGADH-1"
+    ],
+    "states": [
+      "Gujarat"
+    ]
+  },
+  "DIPESH DESHKAR": {
+    "points": [
+      {
+        "city": "BHOPAL",
+        "lat": 23.2599333,
+        "lng": 77.412615
+      },
+      {
+        "city": "SHEOPUR",
+        "lat": 25.6667,
+        "lng": 76.7
+      },
+      {
+        "city": "ITARSI",
+        "lat": 22.6054858,
+        "lng": 77.753544
+      },
+      {
+        "city": "SEHORE",
+        "lat": 23.2,
+        "lng": 77.0833
+      },
+      {
+        "city": "SAGAR",
+        "lat": 23.838805,
+        "lng": 78.7378068
+      },
+      {
+        "city": "VIDISHA",
+        "lat": 23.5251102,
+        "lng": 77.8081363
+      },
+      {
+        "city": "GUNA",
+        "lat": 24.65,
+        "lng": 77.3167
+      },
+      {
+        "city": "ASHOKNAGAR",
+        "lat": 24.58,
+        "lng": 77.73
+      }
+    ],
+    "cities": [
+      "BHOPAL",
+      "SHEOPUR",
+      "ITARSI",
+      "PIPARIYA",
+      "NASRULLAGANJ",
+      "SEHORE",
+      "SAGAR",
+      "RAISEN",
+      "VIDISHA",
+      "GUNA",
+      "SUTHALIYA",
+      "BIAORA",
+      "ZEERAPUR",
+      "ASHOKNAGAR",
+      "BINAGANJ",
+      "KUMBHRAJ",
+      "RAGHOGARH-VIJAYPUR"
+    ],
+    "states": [
+      "Madhya Pradesh"
+    ]
+  },
+  "MAHESH KUMAR JAROLIYA": {
+    "points": [
+      {
+        "city": "KHANDWA",
+        "lat": 21.8257334,
+        "lng": 76.352571
+      },
+      {
+        "city": "SHUJALPUR",
+        "lat": 23.3833,
+        "lng": 76.7167
+      },
+      {
+        "city": "INDORE",
+        "lat": 22.7195687,
+        "lng": 75.8577258
+      },
+      {
+        "city": "SHAJAPUR",
+        "lat": 23.4333,
+        "lng": 76.2833
+      },
+      {
+        "city": "NAGDA",
+        "lat": 23.45,
+        "lng": 75.4167
+      },
+      {
+        "city": "UJJAIN",
+        "lat": 23.1793013,
+        "lng": 75.7849097
+      },
+      {
+        "city": "RATLAM",
+        "lat": 23.3341696,
+        "lng": 75.0376325
+      },
+      {
+        "city": "AGAR MALWA",
+        "lat": 23.7167,
+        "lng": 76.0167
+      },
+      {
+        "city": "NEEMUCH",
+        "lat": 24.4667,
+        "lng": 74.8667
+      }
+    ],
+    "cities": [
+      "KHANDWA",
+      "SHUJALPUR",
+      "MHOW",
+      "INDORE",
+      "SHAJAPUR",
+      "NAGDA",
+      "UJJAIN",
+      "RATLAM",
+      "JAORA",
+      "TARANA",
+      "BARNAGAR",
+      "NALKHEDA",
+      "AGAR MALWA",
+      "NEEMUCH",
+      "JEERAN",
+      "SITAMAU",
+      "RAMPURA",
+      "BHANPURA",
+      "MANASA",
+      "MANDSOUR",
+      "SHAMGARH"
+    ],
+    "states": [
+      "Madhya Pradesh"
+    ]
+  },
+  "PIYUSH BILASPURE": {
+    "points": [
+      {
+        "city": "BURHANPUR",
+        "lat": 21.3193875,
+        "lng": 76.2224273
+      },
+      {
+        "city": "DEWAS",
+        "lat": 22.9622672,
+        "lng": 76.0507949
+      },
+      {
+        "city": "INDORE",
+        "lat": 22.7195687,
+        "lng": 75.8577258
+      },
+      {
+        "city": "DHAR",
+        "lat": 22.6012922,
+        "lng": 75.3024655
+      }
+    ],
+    "cities": [
+      "BURHANPUR",
+      "DEWAS",
+      "INDORE",
+      "DEPALPUR",
+      "KHATEGAON",
+      "SONKATCH",
+      "BARWANI",
+      "KHARGAON",
+      "KUKSHI",
+      "DHAR",
+      "PANSEMAL"
+    ],
+    "states": [
+      "Madhya Pradesh"
+    ]
+  },
+  "Prasenjit Dey": {
+    "points": [
+      {
+        "city": "BILASPUR",
+        "lat": 22.0796251,
+        "lng": 82.1391412
+      },
+      {
+        "city": "KORBA",
+        "lat": 22.3594501,
+        "lng": 82.7500595
+      },
+      {
+        "city": "AMBIKAPUR",
+        "lat": 23.1354921,
+        "lng": 83.1817856
+      },
+      {
+        "city": "RAIPUR",
+        "lat": 21.2513844,
+        "lng": 81.6296413
+      },
+      {
+        "city": "MAHASAMUND",
+        "lat": 21.1091317,
+        "lng": 82.0979023
+      },
+      {
+        "city": "RAJNANDGAON",
+        "lat": 21.0971034,
+        "lng": 81.0302222
+      },
+      {
+        "city": "DURG",
+        "lat": 21.1904494,
+        "lng": 81.2849169
+      },
+      {
+        "city": "JAGDALPUR",
+        "lat": 19.0740973,
+        "lng": 82.008014
+      },
+      {
+        "city": "DHAMTARI",
+        "lat": 20.7014999,
+        "lng": 81.5541579
+      }
+    ],
+    "cities": [
+      "SHEORINARAYAN",
+      "BILASPUR",
+      "KORBA",
+      "BATAPARA",
+      "KAWARDHA",
+      "CHAMPA",
+      "AMBIKAPUR",
+      "SARAIPALI",
+      "RAIPUR",
+      "BHILAI",
+      "MAHASAMUND",
+      "BHATAGAON",
+      "RAJNANDGAON",
+      "DURG",
+      "JAGDALPUR",
+      "AMBAGARH CHOWKI",
+      "KANKER",
+      "BEMETARA",
+      "TILDA",
+      "DAUNDI LOHARA",
+      "DHAMTARI",
+      "ARANG",
+      "NAWAPARA",
+      "MUNGELI",
+      "MAHENDRAGARH"
+    ],
+    "states": [
+      "Chhattisgarh"
+    ]
+  },
+  "Rahul Tripathi": {
+    "points": [
+      {
+        "city": "SATNA",
+        "lat": 24.6005075,
+        "lng": 80.8322428
+      },
+      {
+        "city": "REWA",
+        "lat": 24.5362,
+        "lng": 81.3037
+      },
+      {
+        "city": "SINGROLLI",
+        "lat": 24.2,
+        "lng": 82.6833
+      }
+    ],
+    "cities": [
+      "SIDHI",
+      "SATNA",
+      "CHATTARPUR",
+      "NOWGONG (BKD)",
+      "TIKAMGARH",
+      "REWA",
+      "NAGOD",
+      "DEVENDRANAGAR",
+      "SINGROLLI"
+    ],
+    "states": [
+      "Madhya Pradesh"
+    ]
+  },
+  "Sudhir Kherde": {
+    "points": [
+      {
+        "city": "KATNI",
+        "lat": 23.8333,
+        "lng": 80.4
+      },
+      {
+        "city": "JABALPUR",
+        "lat": 23.181467,
+        "lng": 79.9864071
+      },
+      {
+        "city": "SEONI",
+        "lat": 22.0868691,
+        "lng": 79.5434841
+      },
+      {
+        "city": "BALAGHAT",
+        "lat": 21.812876,
+        "lng": 80.1838293
+      },
+      {
+        "city": "BETUL",
+        "lat": 21.9167,
+        "lng": 77.9
+      },
+      {
+        "city": "CHHINDWARA",
+        "lat": 22.0667,
+        "lng": 78.9333
+      },
+      {
+        "city": "DAMOH",
+        "lat": 23.8380986,
+        "lng": 79.4421731
+      },
+      {
+        "city": "SHAHDOL",
+        "lat": 23.2833,
+        "lng": 81.35
+      }
+    ],
+    "cities": [
+      "KATNI",
+      "JABALPUR",
+      "SEONI",
+      "BALAGHAT",
+      "MANDLA",
+      "BETUL",
+      "CHHINDWARA",
+      "DAMOH",
+      "SHAHDOL",
+      "NARSIMHPUR"
+    ],
+    "states": [
+      "Madhya Pradesh"
+    ]
+  },
+  "TBA GWALIOR ASM": {
+    "points": [
+      {
+        "city": "SHIVPURI",
+        "lat": 25.4357869,
+        "lng": 77.665066
+      },
+      {
+        "city": "GWALIOR",
+        "lat": 26.2182871,
+        "lng": 78.1828308
+      },
+      {
+        "city": "BHIND",
+        "lat": 26.2833,
+        "lng": 78.7833
+      },
+      {
+        "city": "SHEOPUR",
+        "lat": 25.6667,
+        "lng": 76.7
+      },
+      {
+        "city": "MORENA",
+        "lat": 26.5,
+        "lng": 78
+      }
+    ],
+    "cities": [
+      "KAILARAS",
+      "SHIVPURI",
+      "JAORA",
+      "SABALGARH",
+      "GWALIOR",
+      "TIKAMGARH",
+      "BHIND",
+      "SHEOPUR",
+      "KHANIADHANA",
+      "MORENA"
+    ],
+    "states": [
+      "Madhya Pradesh"
+    ]
+  },
+  "DHARMENDRA KUMAR": {
+    "points": [
+      {
+        "city": "PANIPAT",
+        "lat": 29.3909,
+        "lng": 76.9635
+      },
+      {
+        "city": "AMBALA",
+        "lat": 30.3781788,
+        "lng": 76.7766974
+      },
+      {
+        "city": "YAMUNANAGAR",
+        "lat": 30.129,
+        "lng": 77.2674
+      },
+      {
+        "city": "ROHTAK",
+        "lat": 28.8955,
+        "lng": 76.6066
+      },
+      {
+        "city": "HISAR",
+        "lat": 29.1492,
+        "lng": 75.7217
+      },
+      {
+        "city": "SIRSA",
+        "lat": 29.5333,
+        "lng": 75.0167
+      },
+      {
+        "city": "BHIWANI",
+        "lat": 28.7833,
+        "lng": 76.1333
+      },
+      {
+        "city": "NUH",
+        "lat": 28.1167,
+        "lng": 77.0167
+      }
+    ],
+    "cities": [
+      "PANIPAT",
+      "SADHAURA",
+      "AMBALA",
+      "YAMUNANAGAR",
+      "SONEPAT",
+      "PUNDRI",
+      "PIPLI",
+      "ROHTAK",
+      "HISAR",
+      "SIRSA",
+      "TOHANA",
+      "NARWANA",
+      "BHIWANI",
+      "NUH",
+      "NAGINA",
+      "HATHIN",
+      "PUNHANA",
+      "FIROZPUR JHIRKA",
+      "MANESAR"
+    ],
+    "states": [
+      "Haryana"
+    ]
+  },
+  "RAJESH KUMAR SINGH": {
+    "points": [
+      {
+        "city": "DELHI",
+        "lat": 28.6139391,
+        "lng": 77.2090212
+      },
+      {
+        "city": "GREATER NOIDA",
+        "lat": 28.4743879,
+        "lng": 77.5039904
+      },
+      {
+        "city": "SOUTH EAST DELHI",
+        "lat": 28.55,
+        "lng": 77.28
+      },
+      {
+        "city": "NORTH WEST DELHI",
+        "lat": 28.71,
+        "lng": 77.08
+      }
+    ],
+    "cities": [
+      "NOIDA",
+      "DELHI",
+      "GHAZIABAD",
+      "NEW DELHI",
+      "GREATER NOIDA",
+      "SOUTH EAST DELHI",
+      "NORTH WEST DELHI"
+    ],
+    "states": [
+      "Delhi",
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "ALOK PANDEY": {
+    "points": [
+      {
+        "city": "GORAKHPUR",
+        "lat": 26.7606,
+        "lng": 83.3732
+      },
+      {
+        "city": "BASTI",
+        "lat": 26.8167,
+        "lng": 82.75
+      },
+      {
+        "city": "DEORIA",
+        "lat": 26.5,
+        "lng": 83.7833
+      }
+    ],
+    "cities": [
+      "GORAKHPUR",
+      "USKA BAZAR",
+      "BASTI",
+      "KHALILABAD",
+      "DEORIA",
+      "DHANI",
+      "KATRA",
+      "BANSI"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "DEEPAK KUMAR PANDEY": {
+    "points": [
+      {
+        "city": "TANDA",
+        "lat": 26.5432647,
+        "lng": 82.6645469
+      },
+      {
+        "city": "FAIZABAD",
+        "lat": 26.773,
+        "lng": 82.1447
+      },
+      {
+        "city": "SULTANPUR",
+        "lat": 26.2667,
+        "lng": 82.0667
+      },
+      {
+        "city": "GONDA",
+        "lat": 27.1333,
+        "lng": 81.9667
+      }
+    ],
+    "cities": [
+      "KHARGUPUR",
+      "TANDA",
+      "FAIZABAD",
+      "JALALPUR",
+      "BARA BANKI",
+      "SULTANPUR",
+      "GONDA"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "KUMAR DIPESH": {
+    "points": [
+      {
+        "city": "LAKHIMPUR",
+        "lat": 27.95,
+        "lng": 80.7667
+      },
+      {
+        "city": "LUCKNOW",
+        "lat": 26.8467,
+        "lng": 80.9462
+      },
+      {
+        "city": "SITAPUR",
+        "lat": 27.5667,
+        "lng": 80.6833
+      },
+      {
+        "city": "AURAIYA",
+        "lat": 26.4625957,
+        "lng": 79.5097549
+      },
+      {
+        "city": "FARRUKHABAD",
+        "lat": 27.3826126,
+        "lng": 79.5940544
+      }
+    ],
+    "cities": [
+      "RISIA",
+      "LAKHIMPUR",
+      "MOHAMMADI",
+      "NANPARA",
+      "MIHINPURWA",
+      "TIKUNIA",
+      "GOLA",
+      "IKAUNA",
+      "JARWAL",
+      "LUCKNOW",
+      "SITAPUR",
+      "AURAIYA",
+      "KAIMGANJ",
+      "FARRUKHABAD",
+      "CHHIBRAMAU",
+      "BABARPUR",
+      "SHAHABAD"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "RAJESH KUMAR": {
+    "points": [
+      {
+        "city": "AZAMGARH",
+        "lat": 26.0667,
+        "lng": 83.1833
+      },
+      {
+        "city": "MAU",
+        "lat": 25.95,
+        "lng": 83.5667
+      },
+      {
+        "city": "MIRZAPUR",
+        "lat": 25.15,
+        "lng": 82.5833
+      },
+      {
+        "city": "BHADOHI",
+        "lat": 25.38727,
+        "lng": 82.5680309
+      },
+      {
+        "city": "JAUNPUR",
+        "lat": 25.75,
+        "lng": 82.7
+      },
+      {
+        "city": "ALLAHABAD",
+        "lat": 25.4358,
+        "lng": 81.8463
+      },
+      {
+        "city": "PRATAPGARH",
+        "lat": 24.0333,
+        "lng": 74.7833
+      },
+      {
+        "city": "VARANASI",
+        "lat": 25.3176,
+        "lng": 82.9739
+      },
+      {
+        "city": "MUGHALSARAI",
+        "lat": 25.2814947,
+        "lng": 83.1198203
+      },
+      {
+        "city": "GHAZIPUR",
+        "lat": 25.5833,
+        "lng": 83.5833
+      },
+      {
+        "city": "CHANDAULI",
+        "lat": 25.2667,
+        "lng": 83.2667
+      }
+    ],
+    "cities": [
+      "AZAMGARH",
+      "KOPAGANJ",
+      "THEKMA",
+      "SANT KABIR NAGAR",
+      "MADHUBAN",
+      "MUHAMMADABAD",
+      "MAU",
+      "RASRA",
+      "SAMDEEH",
+      "MAJHAUVA",
+      "MIRZAPUR",
+      "BHADOHI",
+      "SHAHGANJ",
+      "JAUNPUR",
+      "KERAKAT",
+      "MARIYAHU",
+      "KHETASARAI",
+      "SURIYAWAN",
+      "LALGANJ",
+      "BADLAPUR",
+      "KUNDA",
+      "ALLAHABAD",
+      "PRAYAGRAJ",
+      "PRATAPGARH",
+      "PHAPHAMAU",
+      "SARAI AKIL",
+      "Akodhi",
+      "MANJHANPUR",
+      "VARANASI",
+      "JANGIPUR",
+      "MUGHALSARAI",
+      "GHAZIPUR",
+      "SAKALDIAH",
+      "SAIDPUR",
+      "SHAHAB GANJ",
+      "LOHATA",
+      "CHANDAULI"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "RANJEET SINGH": {
+    "points": [
+      {
+        "city": "KANPUR",
+        "lat": 26.4499,
+        "lng": 80.3319
+      },
+      {
+        "city": "UNNAO",
+        "lat": 26.55,
+        "lng": 80.4833
+      },
+      {
+        "city": "FATEHPUR",
+        "lat": 25.9333,
+        "lng": 80.8167
+      }
+    ],
+    "cities": [
+      "KANPUR",
+      "MUGISAPUR",
+      "UNNAO",
+      "GHATAMPUR",
+      "KHAGA",
+      "CHHEWKA",
+      "FATEHPUR"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "Abhishek Sharma": {
+    "points": [
+      {
+        "city": "BULANDSHAHAR",
+        "lat": 28.4,
+        "lng": 77.85
+      },
+      {
+        "city": "KHURJA",
+        "lat": 28.2513538,
+        "lng": 77.8538797
+      },
+      {
+        "city": "MAINPURI",
+        "lat": 27.2333,
+        "lng": 79.0167
+      },
+      {
+        "city": "ALIGARH",
+        "lat": 27.8974,
+        "lng": 78.088
+      },
+      {
+        "city": "ETAH",
+        "lat": 27.5667,
+        "lng": 78.6667
+      }
+    ],
+    "cities": [
+      "SIYANA",
+      "BULANDSHAHAR",
+      "SIKANDRABAD",
+      "KHURJA",
+      "MAINPURI",
+      "ALIGARH",
+      "DIBAI",
+      "CHHARRA",
+      "KURAWALI",
+      "ETAH"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "AMIT GANGWAR": {
+    "points": [
+      {
+        "city": "PILIBHIT",
+        "lat": 28.6333,
+        "lng": 79.8
+      },
+      {
+        "city": "SHAHJAHANPUR",
+        "lat": 27.8833,
+        "lng": 79.9167
+      },
+      {
+        "city": "RUDRAPUR",
+        "lat": 28.9875082,
+        "lng": 79.4141214
+      },
+      {
+        "city": "KASHIPUR",
+        "lat": 29.2104232,
+        "lng": 78.9618845
+      },
+      {
+        "city": "TANDA",
+        "lat": 26.5432647,
+        "lng": 82.6645469
+      },
+      {
+        "city": "BAREILLY",
+        "lat": 28.367,
+        "lng": 79.4304
+      }
+    ],
+    "cities": [
+      "PILIBHIT",
+      "PURANPUR",
+      "DILAZAK",
+      "BISALPUR",
+      "MIRANPUR",
+      "SHAHJAHANPUR",
+      "KALINAGAR",
+      "TILHER",
+      "TANAKPUR",
+      "RUDRAPUR",
+      "KICHHA",
+      "KASHIPUR",
+      "RAMPURA",
+      "SUAR",
+      "TANDA",
+      "MILAK",
+      "BILHAUR",
+      "BAREILLY",
+      "FATEHGANJ PASHCHIMI",
+      "RICHHA",
+      "AONLA",
+      "BAHERI",
+      "BISAULI"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "PRABHAT KUMAR PANDEY": {
+    "points": [
+      {
+        "city": "ROORKEE",
+        "lat": 29.8542626,
+        "lng": 77.8880002
+      },
+      {
+        "city": "DEHRADUN",
+        "lat": 30.3165,
+        "lng": 78.0322
+      },
+      {
+        "city": "MEERUT",
+        "lat": 28.9845,
+        "lng": 77.7064
+      },
+      {
+        "city": "HAPUR",
+        "lat": 28.7167,
+        "lng": 77.7833
+      },
+      {
+        "city": "AMROHA",
+        "lat": 28.9043537,
+        "lng": 78.4673426
+      },
+      {
+        "city": "SAHARANPUR",
+        "lat": 29.964,
+        "lng": 77.546
+      },
+      {
+        "city": "DEOBAND",
+        "lat": 29.6910213,
+        "lng": 77.6822442
+      }
+    ],
+    "cities": [
+      "ROORKEE",
+      "DEHRADUN",
+      "DOIWALA",
+      "MANGLOUR",
+      "LAKSAR",
+      "ADAMPUR",
+      "BABUGARH",
+      "HASANPUR",
+      "MEERUT",
+      "DHANAURA",
+      "KHEKRA",
+      "IBRAHIMPUR",
+      "KHARKHUDA",
+      "HAPUR",
+      "HASTINAPUR",
+      "AMROHA",
+      "SAHARANPUR",
+      "Muzzafar Nagar",
+      "BEHAT",
+      "BUDHANA",
+      "DEOBAND",
+      "PURKAJI",
+      "SHAHPURA",
+      "JALALABAD"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "Shivam Kumar": {
+    "points": [
+      {
+        "city": "MORADABAD",
+        "lat": 28.8386,
+        "lng": 78.7733
+      },
+      {
+        "city": "CHANDAUSI",
+        "lat": 28.4480507,
+        "lng": 78.7796105
+      },
+      {
+        "city": "SAMBHAL",
+        "lat": 28.5833,
+        "lng": 78.55
+      }
+    ],
+    "cities": [
+      "THAKURDWARA",
+      "SIRSI",
+      "SARAI KHAJRU",
+      "PEEPALSANA",
+      "MORADABAD",
+      "CHANDAUSI",
+      "BABRALA",
+      "KANTH",
+      "SAMBHAL",
+      "DALPATPUR",
+      "KIRATPUR",
+      "GUNIYAPUR",
+      "HALDAUR",
+      "DHAMPUR"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "Tarun Sharma": {
+    "points": [
+      {
+        "city": "BANDA",
+        "lat": 25.4833,
+        "lng": 80.3333
+      },
+      {
+        "city": "LALITPUR",
+        "lat": 24.6833,
+        "lng": 78.4167
+      },
+      {
+        "city": "JHANSI",
+        "lat": 25.4484,
+        "lng": 78.5685
+      },
+      {
+        "city": "ORAI",
+        "lat": 25.9833,
+        "lng": 79.45
+      },
+      {
+        "city": "AGRA",
+        "lat": 27.1766701,
+        "lng": 78.0080745
+      },
+      {
+        "city": "MATHURA",
+        "lat": 27.4924,
+        "lng": 77.6737
+      },
+      {
+        "city": "FIROZABAD",
+        "lat": 27.1513,
+        "lng": 78.3953
+      },
+      {
+        "city": "ETAH",
+        "lat": 27.5667,
+        "lng": 78.6667
+      }
+    ],
+    "cities": [
+      "BANDA",
+      "LALITPUR",
+      "JHANSI",
+      "ORAI",
+      "MOHABA",
+      "JALAUN",
+      "MAUDAHA",
+      "BHARWA SUMERPUR",
+      "RATH",
+      "SHAMSHABAD",
+      "ETMADPUR",
+      "BUNDU KATRA",
+      "AGRA",
+      "PINAHAT",
+      "SIRSAGANJ",
+      "MATHURA",
+      "FIROZABAD",
+      "ETAH",
+      "SADABAD",
+      "HATHRAS-II",
+      "SASNI"
+    ],
+    "states": [
+      "Uttar Pradesh",
+      "Uttarakhand"
+    ]
+  },
+  "Avinash Khadariya": {
+    "points": [
+      {
+        "city": "BANSWARA",
+        "lat": 23.5461394,
+        "lng": 74.4349761
+      },
+      {
+        "city": "SUJANGARH",
+        "lat": 27.7,
+        "lng": 74.45
+      },
+      {
+        "city": "CHURU",
+        "lat": 28.29,
+        "lng": 74.96
+      }
+    ],
+    "cities": [
+      "NAGOUR",
+      "BANSWARA",
+      "SUJANGARH",
+      "CHURU",
+      "KUCHAMAN CITY",
+      "MERTA CITY",
+      "RIYAN BADI",
+      "DIDWANA",
+      "LADNU",
+      "DEGANA",
+      "SIKAR I",
+      "JHUNJHUNU I",
+      "KARANPUR",
+      "DUNGARGARH",
+      "BIKANER I",
+      "SURATGARH I",
+      "SRI GANGA NAGAR I",
+      "NOKHA",
+      "PILIBANGAN",
+      "HANUMAN GARH I",
+      "SANGARIA",
+      "ANUPGARH",
+      "NOHAR"
+    ],
+    "states": [
+      "Rajasthan"
+    ]
+  },
+  "CHETAN KUMAR": {
+    "points": [
+      {
+        "city": "JHALAWAR",
+        "lat": 24.6,
+        "lng": 76.15
+      },
+      {
+        "city": "BARAN",
+        "lat": 25.1,
+        "lng": 76.5167
+      },
+      {
+        "city": "SULTANPUR",
+        "lat": 26.2667,
+        "lng": 82.0667
+      },
+      {
+        "city": "CHOTTORGARH",
+        "lat": 24.8833,
+        "lng": 74.6333
+      },
+      {
+        "city": "BUNDI",
+        "lat": 25.4305144,
+        "lng": 75.6499025
+      },
+      {
+        "city": "RAWATBHATA",
+        "lat": 24.9333,
+        "lng": 75.5833
+      },
+      {
+        "city": "PRATAPGARH",
+        "lat": 24.0333,
+        "lng": 74.7833
+      },
+      {
+        "city": "BANSWARA",
+        "lat": 23.5461394,
+        "lng": 74.4349761
+      },
+      {
+        "city": "DUNGURPUR",
+        "lat": 23.8333,
+        "lng": 73.7167
+      }
+    ],
+    "cities": [
+      "MANGROL",
+      "BHAWANI MANDI",
+      "KELWARA",
+      "JHALAWAR",
+      "BARAN",
+      "KESHORAIPATAN",
+      "CHOUMEHALA",
+      "RAMDWARA",
+      "SULTANPUR",
+      "ANTA",
+      "UDAIPUR I",
+      "GOGUNDA",
+      "NATHDWARA",
+      "KHERWARA",
+      "SALUMBER",
+      "MAJHERA",
+      "MANDAWAR",
+      "SAKRODA",
+      "BASSI",
+      "MAHUA",
+      "BAGORE",
+      "BIGOD",
+      "GANGAPUR CITY",
+      "CHOTTORGARH",
+      "KOTRI",
+      "SAWA",
+      "BHILWARA I",
+      "ASIND",
+      "DUNGLA",
+      "BEGUN",
+      "SUMER GANJ MANDI",
+      "HINDOLI",
+      "CHHABRA",
+      "KOTA I",
+      "BUNDI",
+      "SHAHPURA",
+      "RAWATBHATA",
+      "ITAWA",
+      "SANGOD",
+      "JAHAZPUR",
+      "BIJOLIYA",
+      "RAMGANJMANDI",
+      "NAINWAN",
+      "KHANPUR",
+      "PRATAPGARH",
+      "BANSWARA",
+      "DUNGURPUR"
+    ],
+    "states": [
+      "Rajasthan"
+    ]
+  },
+  "GAUTAM PAREEK": {
+    "points": [
+      {
+        "city": "BALOTRA",
+        "lat": 25.8333,
+        "lng": 72.2333
+      },
+      {
+        "city": "PHALODI",
+        "lat": 27.1333,
+        "lng": 72.3667
+      },
+      {
+        "city": "PALI",
+        "lat": 25.7710893,
+        "lng": 73.3234478
+      },
+      {
+        "city": "SUMERPUR",
+        "lat": 25.15,
+        "lng": 73.0833
+      }
+    ],
+    "cities": [
+      "BALOTRA",
+      "JODHPUR I",
+      "BILARA",
+      "PHALODI",
+      "PALI",
+      "SUMERPUR",
+      "SOJAT ROAD",
+      "SWAROOPGANJ"
+    ],
+    "states": [
+      "Rajasthan"
+    ]
+  },
+  "MANMOHAN SONI": {
+    "points": [
+      {
+        "city": "JALANDHAR",
+        "lat": 31.3260152,
+        "lng": 75.5761829
+      },
+      {
+        "city": "AMRITSAR",
+        "lat": 31.6339793,
+        "lng": 74.8722642
+      },
+      {
+        "city": "BATALA",
+        "lat": 31.8183238,
+        "lng": 75.2070644
+      },
+      {
+        "city": "BATHINDA",
+        "lat": 30.210994,
+        "lng": 74.9454745
+      },
+      {
+        "city": "KHANNA",
+        "lat": 30.697852,
+        "lng": 76.2112286
+      },
+      {
+        "city": "LUDHIANA",
+        "lat": 30.900965,
+        "lng": 75.8572758
+      },
+      {
+        "city": "PATIALA",
+        "lat": 30.3397809,
+        "lng": 76.3868797
+      },
+      {
+        "city": "ZIRAKPUR",
+        "lat": 30.6425496,
+        "lng": 76.8173359
+      }
+    ],
+    "cities": [
+      "JAMMU",
+      "JALANDHAR",
+      "JANDIALA GURU",
+      "AJNALA",
+      "AMRITSAR",
+      "BATALA",
+      "BATHINDA",
+      "KHANNA",
+      "SAMRALA",
+      "LUDHIANA",
+      "ANANTNAG",
+      "SRI NAGAR",
+      "PATIALA",
+      "ZIRAKPUR"
+    ],
+    "states": [
+      "Punjab",
+      "Himachal Pradesh",
+      "Jammu & Kashmir",
+      "Ladakh"
+    ]
+  },
+  "RAKESH GUPTA": {
+    "points": [
+      {
+        "city": "KISHANGARH",
+        "lat": 26.5870344,
+        "lng": 74.856397
+      },
+      {
+        "city": "DAUSA",
+        "lat": 26.8931931,
+        "lng": 76.3375284
+      },
+      {
+        "city": "SAWAI MADHOPUR",
+        "lat": 26.0377772,
+        "lng": 76.3521514
+      }
+    ],
+    "cities": [
+      "KHERLI",
+      "KHAIRTHAL",
+      "TIJARA",
+      "ALWAR I",
+      "LAXMANGARH",
+      "RAJGARH",
+      "RAMGARH",
+      "GOVINDGARH",
+      "GOTHAN",
+      "BEAWAR I",
+      "KISHANGARH",
+      "AJMER I",
+      "KEKRI",
+      "BIJAY NAGAR",
+      "PUSHKAR",
+      "JAIPUR I",
+      "SHAHPURA",
+      "PACHKODIYA",
+      "CHOMU",
+      "DAUSA",
+      "GANGAPUR CITY",
+      "SAWAI MADHOPUR",
+      "LALSOT",
+      "BAHRAWANDA KHURD",
+      "BANDIKUI",
+      "SIKANDRA",
+      "KHANIYA",
+      "CHAKSU",
+      "SHIVDASPURA",
+      "BAGRU",
+      "TONK I",
+      "DEOLI",
+      "UNIYARA",
+      "KARAULI I",
+      "NADBAI II",
+      "BHARATPUR I",
+      "DEEG",
+      "DHOLPUR I",
+      "RAJAKHERA",
+      "SIKAR I",
+      "SARMATHURA",
+      "SAPOTRA"
+    ],
+    "states": [
+      "Rajasthan"
+    ]
+  }
+}

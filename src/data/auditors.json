@@ -1,0 +1,417 @@
+[
+  {
+    "name": "Balaji Srinivasan",
+    "org": "HEPL",
+    "doj": "19-05-2025",
+    "tenure": 332,
+    "email": "balaji.sr@hepl.com",
+    "location": "Alwarthirunagari",
+    "cluster": "TN",
+    "empCode": "902354",
+    "coords": { "lat": 8.60, "lng": 77.94 }
+  },
+  {
+    "name": "Pachiappan",
+    "org": "HEPL",
+    "doj": "13-08-2025",
+    "tenure": 246,
+    "email": "pachiappan.v@hepl.com",
+    "location": "Tindivanam",
+    "cluster": "TN",
+    "empCode": "902680",
+    "coords": { "lat": 12.23, "lng": 79.65 }
+  },
+  {
+    "name": "Nathish SR",
+    "org": "HEPL",
+    "doj": "08-09-2025",
+    "tenure": 220,
+    "email": "nathish.s@hepl.com",
+    "location": "Nambiyur",
+    "cluster": "TN",
+    "empCode": "902743",
+    "coords": { "lat": 11.36, "lng": 77.33 }
+  },
+  {
+    "name": "Thamaraikannan",
+    "org": "HEPL",
+    "doj": "04-08-2025",
+    "tenure": 255,
+    "email": "thamaraikannan.m@hepl.com",
+    "location": "Oddanchatram",
+    "cluster": "TN",
+    "empCode": "902537",
+    "coords": { "lat": 10.49, "lng": 77.75 }
+  },
+  {
+    "name": "Ragul R",
+    "org": "HEPL",
+    "doj": "14-01-2026",
+    "tenure": 92,
+    "email": "ragul.r@hepl.com",
+    "location": "Perambalur",
+    "cluster": "TN",
+    "coords": { "lat": 11.23, "lng": 78.88 }
+  },
+  {
+    "name": "Pradeepan R",
+    "org": "HEPL",
+    "doj": "14-01-2026",
+    "tenure": 92,
+    "email": "pradeepan.r@hepl.com",
+    "location": "Karur",
+    "cluster": "TN",
+    "coords": { "lat": 10.95, "lng": 78.08 }
+  },
+  {
+    "name": "SAKTHIVEL.N",
+    "org": "HEPL",
+    "doj": "05-01-2026",
+    "tenure": 101,
+    "email": "sakthivel.nhepl.com",
+    "location": "Kangeyam",
+    "cluster": "TN",
+    "coords": { "lat": 11.00, "lng": 77.56 }
+  },
+  {
+    "name": "Nikhil Ashok Magdum",
+    "org": "CKPL",
+    "doj": "07-01-2025",
+    "tenure": 464,
+    "email": "nikhil.a@cavinkare.com",
+    "location": "Belgaum",
+    "cluster": "KAR",
+    "empCode": "1015857",
+    "coords": { "lat": 15.85, "lng": 74.50 }
+  },
+  {
+    "name": "Chetan Beth",
+    "org": "HEPL",
+    "doj": "06-10-2025",
+    "tenure": 192,
+    "email": "chetan.b@hepl.com",
+    "location": "Vijayapura",
+    "cluster": "KAR",
+    "empCode": "902851",
+    "coords": { "lat": 16.83, "lng": 75.71 }
+  },
+  {
+    "name": "Mallikarjun Bakari",
+    "org": "HEPL",
+    "doj": "08-12-2025",
+    "tenure": 129,
+    "email": "mallikarjunbakari@gmail.com",
+    "location": "Bangalore",
+    "cluster": "KAR",
+    "empCode": "903077",
+    "coords": { "lat": 12.97, "lng": 77.59 }
+  },
+  {
+    "name": "Nithishwaran B",
+    "org": "HEPL",
+    "doj": "14-01-2026",
+    "tenure": 92,
+    "email": "nithishwaran.b@hepl.com",
+    "location": "Kangeyam",
+    "cluster": "TN",
+    "coords": { "lat": 11.00, "lng": 77.56 }
+  },
+  {
+    "name": "Suchit R",
+    "org": "HEPL",
+    "doj": "14-01-2026",
+    "tenure": 92,
+    "email": "suchit.e@hepl.com",
+    "location": "Kangeyam",
+    "cluster": "TN",
+    "coords": { "lat": 11.00, "lng": 77.56 }
+  },
+  {
+    "name": "Pigileti Yuva Teja",
+    "org": "HEPL",
+    "doj": "16-01-2025",
+    "tenure": 455,
+    "email": "yuvateja.p@hepl.com",
+    "location": "Kadapa",
+    "cluster": "RAPT",
+    "empCode": "901985",
+    "coords": { "lat": 14.47, "lng": 78.82 }
+  },
+  {
+    "name": "Alla Bala Vardhan Reddy",
+    "org": "CKPL",
+    "doj": "18-11-2024",
+    "tenure": 514,
+    "email": "vardhan.s@cavinkare.com",
+    "location": "Nandyal",
+    "cluster": "RAPT",
+    "empCode": "1015799",
+    "coords": { "lat": 15.48, "lng": 78.48 }
+  },
+  {
+    "name": "Chokka Durga Prasad",
+    "org": "HEPL",
+    "doj": "24-03-2025",
+    "tenure": 388,
+    "email": "chokka.s@hepl.com",
+    "location": "Tuni",
+    "cluster": "RAPT",
+    "coords": { "lat": 17.35, "lng": 82.55 }
+  },
+  {
+    "name": "Narasapurapu Tharun Kumar",
+    "org": "HEPL",
+    "doj": "01-04-2025",
+    "tenure": 380,
+    "email": "narasapurapu.r@hepl.com",
+    "location": "NUZVID",
+    "cluster": "RAPT",
+    "coords": { "lat": 16.78, "lng": 80.85 }
+  },
+  {
+    "name": "Erapogu Bajari",
+    "org": "HEPL",
+    "doj": "06-10-2025",
+    "tenure": 192,
+    "email": "erapogu.n@hepl.com",
+    "location": "Kurnool",
+    "cluster": "RAPT",
+    "coords": { "lat": 15.82, "lng": 78.03 }
+  },
+  {
+    "name": "Rakesh Katta",
+    "org": "HEPL",
+    "doj": "05-11-2025",
+    "tenure": 162,
+    "email": "rakesh.ra@hepl.com",
+    "location": "Nizambad",
+    "cluster": "RAPT",
+    "coords": { "lat": 18.67, "lng": 78.10 }
+  },
+  {
+    "name": "Neel kant shukla",
+    "org": "HEPL",
+    "doj": "16-12-2024",
+    "tenure": 486,
+    "email": "neelkant.u@hepl.com",
+    "location": "Indore",
+    "cluster": "West",
+    "coords": { "lat": 22.71, "lng": 75.85 }
+  },
+  {
+    "name": "Ashutosh Uttekar",
+    "org": "CKPL",
+    "doj": "06-05-2024",
+    "tenure": 710,
+    "email": "ashutosh.su@cavinkare.com",
+    "location": "Navi Mumbai",
+    "cluster": "West",
+    "empCode": "1015473",
+    "coords": { "lat": 19.03, "lng": 73.01 }
+  },
+  {
+    "name": "Tushar Dhoot",
+    "org": "HEPL",
+    "doj": "01-04-2025",
+    "tenure": 380,
+    "email": "tushar.a@hepl.com",
+    "location": "Buldhana District",
+    "cluster": "West",
+    "empCode": "902106",
+    "coords": { "lat": 20.53, "lng": 76.18 }
+  },
+  {
+    "name": "Ritesh Sudhakar Kavade",
+    "org": "HEPL",
+    "doj": "10-09-2025",
+    "tenure": 218,
+    "email": "ritesh.s@hepl.com",
+    "location": "Kolhapur",
+    "cluster": "West",
+    "coords": { "lat": 16.70, "lng": 74.24 }
+  },
+  {
+    "name": "Ayush Parida",
+    "org": "HEPL",
+    "doj": "09-12-2024",
+    "tenure": 493,
+    "email": "ayush.k@hepl.com",
+    "location": "Bilaspur",
+    "cluster": "JOBC",
+    "coords": { "lat": 22.07, "lng": 82.14 }
+  },
+  {
+    "name": "Siddharth Paradava",
+    "org": "HEPL",
+    "doj": "01-12-2025",
+    "tenure": 136,
+    "email": "siddharth.d@hepl.com",
+    "location": "Rajkot",
+    "cluster": "West",
+    "coords": { "lat": 22.30, "lng": 70.81 }
+  },
+  {
+    "name": "Godhani Dharmesh",
+    "org": "HEPL",
+    "doj": "15-12-2025",
+    "tenure": 122,
+    "email": "godhani.h@hepl.com",
+    "location": "Surat",
+    "cluster": "West",
+    "coords": { "lat": 21.17, "lng": 72.83 }
+  },
+  {
+    "name": "Yash Gupta",
+    "org": "HEPL",
+    "doj": "06-01-2025",
+    "tenure": 465,
+    "email": "yash.a@hepl.com",
+    "location": "Etawah",
+    "cluster": "North",
+    "empCode": "901927",
+    "coords": { "lat": 26.78, "lng": 79.02 }
+  },
+  {
+    "name": "Yash Singhal",
+    "org": "HEPL",
+    "doj": "08-09-2025",
+    "tenure": 220,
+    "email": "yash.s@hepl.com",
+    "location": "Meerut",
+    "cluster": "North",
+    "empCode": "902799",
+    "coords": { "lat": 28.98, "lng": 77.70 }
+  },
+  {
+    "name": "Shubham Goel",
+    "org": "HEPL",
+    "doj": "06-10-2025",
+    "tenure": 192,
+    "email": "shubham.d@hepl.com",
+    "location": "Meerut",
+    "cluster": "North",
+    "coords": { "lat": 28.98, "lng": 77.70 }
+  },
+  {
+    "name": "Abhay Dubey",
+    "org": "HEPL",
+    "doj": "13-10-2025",
+    "tenure": 185,
+    "email": "abhay.s@hepl.com",
+    "location": "Kannauj",
+    "cluster": "North",
+    "coords": { "lat": 27.05, "lng": 79.91 }
+  },
+  {
+    "name": "Chetan Pareta",
+    "org": "HEPL",
+    "doj": "15-12-2025",
+    "tenure": 122,
+    "email": "chetan.k@hepl.com",
+    "location": "Kota",
+    "cluster": "North",
+    "coords": { "lat": 25.21, "lng": 75.86 }
+  },
+  {
+    "name": "Hitesh Kumar Devatwal",
+    "org": "HEPL",
+    "doj": "22-12-2025",
+    "tenure": 115,
+    "email": "hitesh.g@hepl.com",
+    "location": "Alwar",
+    "cluster": "North",
+    "coords": { "lat": 27.55, "lng": 76.60 }
+  },
+  {
+    "name": "Akash Kumar Gareri",
+    "org": "HEPL",
+    "doj": "24-12-2025",
+    "tenure": 113,
+    "email": "akash.p@hepl.com",
+    "location": "Varanasi",
+    "cluster": "North",
+    "coords": { "lat": 25.31, "lng": 82.97 }
+  },
+  {
+    "name": "Manish Sharma",
+    "org": "HEPL",
+    "doj": "14-01-2026",
+    "tenure": 92,
+    "email": "manish.g@hepl.com",
+    "location": "Bhilwara",
+    "cluster": "North",
+    "coords": { "lat": 25.34, "lng": 74.63 }
+  },
+  {
+    "name": "Mukesh Sharma",
+    "org": "HEPL",
+    "doj": "21-01-2026",
+    "tenure": 85,
+    "email": "mukeshsharma.s@hepl.com",
+    "location": "Bikaner",
+    "cluster": "North",
+    "coords": { "lat": 28.02, "lng": 73.31 }
+  },
+  {
+    "name": "Manvendra Singh",
+    "org": "HEPL",
+    "doj": "14-01-2026",
+    "tenure": 92,
+    "email": "manvendra.v@hepl.com",
+    "location": "Varanasi",
+    "cluster": "North",
+    "coords": { "lat": 25.31, "lng": 82.97 }
+  },
+  {
+    "name": "Kaushal Kumar Verma",
+    "org": "CKPL",
+    "doj": "13-01-2025",
+    "tenure": 458,
+    "email": "kaushal.n@cavinkare.com",
+    "location": "Bihar Sharif",
+    "cluster": "JOBC",
+    "empCode": "1015861",
+    "coords": { "lat": 25.20, "lng": 85.51 }
+  },
+  {
+    "name": "Sudipta Halder",
+    "org": "HEPL",
+    "doj": "08-09-2025",
+    "tenure": 220,
+    "email": "sudipta.s@hepl.com",
+    "location": "Bijoypur",
+    "cluster": "JOBC",
+    "empCode": "902780",
+    "coords": { "lat": 22.40, "lng": 88.39 }
+  },
+  {
+    "name": "Khushi Rajput",
+    "org": "HEPL",
+    "doj": "08-09-2025",
+    "tenure": 220,
+    "email": "khushi.r@hepl.com",
+    "location": "Durg",
+    "cluster": "JOBC",
+    "coords": { "lat": 21.19, "lng": 81.28 }
+  },
+  {
+    "name": "Nilanshu Shekhar",
+    "org": "HEPL",
+    "doj": "16-02-2026",
+    "tenure": 59,
+    "email": "nilanshu.m@hepl.com",
+    "location": "Sahibganj",
+    "cluster": "JOBC",
+    "coords": { "lat": 25.24, "lng": 87.64 }
+  },
+  {
+    "name": "Arindom Basumatary",
+    "org": "HEPL",
+    "doj": "10-11-2025",
+    "tenure": 157,
+    "email": "arindom.s@hepl.com",
+    "location": "Kokrajhar",
+    "cluster": "JOBC",
+    "coords": { "lat": 26.40, "lng": 90.27 }
+  }
+]
