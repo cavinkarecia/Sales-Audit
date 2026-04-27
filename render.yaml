@@ -3,5 +3,5 @@ services:
     name: sales-audit-intelligence
     env: static
     buildCommand: npm install && npm run build
-    publishPath: dist
+    staticPublishPath: dist
     autoDeploy: true
