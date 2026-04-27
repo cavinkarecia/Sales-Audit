@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: sales-audit-intelligence
+    env: static
+    buildCommand: npm install && npm run build
+    publishPath: dist
+    autoDeploy: true
