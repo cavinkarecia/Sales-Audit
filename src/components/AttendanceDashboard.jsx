@@ -1,5 +1,4 @@
 import React, { useState, useMemo } from 'react';
-import ExcelUpload from './ExcelUpload';
 import IndiaLiveMap from './IndiaLiveMap';
 import auditorsMaster from '../data/auditors.json';
 import asmMapping from '../data/asm_mapping.json';
@@ -24,6 +23,7 @@ import {
 } from 'recharts';
 import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
+import { parseAttendanceExcel } from '../utils/ExcelParser';
 
 const AttendanceDashboard = () => {
   const [reportData, setReportData] = useState(() => {
@@ -39,11 +39,30 @@ const AttendanceDashboard = () => {
   const [activePeriod, setActivePeriod] = useState(null); 
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
+  const [isParsing, setIsParsing] = useState(false);
+  const fileInputRef = React.useRef(null);
 
   // Persist data to localStorage
   React.useEffect(() => {
     localStorage.setItem('sales_audit_report_data', JSON.stringify(reportData));
   }, [reportData]);
+
+  const handleFileUpload = async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    setIsParsing(true);
+    try {
+      const data = await parseAttendanceExcel(file);
+      setReportData(data);
+    } catch (err) {
+      console.error('Error parsing file:', err);
+      alert('Failed to parse file. Please ensure it is a valid GoSurvey attendance export.');
+    } finally {
+      setIsParsing(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   React.useEffect(() => {
     if (reportData.length > 0) {
@@ -302,9 +321,8 @@ const AttendanceDashboard = () => {
 
   const CHART_COLORS = ['#58a6ff', '#3fb950', '#f85149', '#d29922', '#bc8cff'];
 
-  if (reportData.length === 0) {
-    return <ExcelUpload onDataLoaded={setReportData} />;
-  }
+  // We no longer return the ExcelUpload component as a separate page.
+  // Instead, we always show the dashboard shell.
 
   return (
     <div className="dashboard-content animate-in">
@@ -342,11 +360,35 @@ const AttendanceDashboard = () => {
 
       {/* Control Bar */}
       <div className="card" style={{ display: 'flex', gap: '16px', marginBottom: '24px', alignItems: 'center', padding: '10px 16px' }}>
+        <input 
+          type="file" 
+          ref={fileInputRef} 
+          style={{ display: 'none' }} 
+          accept=".xlsx, .xls, .csv" 
+          onChange={handleFileUpload}
+        />
         <button 
-          onClick={() => setReportData([])} 
-          style={{ background: 'transparent', border: '1px solid var(--border-main)', color: 'var(--text-primary)', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+          onClick={() => fileInputRef.current?.click()} 
+          disabled={isParsing}
+          style={{ 
+            background: isParsing ? 'rgba(88, 166, 255, 0.2)' : 'transparent', 
+            border: '1px solid var(--border-main)', 
+            color: 'var(--text-primary)', 
+            padding: '6px 12px', 
+            borderRadius: '6px', 
+            cursor: isParsing ? 'wait' : 'pointer', 
+            fontSize: '0.75rem', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '6px' 
+          }}
         >
-          <Upload size={14} /> New Upload
+          {isParsing ? (
+            <div className="spinner-small" style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.1)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
+          ) : (
+            <Upload size={14} />
+          )}
+          {isParsing ? 'Processing...' : 'New Upload'}
         </button>
 
         <div style={{ width: '1px', height: '20px', background: 'var(--border-main)' }}></div>
@@ -367,7 +409,21 @@ const AttendanceDashboard = () => {
         </div>
       </div>
 
-      {stats && (
+      {reportData.length === 0 ? (
+        <div className="card" style={{ padding: '60px', textAlign: 'center', background: 'rgba(88, 166, 255, 0.02)', border: '2px dashed var(--border-main)' }}>
+          <div style={{ marginBottom: '20px', color: 'var(--accent-primary)' }}>
+            <Upload size={48} style={{ opacity: 0.5 }} />
+          </div>
+          <h2 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>No Data Available</h2>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Please upload a GoSurvey attendance file to populate the dashboard.</p>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            style={{ background: 'var(--accent-primary)', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
+          >
+            Select File
+          </button>
+        </div>
+      ) : stats && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* KPI Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
