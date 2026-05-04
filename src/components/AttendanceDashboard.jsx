@@ -26,11 +26,24 @@ import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
 
 const AttendanceDashboard = () => {
-  const [reportData, setReportData] = useState([]);
+  const [reportData, setReportData] = useState(() => {
+    try {
+      const saved = localStorage.getItem('sales_audit_report_data');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error('Error loading data from localStorage:', e);
+      return [];
+    }
+  });
   const [timeFilter, setTimeFilter] = useState('daily'); 
   const [activePeriod, setActivePeriod] = useState(null); 
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
+
+  // Persist data to localStorage
+  React.useEffect(() => {
+    localStorage.setItem('sales_audit_report_data', JSON.stringify(reportData));
+  }, [reportData]);
 
   React.useEffect(() => {
     if (reportData.length > 0) {
