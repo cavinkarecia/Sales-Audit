@@ -4,7 +4,7 @@ import auditorsMaster from '../data/auditors.json';
 import asmMapping from '../data/asm_mapping.json';
 import { ReasonAnalysis } from './analytics/ReasonAnalysis';
 import { AbsenteeismRCA } from './analytics/AbsenteeismRCA';
-import { AsmCoverageMap } from './analytics/AsmCoverageMap';
+
 import {
   Users, 
   MapPin, 
@@ -595,8 +595,7 @@ const AttendanceDashboard = () => {
           <h3 style={{ fontSize: '1.2rem', color: 'var(--accent-primary)', marginTop: '40px', marginBottom: '16px' }}>Absenteeism Analysis (RCA)</h3>
           <AbsenteeismRCA data={filteredData} />
 
-          <h3 style={{ fontSize: '1.2rem', color: 'var(--accent-primary)', marginTop: '40px', marginBottom: '16px' }}>ASM Territory Coverage</h3>
-          <AsmCoverageMap data={filteredData} auditorsMaster={auditorsMaster} />
+
         </div>
       )}
 
