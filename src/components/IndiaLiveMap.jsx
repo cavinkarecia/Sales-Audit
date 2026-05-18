@@ -162,9 +162,10 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
               <Line
                 from={[d.lineFrom.lng, d.lineFrom.lat]}
                 to={[d.coords.lng, d.coords.lat]}
-                stroke="#ffd700"
+                stroke="var(--accent-primary)"
                 strokeWidth={2}
-                opacity={0.5}
+                strokeDasharray="3 3"
+                opacity={0.7}
               />
             )}
 
@@ -199,11 +200,11 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
                 </g>
               ) : (
                 <circle 
-                  r={4}
-                  fill="#ffd700"
+                  r={selectedPoint?.id === d.id ? 6 : 4}
+                  fill={d.label?.startsWith('From:') ? "#3fb950" : "#f85149"} // Green for Base location, Red for To town
                   stroke="#fff"
-                  strokeWidth={1}
-                  style={{ cursor: 'pointer' }}
+                  strokeWidth={selectedPoint?.id === d.id ? 1.5 : 1}
+                  style={{ cursor: 'pointer', transition: 'all 0.2s' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedPoint(d);
@@ -325,8 +326,16 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
             <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Absent</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '6px', height: '6px', background: '#ffd700', borderRadius: '50%' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>History Point</span>
+            <div style={{ width: '6px', height: '6px', background: '#3fb950', borderRadius: '50%' }}></div>
+            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Base Location (Green)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '6px', height: '6px', background: '#f85149', borderRadius: '50%' }}></div>
+            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Visited Town (Red)</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '12px', height: '2px', background: 'var(--accent-primary)' }}></div>
+            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Travel Route</span>
           </div>
         </div>
       </div>

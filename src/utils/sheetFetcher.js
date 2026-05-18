@@ -183,6 +183,7 @@ export const calculateTravelStats = (records, baseLocation) => {
   const townsVisited = new Set(records.map(r => r.toTown).filter(Boolean));
   const statesVisited = new Set(records.map(r => r.state).filter(Boolean));
   const uniqueDates = new Set(records.map(r => r.date));
+  const plannedVisits = records.filter(r => r.plannedRSName && r.plannedRSName.toLowerCase() !== 'n/a');
 
   return {
     totalDays: uniqueDates.size,
@@ -193,6 +194,8 @@ export const calculateTravelStats = (records, baseLocation) => {
     townsList: Array.from(townsVisited),
     statesVisited: statesVisited.size,
     statesList: Array.from(statesVisited),
-    baseLocation: baseLocation || 'Unknown'
+    baseLocation: baseLocation || 'Unknown',
+    plannedCount: plannedVisits.length,
+    plannedAdherence: workingDays.length > 0 ? Math.round((plannedVisits.length / workingDays.length) * 100) : 0
   };
 };

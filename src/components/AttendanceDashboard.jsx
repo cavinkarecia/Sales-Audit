@@ -874,10 +874,11 @@ const AttendanceDashboard = () => {
                       setAiAnalysisText('');
                       setSelectedHistoryDate('');
                     }}
-                    style={{ background: 'transparent', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none' }}
+                    style={{ background: 'var(--bg-secondary)', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
                   >
+                    <option value="" style={{ background: '#161b22', color: '#fff' }}>Show All Auditors</option>
                     {Array.from(new Set(historyData.map(d => d.employeeName))).filter(Boolean).sort().map(name => (
-                      <option key={name} value={name}>{name}</option>
+                      <option key={name} value={name} style={{ background: '#161b22', color: '#fff' }}>{name}</option>
                     ))}
                   </select>
                 </div>
@@ -895,10 +896,11 @@ const AttendanceDashboard = () => {
                       setAiAnalysisText('');
                       setSelectedHistoryDate('');
                     }}
-                    style={{ background: 'transparent', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none' }}
+                    style={{ background: 'var(--bg-secondary)', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
                   >
+                    <option value="" style={{ background: '#161b22', color: '#fff' }}>Show All Months</option>
                     {availableHistoryMonths.map(month => (
-                      <option key={month.key} value={month.key}>{month.label}</option>
+                      <option key={month.key} value={month.key} style={{ background: '#161b22', color: '#fff' }}>{month.label}</option>
                     ))}
                   </select>
                 </div>
@@ -912,12 +914,22 @@ const AttendanceDashboard = () => {
                   <select 
                     value={selectedHistoryDate}
                     onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                    style={{ background: 'transparent', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none' }}
+                    style={{ background: 'var(--bg-secondary)', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
                   >
-                    <option value="">Show All Month Dates</option>
-                    {activeHistoryDates.map(date => (
-                      <option key={date} value={date}>{date}</option>
-                    ))}
+                    <option value="" style={{ background: '#161b22', color: '#fff' }}>Show All Month Dates</option>
+                    {activeHistoryDates.map(date => {
+                      // Formatting helper for readable dates
+                      let formattedOption = date;
+                      try {
+                        const parsedDate = new Date(date);
+                        if (!isNaN(parsedDate.getTime())) {
+                          formattedOption = format(parsedDate, 'dd MMM yyyy (eee)');
+                        }
+                      } catch (err) {}
+                      return (
+                        <option key={date} value={date} style={{ background: '#161b22', color: '#fff' }}>{formattedOption}</option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -926,7 +938,7 @@ const AttendanceDashboard = () => {
 
             {/* Travel Stats Summary Dashboard */}
             {historyStats && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                 <div style={{ padding: '16px', background: 'rgba(88, 166, 255, 0.05)', borderRadius: '12px', border: '1px solid rgba(88, 166, 255, 0.1)' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Home Base Location</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#fff', marginTop: '6px' }}>{historyStats.baseLocation}</div>
@@ -942,6 +954,13 @@ const AttendanceDashboard = () => {
                 <div style={{ padding: '16px', background: 'rgba(210, 153, 34, 0.05)', borderRadius: '12px', border: '1px solid rgba(210, 153, 34, 0.1)' }}>
                   <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Towns Visited</div>
                   <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#d29922', marginTop: '6px' }}>{historyStats.townsVisited}</div>
+                </div>
+
+                <div style={{ padding: '16px', background: 'rgba(188, 140, 255, 0.05)', borderRadius: '12px', border: '1px solid rgba(188, 140, 255, 0.1)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Travel Plan Adherence</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#bc8cff', marginTop: '6px' }}>
+                    {historyStats.plannedCount} <span style={{ fontSize: '0.75rem', fontWeight: '400', color: 'var(--text-secondary)' }}>Visits ({historyStats.plannedAdherence}%)</span>
+                  </div>
                 </div>
 
                 <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
