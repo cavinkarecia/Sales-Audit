@@ -107,13 +107,60 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
     return markers;
   }, [data, auditorsMaster, historyData]);
 
+  const mapConfig = useMemo(() => {
+    const historyMarkers = deployments.filter(d => d.type === 'History');
+    if (historyMarkers.length > 0) {
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      let hasCoords = false;
+      
+      historyMarkers.forEach(m => {
+        if (m.coords && typeof m.coords.lat === 'number' && typeof m.coords.lng === 'number') {
+          const lat = m.coords.lat;
+          const lng = m.coords.lng;
+          if (lat < minLat) minLat = lat;
+          if (lat > maxLat) maxLat = lat;
+          if (lng < minLng) minLng = lng;
+          if (lng > maxLng) maxLng = lng;
+          hasCoords = true;
+        }
+      });
+      
+      if (hasCoords) {
+        const centerLat = (minLat + maxLat) / 2;
+        const centerLng = (minLng + maxLng) / 2;
+        
+        const latSpan = Math.abs(maxLat - minLat);
+        const lngSpan = Math.abs(maxLng - minLng);
+        const maxSpan = Math.max(latSpan, lngSpan);
+        
+        let scale = 1000;
+        if (maxSpan === 0) {
+          scale = 8000; // Close zoom on single city base
+        } else {
+          // Dynamic scale factor based on travel spans
+          scale = Math.min(12000, Math.max(2500, Math.round(500 / maxSpan)));
+        }
+        
+        return {
+          center: [centerLng, centerLat],
+          scale: scale
+        };
+      }
+    }
+    
+    return {
+      center: [80, 22],
+      scale: 1000
+    };
+  }, [deployments]);
+
   return (
     <div style={{ height: '600px', width: '100%', position: 'relative', background: 'rgba(13, 17, 23, 0.4)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(48, 54, 61, 0.5)' }}>
       <ComposableMap
         projection="geoMercator"
         projectionConfig={{
-          scale: 1000,
-          center: [80, 22], 
+          scale: mapConfig.scale,
+          center: mapConfig.center, 
         }}
         style={{ width: "100%", height: "100%" }}
       >
@@ -164,14 +211,45 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
             )}
 
             {d.type === 'History' && d.lineFrom && (
-              <Line
-                from={[d.lineFrom.lng, d.lineFrom.lat]}
-                to={[d.coords.lng, d.coords.lat]}
-                stroke="var(--accent-primary)"
-                strokeWidth={2}
-                strokeDasharray="3 3"
-                opacity={0.7}
-              />
+              <>
+                <Line
+                  from={[d.lineFrom.lng, d.lineFrom.lat]}
+                  to={[d.coords.lng, d.coords.lat]}
+                  stroke="var(--accent-primary)"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  opacity={0.7}
+                />
+                <Marker coordinates={[
+                  (d.lineFrom.lng + d.coords.lng) / 2,
+                  (d.lineFrom.lat + d.coords.lat) / 2
+                ]}>
+                  <g transform="translate(0, -6)">
+                    <rect
+                      x={-24}
+                      y={-9}
+                      width={48}
+                      height={18}
+                      rx={9}
+                      fill="rgba(13, 17, 23, 0.95)"
+                      stroke="var(--accent-primary)"
+                      strokeWidth={1}
+                    />
+                    <text
+                      textAnchor="middle"
+                      y={3}
+                      style={{
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: '0.55rem',
+                        fontWeight: '800',
+                        fill: 'var(--accent-primary)'
+                      }}
+                    >
+                      {`${d.details['Kms Travelled'] || d.details.kms || getDistance(d.lineFrom.lat, d.lineFrom.lng, d.coords.lat, d.coords.lng).toFixed(0)} km`}
+                    </text>
+                  </g>
+                </Marker>
+              </>
             )}
 
             <Marker coordinates={[d.coords.lng, d.coords.lat]}>
@@ -204,27 +282,45 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
                   />
                 </g>
               ) : (
-                <g 
-                  transform={selectedPoint?.id === d.id ? "translate(-12, -22) scale(1.2)" : "translate(-12, -22)"}
-                  style={{ cursor: 'pointer', transition: 'transform 0.2s ease-out' }}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedPoint(d);
-                  }}
-                >
-                  <path
-                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-                    fill={d.label?.startsWith('From:') ? "#3fb950" : "#f85149"}
-                    stroke="#fff"
-                    strokeWidth={selectedPoint?.id === d.id ? 2 : 1.2}
-                  />
-                  <circle 
-                    cx={12} 
-                    cy={9} 
-                    r={3} 
-                    fill="#fff" 
-                  />
-                </g>
+                <>
+                  <g 
+                    transform={selectedPoint?.id === d.id ? "translate(-12, -22) scale(1.2)" : "translate(-12, -22)"}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s ease-out' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPoint(d);
+                    }}
+                  >
+                    <path
+                      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                      fill={d.label?.startsWith('From:') ? "#3fb950" : "#f85149"}
+                      stroke="#fff"
+                      strokeWidth={selectedPoint?.id === d.id ? 2 : 1.2}
+                    />
+                    <circle 
+                      cx={12} 
+                      cy={9} 
+                      r={3} 
+                      fill="#fff" 
+                    />
+                  </g>
+                  <text
+                    textAnchor="middle"
+                    y={-28}
+                    style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontSize: '0.65rem',
+                      fontWeight: '800',
+                      fill: '#ffffff',
+                      paintOrder: 'stroke',
+                      stroke: 'rgba(13, 17, 23, 0.95)',
+                      strokeWidth: '4px',
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {d.label?.replace('From: ', '').replace('To: ', '')}
+                  </text>
+                </>
               )}
             </Marker>
           </React.Fragment>
