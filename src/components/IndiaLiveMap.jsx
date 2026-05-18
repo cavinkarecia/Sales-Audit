@@ -14,6 +14,22 @@ import { getDistance, findNearestCity, findCityCoords } from '../utils/geoUtils'
 const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
   const [selectedPoint, setSelectedPoint] = useState(null);
 
+  const getDisplayDistance = (d) => {
+    if (d.details && d.details['Kms Travelled']) {
+      return `${d.details['Kms Travelled']} km`;
+    }
+    if (d.details && d.details.kms) {
+      return `${d.details.kms} km`;
+    }
+    if (d.lineFrom && d.lineFrom.lat && d.lineFrom.lng && d.coords && d.coords.lat && d.coords.lng) {
+      const dist = getDistance(d.lineFrom.lat, d.lineFrom.lng, d.coords.lat, d.coords.lng);
+      if (dist !== null) {
+        return `${parseFloat(dist).toFixed(0)} km`;
+      }
+    }
+    return '0 km';
+  };
+
   const deployments = useMemo(() => {
     const markers = [];
     const isHistoryMode = historyData && historyData.length > 0;
@@ -245,7 +261,7 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
                         fill: 'var(--accent-primary)'
                       }}
                     >
-                      {`${d.details['Kms Travelled'] || d.details.kms || getDistance(d.lineFrom.lat, d.lineFrom.lng, d.coords.lat, d.coords.lng).toFixed(0)} km`}
+                      {getDisplayDistance(d)}
                     </text>
                   </g>
                 </Marker>
