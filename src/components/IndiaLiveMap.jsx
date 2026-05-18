@@ -16,42 +16,47 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
 
   const deployments = useMemo(() => {
     const markers = [];
+    const isHistoryMode = historyData && historyData.length > 0;
     
-    // Add Base Locations (always show these)
-    auditorsMaster.forEach(auditor => {
-      if (auditor.coords) {
-        markers.push({
-          id: `base-${auditor.name}`,
-          name: auditor.name,
-          type: 'Base',
-          coords: auditor.coords,
-          cluster: auditor.cluster,
-          homeCity: auditor.location,
-          empCode: auditor.empCode
-        });
-      }
-    });
-
-    // Add Live Locations from data prop
-    data.forEach(record => {
-      const auditor = auditorsMaster.find(a => a.name.toLowerCase() === record.name?.toLowerCase());
-      if (record.location) {
-        const parts = record.location.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p));
-        if (parts.length >= 2) {
-          const currentCoords = { lat: parts[0], lng: parts[1] };
+    // Add Base Locations (only if not in history mode)
+    if (!isHistoryMode) {
+      auditorsMaster.forEach(auditor => {
+        if (auditor.coords) {
           markers.push({
-            id: `live-${record.name}-${Date.now()}`,
-            name: record.name,
-            type: 'Live',
-            coords: currentCoords,
-            cluster: record.cluster,
-            isPresent: record.isPresent,
-            baseCoords: auditor?.coords,
-            currentCity: findNearestCity(currentCoords.lat, currentCoords.lng)
+            id: `base-${auditor.name}`,
+            name: auditor.name,
+            type: 'Base',
+            coords: auditor.coords,
+            cluster: auditor.cluster,
+            homeCity: auditor.location,
+            empCode: auditor.empCode
           });
         }
-      }
-    });
+      });
+    }
+
+    // Add Live Locations from data prop (only if not in history mode)
+    if (!isHistoryMode && data) {
+      data.forEach(record => {
+        const auditor = auditorsMaster.find(a => a.name.toLowerCase() === record.name?.toLowerCase());
+        if (record.location) {
+          const parts = record.location.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p));
+          if (parts.length >= 2) {
+            const currentCoords = { lat: parts[0], lng: parts[1] };
+            markers.push({
+              id: `live-${record.name}-${Date.now()}`,
+              name: record.name,
+              type: 'Live',
+              coords: currentCoords,
+              cluster: record.cluster,
+              isPresent: record.isPresent,
+              baseCoords: auditor?.coords,
+              currentCity: findNearestCity(currentCoords.lat, currentCoords.lng)
+            });
+          }
+        }
+      });
+    }
 
     // Add History Locations from historyData prop
     historyData.forEach((h, idx) => {
@@ -199,17 +204,27 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
                   />
                 </g>
               ) : (
-                <circle 
-                  r={selectedPoint?.id === d.id ? 6 : 4}
-                  fill={d.label?.startsWith('From:') ? "#3fb950" : "#f85149"} // Green for Base location, Red for To town
-                  stroke="#fff"
-                  strokeWidth={selectedPoint?.id === d.id ? 1.5 : 1}
-                  style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                <g 
+                  transform={selectedPoint?.id === d.id ? "translate(-12, -22) scale(1.2)" : "translate(-12, -22)"}
+                  style={{ cursor: 'pointer', transition: 'transform 0.2s ease-out' }}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedPoint(d);
                   }}
-                />
+                >
+                  <path
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                    fill={d.label?.startsWith('From:') ? "#3fb950" : "#f85149"}
+                    stroke="#fff"
+                    strokeWidth={selectedPoint?.id === d.id ? 2 : 1.2}
+                  />
+                  <circle 
+                    cx={12} 
+                    cy={9} 
+                    r={3} 
+                    fill="#fff" 
+                  />
+                </g>
               )}
             </Marker>
           </React.Fragment>
