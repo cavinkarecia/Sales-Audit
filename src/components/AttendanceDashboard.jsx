@@ -15,7 +15,10 @@ import {
   TrendingUp,
   ChevronRight,
   Filter,
-  Upload
+  Upload,
+  Compass,
+  FileText,
+  Activity
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -24,6 +27,8 @@ import {
 import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
 import { parseAttendanceExcel } from '../utils/ExcelParser';
+import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats } from '../utils/sheetFetcher';
+import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 
 const AttendanceDashboard = () => {
   const [reportData, setReportData] = useState(() => {
@@ -40,11 +45,22 @@ const AttendanceDashboard = () => {
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
   const [isParsing, setIsParsing] = useState(false);
+  
+  // Advanced Geographic Footprint states
   const [historyUrl, setHistoryUrl] = useState('');
   const [historyData, setHistoryData] = useState([]);
+  const [historySheetsSummary, setHistorySheetsSummary] = useState([]);
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [selectedHistoryAuditor, setSelectedHistoryAuditor] = useState('');
+  const [selectedHistoryMonth, setSelectedHistoryMonth] = useState('');
   const [selectedHistoryDate, setSelectedHistoryDate] = useState('');
+  
+  // AI Agent states
+  const [isAnalyzingTravel, setIsAnalyzingTravel] = useState(false);
+  const [aiAnalysisText, setAiAnalysisText] = useState('');
+  const [isAnalyzingAll, setIsAnalyzingAll] = useState(false);
+  const [allAuditorsInsights, setAllAuditorsInsights] = useState('');
+  
   const fileInputRef = React.useRef(null);
 
   // Persist data to localStorage
@@ -72,43 +88,69 @@ const AttendanceDashboard = () => {
   const handleHistorySync = async () => {
     if (!historyUrl) return;
     setIsFetchingHistory(true);
+    setAiAnalysisText('');
+    setAllAuditorsInsights('');
     try {
-      // Convert Google Sheets URL to CSV export URL
-      let exportUrl = historyUrl;
-      if (historyUrl.includes('/edit')) {
-        const base = historyUrl.split('/edit')[0];
-        const gidMatch = historyUrl.match(/gid=([0-9]+)/);
-        const gid = gidMatch ? gidMatch[1] : '0';
-        exportUrl = `${base}/export?format=csv&gid=${gid}`;
-      }
-
-      const response = await fetch(exportUrl);
-      const csvText = await response.text();
+      const result = await fetchAllSheets(historyUrl);
+      setHistoryData(result.records);
+      setHistorySheetsSummary(result.sheetSummary);
       
-      // Basic CSV parser logic
-      const lines = csvText.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim());
-      const rows = lines.slice(1).map(line => {
-        const values = line.split(',');
-        const obj = {};
-        headers.forEach((h, i) => {
-          obj[h] = values[i]?.trim();
-        });
-        return obj;
-      }).filter(r => r['Date'] || r['Employee Name']);
+      // Determine unique auditors and months
+      const uniqueAuditors = Array.from(new Set(result.records.map(r => r.employeeName))).filter(Boolean);
       
-      setHistoryData(rows);
-      
-      // Set default filters
-      if (rows.length > 0) {
-        setSelectedHistoryAuditor(rows[0]['Employee Name'] || '');
-        setSelectedHistoryDate(rows[0]['Date'] || '');
+      // Basic grouping to set defaults
+      if (result.records.length > 0) {
+        const firstRecord = result.records[0];
+        setSelectedHistoryAuditor(firstRecord.employeeName || '');
+        
+        // Find months
+        const monthGroup = groupByMonth(result.records);
+        if (monthGroup.length > 0) {
+          setSelectedHistoryMonth(monthGroup[0].key);
+        }
+        
+        setSelectedHistoryDate(''); // Default to 'All' or empty
+        alert(`Successfully fetched all travel history! Loaded ${result.totalSheets} sheets with ${result.totalRecords} daily travel records.`);
+      } else {
+        alert('Successfully fetched spreadsheet, but no valid travel records were found. Check headers (Date, Employee Name, To Town Name).');
       }
     } catch (err) {
       console.error('Error fetching history:', err);
-      alert('Failed to fetch data from Google Sheets. Ensure the sheet is shared as "Anyone with the link can view".');
+      alert(`Failed to fetch data from Google Sheets: ${err.message}`);
     } finally {
       setIsFetchingHistory(false);
+    }
+  };
+
+  const handleFetchAIInsights = async (auditorName, monthKey, recordsForMonth, stats) => {
+    if (recordsForMonth.length === 0) return;
+    setIsAnalyzingTravel(true);
+    setAiAnalysisText('');
+    try {
+      const monthLabel = availableHistoryMonths.find(m => m.key === monthKey)?.label || monthKey;
+      const insights = await getAIInsights(auditorName, monthLabel, recordsForMonth, stats);
+      setAiAnalysisText(insights);
+    } catch (err) {
+      console.error('Error getting AI insights:', err);
+      alert('Failed to get insights from DeepSeek AI. Please check your API connection.');
+    } finally {
+      setIsAnalyzingTravel(false);
+    }
+  };
+
+  const handleFetchAllAIInsights = async () => {
+    if (historyData.length === 0) return;
+    setIsAnalyzingAll(true);
+    setAllAuditorsInsights('');
+    try {
+      const grouped = groupByEmployee(historyData);
+      const insights = await analyzeAllAuditorsTravel(grouped, auditorsMaster);
+      setAllAuditorsInsights(insights);
+    } catch (err) {
+      console.error('Error getting all insights:', err);
+      alert('Failed to get team insights from DeepSeek AI.');
+    } finally {
+      setIsAnalyzingAll(false);
     }
   };
 
@@ -368,6 +410,85 @@ const AttendanceDashboard = () => {
   }, [filteredData]);
 
   const CHART_COLORS = ['#58a6ff', '#3fb950', '#f85149', '#d29922', '#bc8cff'];
+
+  // History-specific selectors
+  const availableHistoryMonths = useMemo(() => {
+    if (historyData.length === 0) return [];
+    return groupByMonth(historyData);
+  }, [historyData]);
+
+  const filteredHistoryRecords = useMemo(() => {
+    if (historyData.length === 0) return [];
+    return historyData.filter(record => {
+      // Filter by Auditor
+      if (selectedHistoryAuditor && record.employeeName !== selectedHistoryAuditor) {
+        return false;
+      }
+      
+      // Filter by Month
+      if (selectedHistoryMonth) {
+        const parsed = new Date(record.date);
+        if (!isNaN(parsed.getTime())) {
+          const mKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+          if (mKey !== selectedHistoryMonth) return false;
+        } else {
+          return false;
+        }
+      }
+      
+      // Filter by Date
+      if (selectedHistoryDate && record.date !== selectedHistoryDate) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [historyData, selectedHistoryAuditor, selectedHistoryMonth, selectedHistoryDate]);
+
+  const activeHistoryDates = useMemo(() => {
+    if (historyData.length === 0 || !selectedHistoryAuditor) return [];
+    
+    // Filter records of selected auditor and selected month
+    const audRecords = historyData.filter(record => {
+      if (record.employeeName !== selectedHistoryAuditor) return false;
+      if (selectedHistoryMonth) {
+        const parsed = new Date(record.date);
+        if (!isNaN(parsed.getTime())) {
+          const mKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+          if (mKey !== selectedHistoryMonth) return false;
+        }
+      }
+      return true;
+    });
+
+    return Array.from(new Set(audRecords.map(r => r.date))).filter(Boolean);
+  }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
+
+  const historyStats = useMemo(() => {
+    if (historyData.length === 0 || !selectedHistoryAuditor) return null;
+    
+    // Filter records of this auditor in this specific month
+    const audMonthRecords = historyData.filter(record => {
+      if (record.employeeName !== selectedHistoryAuditor) return false;
+      if (selectedHistoryMonth) {
+        const parsed = new Date(record.date);
+        if (!isNaN(parsed.getTime())) {
+          const mKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+          if (mKey !== selectedHistoryMonth) return false;
+        }
+      }
+      return true;
+    });
+
+    // Lookup base location from master list
+    const masterInfo = auditorsMaster.find(a => 
+      a.name.toLowerCase().includes(selectedHistoryAuditor.toLowerCase()) ||
+      selectedHistoryAuditor.toLowerCase().includes(a.name.toLowerCase())
+    );
+    
+    const baseLoc = masterInfo?.location || 'Unknown';
+    return calculateTravelStats(audMonthRecords, baseLoc);
+  }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
 
   // We no longer return the ExcelUpload component as a separate page.
   // Instead, we always show the dashboard shell.
@@ -648,29 +769,31 @@ const AttendanceDashboard = () => {
       )}
 
       {/* Auditor's Geographic Footprint - History Section */}
-      <div className="card" style={{ marginTop: '40px', padding: '24px', background: 'rgba(88, 166, 255, 0.03)', border: '1px solid var(--border-main)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+      <div className="card" style={{ marginTop: '40px', padding: '24px', background: 'rgba(88, 166, 255, 0.02)', border: '1px solid var(--border-main)', borderRadius: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <h2 style={{ fontSize: '1.4rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <MapPin size={24} color="var(--accent-primary)" /> Auditor's Geographic Footprint
+            <h2 style={{ fontSize: '1.45rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <Compass size={28} color="var(--accent-primary)" /> Auditor's Geographic Footprint
             </h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Analyze movement history from Google Spreadsheet links</p>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>AI-Powered historical movement and route efficiency analyzer (Multi-Sheet Sync)</p>
           </div>
           
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             <input 
               type="text" 
               placeholder="Paste Google Spreadsheet Link here..." 
               value={historyUrl}
               onChange={(e) => setHistoryUrl(e.target.value)}
               style={{ 
-                width: '350px',
+                width: '320px',
                 background: 'var(--bg-secondary)', 
                 color: '#fff', 
                 border: '1px solid var(--border-main)', 
-                padding: '8px 12px', 
+                padding: '10px 14px', 
                 borderRadius: '8px', 
-                fontSize: '0.8rem' 
+                fontSize: '0.8rem',
+                outline: 'none',
+                transition: 'border 0.2s'
               }}
             />
             <button 
@@ -680,57 +803,265 @@ const AttendanceDashboard = () => {
                 background: 'var(--accent-primary)', 
                 color: '#fff', 
                 border: 'none', 
-                padding: '8px 20px', 
+                padding: '10px 22px', 
                 borderRadius: '8px', 
                 cursor: 'pointer', 
                 fontWeight: '600',
+                fontSize: '0.8rem',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                opacity: (isFetchingHistory || !historyUrl) ? 0.6 : 1
+                opacity: (isFetchingHistory || !historyUrl) ? 0.6 : 1,
+                boxShadow: '0 4px 12px rgba(88, 166, 255, 0.15)'
               }}
             >
               {isFetchingHistory ? <div className="spinner-small"></div> : <Upload size={14} />}
-              Sync History
+              Sync Spreadsheet
             </button>
+
+            {historyData.length > 0 && (
+              <button 
+                onClick={handleFetchAllAIInsights}
+                disabled={isAnalyzingAll}
+                style={{ 
+                  background: 'rgba(188, 140, 255, 0.1)', 
+                  color: '#bc8cff', 
+                  border: '1px solid rgba(188, 140, 255, 0.3)', 
+                  padding: '10px 16px', 
+                  borderRadius: '8px', 
+                  cursor: 'pointer', 
+                  fontWeight: '600',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: isAnalyzingAll ? 0.6 : 1
+                }}
+              >
+                {isAnalyzingAll ? <div className="spinner-small"></div> : <Activity size={14} />}
+                Team AI Summary
+              </button>
+            )}
           </div>
         </div>
 
-        {historyData.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Users size={14} color="var(--accent-primary)" />
-                <select 
-                  value={selectedHistoryAuditor}
-                  onChange={(e) => setSelectedHistoryAuditor(e.target.value)}
-                  style={{ background: 'var(--bg-secondary)', color: '#fff', border: '1px solid var(--border-main)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.8rem' }}
-                >
-                  {Array.from(new Set(historyData.map(d => d['Employee Name']))).filter(Boolean).map(name => (
-                    <option key={name} value={name}>{name}</option>
-                  ))}
-                </select>
+        {/* Global Team AI Insights if active */}
+        {allAuditorsInsights && (
+          <div className="animate-in" style={{ padding: '16px', background: 'rgba(188, 140, 255, 0.05)', borderRadius: '12px', border: '1px solid rgba(188, 140, 255, 0.15)', marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '0.9rem', color: '#bc8cff', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 10px 0' }}>
+              <Activity size={16} /> Regional Field Telemetry (DeepSeek AI Analysis)
+            </h3>
+            <div style={{ whiteSpace: 'pre-line', fontSize: '0.8rem', color: '#c9d1d9', lineHeight: '1.5' }}>
+              {allAuditorsInsights}
+            </div>
+          </div>
+        )}
+
+        {historyData.length > 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Filters panel */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              
+              {/* Select Auditor */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Auditor Name</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border-main)' }}>
+                  <Users size={14} color="var(--accent-primary)" />
+                  <select 
+                    value={selectedHistoryAuditor}
+                    onChange={(e) => {
+                      setSelectedHistoryAuditor(e.target.value);
+                      setAiAnalysisText('');
+                      setSelectedHistoryDate('');
+                    }}
+                    style={{ background: 'transparent', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none' }}
+                  >
+                    {Array.from(new Set(historyData.map(d => d.employeeName))).filter(Boolean).sort().map(name => (
+                      <option key={name} value={name}>{name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Calendar size={14} color="var(--accent-primary)" />
-                <select 
-                  value={selectedHistoryDate}
-                  onChange={(e) => setSelectedHistoryDate(e.target.value)}
-                  style={{ background: 'var(--bg-secondary)', color: '#fff', border: '1px solid var(--border-main)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.8rem' }}
-                >
-                  {Array.from(new Set(historyData.filter(d => d['Employee Name'] === selectedHistoryAuditor).map(d => d['Date']))).filter(Boolean).map(date => (
-                    <option key={date} value={date}>{date}</option>
-                  ))}
-                </select>
+              {/* Select Month */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Select Month</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border-main)' }}>
+                  <Calendar size={14} color="var(--accent-primary)" />
+                  <select 
+                    value={selectedHistoryMonth}
+                    onChange={(e) => {
+                      setSelectedHistoryMonth(e.target.value);
+                      setAiAnalysisText('');
+                      setSelectedHistoryDate('');
+                    }}
+                    style={{ background: 'transparent', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none' }}
+                  >
+                    {availableHistoryMonths.map(month => (
+                      <option key={month.key} value={month.key}>{month.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Select Specific Date */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date Filter</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--bg-secondary)', padding: '4px 10px', borderRadius: '8px', border: '1px solid var(--border-main)' }}>
+                  <Filter size={14} color="var(--accent-primary)" />
+                  <select 
+                    value={selectedHistoryDate}
+                    onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                    style={{ background: 'transparent', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none' }}
+                  >
+                    <option value="">Show All Month Dates</option>
+                    {activeHistoryDates.map(date => (
+                      <option key={date} value={date}>{date}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+            </div>
+
+            {/* Travel Stats Summary Dashboard */}
+            {historyStats && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                <div style={{ padding: '16px', background: 'rgba(88, 166, 255, 0.05)', borderRadius: '12px', border: '1px solid rgba(88, 166, 255, 0.1)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Home Base Location</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#fff', marginTop: '6px' }}>{historyStats.baseLocation}</div>
+                </div>
+
+                <div style={{ padding: '16px', background: 'rgba(63, 185, 80, 0.05)', borderRadius: '12px', border: '1px solid rgba(63, 185, 80, 0.1)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Distance Travelled</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#3fb950', marginTop: '6px' }}>
+                    {historyStats.totalKms} <span style={{ fontSize: '0.75rem', fontWeight: '400' }}>KM</span>
+                  </div>
+                </div>
+
+                <div style={{ padding: '16px', background: 'rgba(210, 153, 34, 0.05)', borderRadius: '12px', border: '1px solid rgba(210, 153, 34, 0.1)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Towns Visited</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: '800', color: '#d29922', marginTop: '6px' }}>{historyStats.townsVisited}</div>
+                </div>
+
+                <div style={{ padding: '16px', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Log Days Breakdown</div>
+                  <div style={{ fontSize: '1.1rem', fontWeight: '700', color: '#fff', marginTop: '6px', display: 'flex', gap: '10px' }}>
+                    <span style={{ color: '#3fb950' }}>{historyStats.workingDays}d <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Work</span></span>
+                    <span style={{ color: '#8b949e' }}>{historyStats.leaveDays}d <span style={{ fontSize: '0.65rem', color: 'var(--text-secondary)' }}>Off</span></span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* DeepSeek Travel Analysis AI Agent Block */}
+            {historyStats && (
+              <div style={{ background: 'rgba(88, 166, 255, 0.02)', padding: '20px', borderRadius: '14px', border: '1px solid rgba(88, 166, 255, 0.1)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '8px', height: '8px', background: '#58a6ff', borderRadius: '50%' }}></div>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#58a6ff' }}>DeepSeek AI Travel Agent Insights</span>
+                  </div>
+                  
+                  <button
+                    onClick={() => handleFetchAIInsights(
+                      selectedHistoryAuditor, 
+                      selectedHistoryMonth, 
+                      filteredHistoryRecords.filter(r => r.employeeName === selectedHistoryAuditor),
+                      historyStats
+                    )}
+                    disabled={isAnalyzingTravel}
+                    style={{ 
+                      background: 'rgba(88, 166, 255, 0.1)', 
+                      color: 'var(--accent-primary)', 
+                      border: '1px solid rgba(88, 166, 255, 0.3)', 
+                      padding: '6px 14px', 
+                      borderRadius: '6px', 
+                      cursor: 'pointer', 
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}
+                  >
+                    {isAnalyzingTravel ? <div className="spinner-small"></div> : <Compass size={12} />}
+                    Analyze Travel Strategy
+                  </button>
+                </div>
+
+                {isAnalyzingTravel && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 0', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                    <div className="spinner-small"></div>
+                    DeepSeek is analyzing coordinates, base proximity and travel efficiency patterns...
+                  </div>
+                )}
+
+                {aiAnalysisText && (
+                  <div className="animate-in" style={{ padding: '14px', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)', fontSize: '0.8rem', lineHeight: '1.6', color: '#c9d1d9', whiteSpace: 'pre-wrap' }}>
+                    {aiAnalysisText}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Travel Map */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
+              <div className="card" style={{ padding: '16px', background: 'rgba(0,0,0,0.2)' }}>
+                <h3 style={{ fontSize: '0.85rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MapPin size={16} color="#ffd700" /> Auditor Travel Footprint Map (Yellow: History Points)
+                </h3>
+                <IndiaLiveMap 
+                  data={[]} 
+                  historyData={filteredHistoryRecords}
+                  auditorsMaster={auditorsMaster} 
+                />
               </div>
             </div>
 
-            <IndiaLiveMap 
-              data={[]} 
-              historyData={historyData.filter(d => d['Employee Name'] === selectedHistoryAuditor && d['Date'] === selectedHistoryDate)}
-              auditorsMaster={auditorsMaster} 
-            />
+            {/* Detailed Travel Log Table */}
+            <div className="chart-card" style={{ padding: '16px' }}>
+              <h3 className="chart-title" style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <FileText size={16} color="var(--accent-primary)" /> Travel & Route Logs ({filteredHistoryRecords.length} records)
+              </h3>
+              <div className="table-container" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>From Town</th>
+                      <th>To Town</th>
+                      <th>Distance</th>
+                      <th>Work Type</th>
+                      <th>Planned Retail Store</th>
+                      <th>Hotel Stay</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredHistoryRecords.slice().sort((a,b) => new Date(a.date) - new Date(b.date)).map((item, index) => (
+                      <tr key={index}>
+                        <td style={{ fontSize: '0.75rem', fontWeight: '600' }}>{item.date}</td>
+                        <td style={{ fontSize: '0.75rem' }}>{item.fromTown || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                        <td style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--accent-primary)' }}>{item.toTown || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                        <td style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{item.kms ? `${item.kms} km` : <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                        <td style={{ fontSize: '0.75rem' }}>
+                          <span className={`status-badge ${item.isWorkingDay ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 6px', fontSize: '0.65rem' }}>
+                            {item.workType || 'Holiday/Off'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '0.75rem' }}>{item.plannedRSName || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                        <td style={{ fontSize: '0.75rem' }}>{item.hotelStay || '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div style={{ textAlign: 'center', padding: '40px', background: 'rgba(255,255,255,0.01)', borderRadius: '12px', border: '1px dashed var(--border-main)' }}>
+            <Compass size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px' }} />
+            <div style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>No travel history synchronised yet. Paste a public Google Spreadsheet link above and click "Sync Spreadsheet" to analyze auditor footprints.</div>
           </div>
         )}
       </div>

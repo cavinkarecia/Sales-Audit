@@ -55,19 +55,32 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
 
     // Add History Locations from historyData prop
     historyData.forEach((h, idx) => {
-      const fromTown = h['From Town Name'];
-      const toTown = h['To Town Name'];
-      const fromCoords = findCityCoords(fromTown);
+      const empName = h['Employee Name'] || h.employeeName || '';
+      const fromTown = h['From Town Name'] || h.fromTown || '';
+      const toTown = h['To Town Name'] || h.toTown || '';
+      const dateVal = h['Date'] || h.date || '';
+      
+      const auditor = auditorsMaster.find(a => 
+        a.name.toLowerCase().includes(empName.toLowerCase()) || 
+        empName.toLowerCase().includes(a.name.toLowerCase())
+      );
+
+      let fromCoords = findCityCoords(fromTown);
       const toCoords = findCityCoords(toTown);
+
+      // Fallback: If From town coords not found or 'N/a', use Auditor's registered Base Coordinates
+      if (!fromCoords && auditor && auditor.coords) {
+        fromCoords = auditor.coords;
+      }
 
       if (fromCoords) {
         markers.push({
           id: `history-from-${idx}`,
-          name: h['Employee Name'],
+          name: empName,
           type: 'History',
           coords: fromCoords,
-          label: `From: ${fromTown}`,
-          date: h['Date'],
+          label: `From: ${fromTown || auditor?.location || 'Base'}`,
+          date: dateVal,
           details: h
         });
       }
@@ -75,13 +88,13 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
       if (toCoords) {
         markers.push({
           id: `history-to-${idx}`,
-          name: h['Employee Name'],
+          name: empName,
           type: 'History',
           coords: toCoords,
           label: `To: ${toTown}`,
-          date: h['Date'],
+          date: dateVal,
           details: h,
-          lineFrom: fromCoords
+          lineFrom: fromCoords || (auditor && auditor.coords)
         });
       }
     });
@@ -276,7 +289,10 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
                 <div style={{ fontSize: '0.8rem', color: '#fff', marginBottom: '4px' }}>{selectedPoint.label}</div>
                 <div style={{ fontSize: '0.7rem', color: '#8b949e' }}>Date: {selectedPoint.date}</div>
                 <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: '8px' }}>
-                   Planned RS: {selectedPoint.details['Planned RS Name']}
+                   Planned RS: {selectedPoint.details['Planned RS Name'] || selectedPoint.details.plannedRSName || 'N/A'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: '4px' }}>
+                   Kms Travelled: {selectedPoint.details['Kms Travelled'] || selectedPoint.details.kms || 0} km
                 </div>
               </div>
             )}
