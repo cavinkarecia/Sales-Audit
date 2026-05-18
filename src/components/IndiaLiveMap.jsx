@@ -9,16 +9,16 @@ import {
 import { MapPin, X, Home, Navigation, Info } from 'lucide-react';
 
 import indiaTopo from '../data/india_topo.json';
-import { getDistance, findNearestCity } from '../utils/geoUtils';
+import { getDistance, findNearestCity, findCityCoords } from '../utils/geoUtils';
 
-const IndiaLiveMap = ({ data, auditorsMaster }) => {
+const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
   const [selectedPoint, setSelectedPoint] = useState(null);
 
   const deployments = useMemo(() => {
     const markers = [];
     
+    // Add Base Locations (always show these)
     auditorsMaster.forEach(auditor => {
-      // Add Base Location Marker
       if (auditor.coords) {
         markers.push({
           id: `base-${auditor.name}`,
@@ -30,36 +30,64 @@ const IndiaLiveMap = ({ data, auditorsMaster }) => {
           empCode: auditor.empCode
         });
       }
+    });
 
-      // Add Live Location Marker
-      const liveRecord = data.find(d => d.name.toLowerCase() === auditor.name.toLowerCase());
-      if (liveRecord && liveRecord.location) {
-        const parts = liveRecord.location.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p));
+    // Add Live Locations from data prop
+    data.forEach(record => {
+      const auditor = auditorsMaster.find(a => a.name.toLowerCase() === record.name?.toLowerCase());
+      if (record.location) {
+        const parts = record.location.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p));
         if (parts.length >= 2) {
           const currentCoords = { lat: parts[0], lng: parts[1] };
-          const distance = auditor.coords ? getDistance(auditor.coords.lat, auditor.coords.lng, currentCoords.lat, currentCoords.lng) : null;
-          
-          // Reverse geocode to find the actual city
-          const currentCity = findNearestCity(currentCoords.lat, currentCoords.lng);
-          
           markers.push({
-            id: `live-${auditor.name}`,
-            name: auditor.name,
+            id: `live-${record.name}-${Date.now()}`,
+            name: record.name,
             type: 'Live',
             coords: currentCoords,
-            cluster: liveRecord.cluster || auditor.cluster,
-            isPresent: liveRecord.isPresent,
-            baseCoords: auditor.coords,
-            distance: distance,
-            homeCity: auditor.location,
-            currentCity: currentCity
+            cluster: record.cluster,
+            isPresent: record.isPresent,
+            baseCoords: auditor?.coords,
+            currentCity: findNearestCity(currentCoords.lat, currentCoords.lng)
           });
         }
       }
     });
+
+    // Add History Locations from historyData prop
+    historyData.forEach((h, idx) => {
+      const fromTown = h['From Town Name'];
+      const toTown = h['To Town Name'];
+      const fromCoords = findCityCoords(fromTown);
+      const toCoords = findCityCoords(toTown);
+
+      if (fromCoords) {
+        markers.push({
+          id: `history-from-${idx}`,
+          name: h['Employee Name'],
+          type: 'History',
+          coords: fromCoords,
+          label: `From: ${fromTown}`,
+          date: h['Date'],
+          details: h
+        });
+      }
+
+      if (toCoords) {
+        markers.push({
+          id: `history-to-${idx}`,
+          name: h['Employee Name'],
+          type: 'History',
+          coords: toCoords,
+          label: `To: ${toTown}`,
+          date: h['Date'],
+          details: h,
+          lineFrom: fromCoords
+        });
+      }
+    });
     
     return markers;
-  }, [data, auditorsMaster]);
+  }, [data, auditorsMaster, historyData]);
 
   return (
     <div style={{ height: '600px', width: '100%', position: 'relative', background: 'rgba(13, 17, 23, 0.4)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(48, 54, 61, 0.5)' }}>
@@ -117,6 +145,16 @@ const IndiaLiveMap = ({ data, auditorsMaster }) => {
               />
             )}
 
+            {d.type === 'History' && d.lineFrom && (
+              <Line
+                from={[d.lineFrom.lng, d.lineFrom.lat]}
+                to={[d.coords.lng, d.coords.lat]}
+                stroke="#ffd700"
+                strokeWidth={2}
+                opacity={0.5}
+              />
+            )}
+
             <Marker coordinates={[d.coords.lng, d.coords.lat]}>
               {d.type === 'Base' ? (
                 <circle 
@@ -130,7 +168,7 @@ const IndiaLiveMap = ({ data, auditorsMaster }) => {
                     setSelectedPoint(d);
                   }}
                 />
-              ) : (
+              ) : d.type === 'Live' ? (
                 <g 
                   transform="translate(-6, -12) scale(0.8)" 
                   style={{ cursor: 'pointer' }}
@@ -146,6 +184,18 @@ const IndiaLiveMap = ({ data, auditorsMaster }) => {
                     strokeWidth={selectedPoint?.id === d.id ? 1.5 : 0.5}
                   />
                 </g>
+              ) : (
+                <circle 
+                  r={4}
+                  fill="#ffd700"
+                  stroke="#fff"
+                  strokeWidth={1}
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPoint(d);
+                  }}
+                />
               )}
             </Marker>
           </React.Fragment>
@@ -219,6 +269,17 @@ const IndiaLiveMap = ({ data, auditorsMaster }) => {
                 </div>
               </>
             )}
+
+            {selectedPoint.type === 'History' && (
+              <div style={{ padding: '8px 12px', background: 'rgba(255, 215, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
+                <div style={{ fontSize: '0.65rem', color: '#ffd700', textTransform: 'uppercase', marginBottom: '4px' }}>Historical Travel</div>
+                <div style={{ fontSize: '0.8rem', color: '#fff', marginBottom: '4px' }}>{selectedPoint.label}</div>
+                <div style={{ fontSize: '0.7rem', color: '#8b949e' }}>Date: {selectedPoint.date}</div>
+                <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: '8px' }}>
+                   Planned RS: {selectedPoint.details['Planned RS Name']}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -246,6 +307,10 @@ const IndiaLiveMap = ({ data, auditorsMaster }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <div style={{ width: '8px', height: '12px', background: '#f85149', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
             <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Absent</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ width: '6px', height: '6px', background: '#ffd700', borderRadius: '50%' }}></div>
+            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>History Point</span>
           </div>
         </div>
       </div>

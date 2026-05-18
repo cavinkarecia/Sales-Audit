@@ -41,3 +41,12 @@ export const findNearestCity = (lat, lng) => {
   }
   return nearestCity;
 };
+export const findCityCoords = (cityName) => {
+  if (!cityName || cityName.toLowerCase() === 'n/a') return null;
+  const lowerCity = cityName.toLowerCase().trim();
+  const match = cities.find(c => 
+    c.city.toLowerCase() === lowerCity || 
+    lowerCity.includes(c.city.toLowerCase())
+  );
+  return match ? { lat: match.latitude, lng: match.longitude } : null;
+};

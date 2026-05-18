@@ -40,6 +40,11 @@ const AttendanceDashboard = () => {
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
   const [isParsing, setIsParsing] = useState(false);
+  const [historyUrl, setHistoryUrl] = useState('');
+  const [historyData, setHistoryData] = useState([]);
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [selectedHistoryAuditor, setSelectedHistoryAuditor] = useState('');
+  const [selectedHistoryDate, setSelectedHistoryDate] = useState('');
   const fileInputRef = React.useRef(null);
 
   // Persist data to localStorage
@@ -61,6 +66,49 @@ const AttendanceDashboard = () => {
     } finally {
       setIsParsing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleHistorySync = async () => {
+    if (!historyUrl) return;
+    setIsFetchingHistory(true);
+    try {
+      // Convert Google Sheets URL to CSV export URL
+      let exportUrl = historyUrl;
+      if (historyUrl.includes('/edit')) {
+        const base = historyUrl.split('/edit')[0];
+        const gidMatch = historyUrl.match(/gid=([0-9]+)/);
+        const gid = gidMatch ? gidMatch[1] : '0';
+        exportUrl = `${base}/export?format=csv&gid=${gid}`;
+      }
+
+      const response = await fetch(exportUrl);
+      const csvText = await response.text();
+      
+      // Basic CSV parser logic
+      const lines = csvText.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim());
+      const rows = lines.slice(1).map(line => {
+        const values = line.split(',');
+        const obj = {};
+        headers.forEach((h, i) => {
+          obj[h] = values[i]?.trim();
+        });
+        return obj;
+      }).filter(r => r['Date'] || r['Employee Name']);
+      
+      setHistoryData(rows);
+      
+      // Set default filters
+      if (rows.length > 0) {
+        setSelectedHistoryAuditor(rows[0]['Employee Name'] || '');
+        setSelectedHistoryDate(rows[0]['Date'] || '');
+      }
+    } catch (err) {
+      console.error('Error fetching history:', err);
+      alert('Failed to fetch data from Google Sheets. Ensure the sheet is shared as "Anyone with the link can view".');
+    } finally {
+      setIsFetchingHistory(false);
     }
   };
 
@@ -598,6 +646,94 @@ const AttendanceDashboard = () => {
 
         </div>
       )}
+
+      {/* Auditor's Geographic Footprint - History Section */}
+      <div className="card" style={{ marginTop: '40px', padding: '24px', background: 'rgba(88, 166, 255, 0.03)', border: '1px solid var(--border-main)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <div>
+            <h2 style={{ fontSize: '1.4rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <MapPin size={24} color="var(--accent-primary)" /> Auditor's Geographic Footprint
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Analyze movement history from Google Spreadsheet links</p>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <input 
+              type="text" 
+              placeholder="Paste Google Spreadsheet Link here..." 
+              value={historyUrl}
+              onChange={(e) => setHistoryUrl(e.target.value)}
+              style={{ 
+                width: '350px',
+                background: 'var(--bg-secondary)', 
+                color: '#fff', 
+                border: '1px solid var(--border-main)', 
+                padding: '8px 12px', 
+                borderRadius: '8px', 
+                fontSize: '0.8rem' 
+              }}
+            />
+            <button 
+              onClick={handleHistorySync}
+              disabled={isFetchingHistory || !historyUrl}
+              style={{ 
+                background: 'var(--accent-primary)', 
+                color: '#fff', 
+                border: 'none', 
+                padding: '8px 20px', 
+                borderRadius: '8px', 
+                cursor: 'pointer', 
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                opacity: (isFetchingHistory || !historyUrl) ? 0.6 : 1
+              }}
+            >
+              {isFetchingHistory ? <div className="spinner-small"></div> : <Upload size={14} />}
+              Sync History
+            </button>
+          </div>
+        </div>
+
+        {historyData.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div style={{ display: 'flex', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Users size={14} color="var(--accent-primary)" />
+                <select 
+                  value={selectedHistoryAuditor}
+                  onChange={(e) => setSelectedHistoryAuditor(e.target.value)}
+                  style={{ background: 'var(--bg-secondary)', color: '#fff', border: '1px solid var(--border-main)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.8rem' }}
+                >
+                  {Array.from(new Set(historyData.map(d => d['Employee Name']))).filter(Boolean).map(name => (
+                    <option key={name} value={name}>{name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Calendar size={14} color="var(--accent-primary)" />
+                <select 
+                  value={selectedHistoryDate}
+                  onChange={(e) => setSelectedHistoryDate(e.target.value)}
+                  style={{ background: 'var(--bg-secondary)', color: '#fff', border: '1px solid var(--border-main)', padding: '4px 12px', borderRadius: '6px', fontSize: '0.8rem' }}
+                >
+                  {Array.from(new Set(historyData.filter(d => d['Employee Name'] === selectedHistoryAuditor).map(d => d['Date']))).filter(Boolean).map(date => (
+                    <option key={date} value={date}>{date}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <IndiaLiveMap 
+              data={[]} 
+              historyData={historyData.filter(d => d['Employee Name'] === selectedHistoryAuditor && d['Date'] === selectedHistoryDate)}
+              auditorsMaster={auditorsMaster} 
+            />
+          </div>
+        )}
+      </div>
 
     </div>
   );

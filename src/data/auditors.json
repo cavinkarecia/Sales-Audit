@@ -51,6 +51,7 @@
     "email": "ragul.r@hepl.com",
     "location": "Perambalur",
     "cluster": "TN",
+    "empCode": "903194",
     "coords": { "lat": 11.23, "lng": 78.88 }
   },
   {
@@ -61,6 +62,7 @@
     "email": "pradeepan.r@hepl.com",
     "location": "Karur",
     "cluster": "TN",
+    "empCode": "903193",
     "coords": { "lat": 10.95, "lng": 78.08 }
   },
   {
@@ -71,6 +73,7 @@
     "email": "sakthivel.nhepl.com",
     "location": "Kangeyam",
     "cluster": "TN",
+    "empCode": "903016",
     "coords": { "lat": 11.00, "lng": 77.56 }
   },
   {
@@ -112,9 +115,10 @@
     "doj": "14-01-2026",
     "tenure": 92,
     "email": "nithishwaran.b@hepl.com",
-    "location": "Kangeyam",
-    "cluster": "TN",
-    "coords": { "lat": 11.00, "lng": 77.56 }
+    "location": "Hubballi",
+    "cluster": "KAR",
+    "empCode": "903192",
+    "coords": { "lat": 15.36, "lng": 75.12 }
   },
   {
     "name": "Suchit R",
@@ -122,9 +126,10 @@
     "doj": "14-01-2026",
     "tenure": 92,
     "email": "suchit.e@hepl.com",
-    "location": "Kangeyam",
-    "cluster": "TN",
-    "coords": { "lat": 11.00, "lng": 77.56 }
+    "location": "Tumkur",
+    "cluster": "KAR",
+    "empCode": "903202",
+    "coords": { "lat": 13.34, "lng": 77.10 }
   },
   {
     "name": "Pigileti Yuva Teja",
@@ -156,6 +161,7 @@
     "email": "chokka.s@hepl.com",
     "location": "Tuni",
     "cluster": "RAPT",
+    "empCode": "902245",
     "coords": { "lat": 17.35, "lng": 82.55 }
   },
   {
@@ -166,6 +172,7 @@
     "email": "narasapurapu.r@hepl.com",
     "location": "NUZVID",
     "cluster": "RAPT",
+    "empCode": "902246",
     "coords": { "lat": 16.78, "lng": 80.85 }
   },
   {
@@ -176,6 +183,7 @@
     "email": "erapogu.n@hepl.com",
     "location": "Kurnool",
     "cluster": "RAPT",
+    "empCode": "902850",
     "coords": { "lat": 15.82, "lng": 78.03 }
   },
   {
@@ -186,6 +194,7 @@
     "email": "rakesh.ra@hepl.com",
     "location": "Nizambad",
     "cluster": "RAPT",
+    "empCode": "902968",
     "coords": { "lat": 18.67, "lng": 78.10 }
   },
   {
@@ -196,6 +205,7 @@
     "email": "neelkant.u@hepl.com",
     "location": "Indore",
     "cluster": "West",
+    "empCode": "901940",
     "coords": { "lat": 22.71, "lng": 75.85 }
   },
   {
@@ -215,10 +225,10 @@
     "doj": "01-04-2025",
     "tenure": 380,
     "email": "tushar.a@hepl.com",
-    "location": "Buldhana District",
+    "location": "Pune",
     "cluster": "West",
     "empCode": "902106",
-    "coords": { "lat": 20.53, "lng": 76.18 }
+    "coords": { "lat": 18.52, "lng": 73.85 }
   },
   {
     "name": "Ritesh Sudhakar Kavade",
@@ -228,6 +238,7 @@
     "email": "ritesh.s@hepl.com",
     "location": "Kolhapur",
     "cluster": "West",
+    "empCode": "902779",
     "coords": { "lat": 16.70, "lng": 74.24 }
   },
   {
@@ -237,7 +248,8 @@
     "tenure": 493,
     "email": "ayush.k@hepl.com",
     "location": "Bilaspur",
-    "cluster": "JOBC",
+    "cluster": "West",
+    "empCode": "901920",
     "coords": { "lat": 22.07, "lng": 82.14 }
   },
   {
@@ -248,6 +260,7 @@
     "email": "siddharth.d@hepl.com",
     "location": "Rajkot",
     "cluster": "West",
+    "empCode": "903052",
     "coords": { "lat": 22.30, "lng": 70.81 }
   },
   {
@@ -258,6 +271,7 @@
     "email": "godhani.h@hepl.com",
     "location": "Surat",
     "cluster": "West",
+    "empCode": "903101",
     "coords": { "lat": 21.17, "lng": 72.83 }
   },
   {
@@ -290,6 +304,7 @@
     "email": "shubham.d@hepl.com",
     "location": "Meerut",
     "cluster": "North",
+    "empCode": "902849",
     "coords": { "lat": 28.98, "lng": 77.70 }
   },
   {
@@ -300,6 +315,7 @@
     "email": "abhay.s@hepl.com",
     "location": "Kannauj",
     "cluster": "North",
+    "empCode": "902900",
     "coords": { "lat": 27.05, "lng": 79.91 }
   },
   {
@@ -310,6 +326,7 @@
     "email": "chetan.k@hepl.com",
     "location": "Kota",
     "cluster": "North",
+    "empCode": "903111",
     "coords": { "lat": 25.21, "lng": 75.86 }
   },
   {
@@ -320,6 +337,7 @@
     "email": "hitesh.g@hepl.com",
     "location": "Alwar",
     "cluster": "North",
+    "empCode": "903126",
     "coords": { "lat": 27.55, "lng": 76.60 }
   },
   {
@@ -330,6 +348,7 @@
     "email": "akash.p@hepl.com",
     "location": "Varanasi",
     "cluster": "North",
+    "empCode": "903137",
     "coords": { "lat": 25.31, "lng": 82.97 }
   },
   {
@@ -340,6 +359,7 @@
     "email": "manish.g@hepl.com",
     "location": "Bhilwara",
     "cluster": "North",
+    "empCode": "903204",
     "coords": { "lat": 25.34, "lng": 74.63 }
   },
   {
@@ -350,6 +370,7 @@
     "email": "mukeshsharma.s@hepl.com",
     "location": "Bikaner",
     "cluster": "North",
+    "empCode": "903217",
     "coords": { "lat": 28.02, "lng": 73.31 }
   },
   {
@@ -358,9 +379,10 @@
     "doj": "14-01-2026",
     "tenure": 92,
     "email": "manvendra.v@hepl.com",
-    "location": "Varanasi",
+    "location": "Delhi",
     "cluster": "North",
-    "coords": { "lat": 25.31, "lng": 82.97 }
+    "empCode": "903203",
+    "coords": { "lat": 28.61, "lng": 77.20 }
   },
   {
     "name": "Kaushal Kumar Verma",
@@ -368,10 +390,10 @@
     "doj": "13-01-2025",
     "tenure": 458,
     "email": "kaushal.n@cavinkare.com",
-    "location": "Bihar Sharif",
+    "location": "Patna",
     "cluster": "JOBC",
     "empCode": "1015861",
-    "coords": { "lat": 25.20, "lng": 85.51 }
+    "coords": { "lat": 25.59, "lng": 85.13 }
   },
   {
     "name": "Sudipta Halder",
@@ -392,6 +414,7 @@
     "email": "khushi.r@hepl.com",
     "location": "Durg",
     "cluster": "JOBC",
+    "empCode": "902738",
     "coords": { "lat": 21.19, "lng": 81.28 }
   },
   {
@@ -402,6 +425,7 @@
     "email": "nilanshu.m@hepl.com",
     "location": "Sahibganj",
     "cluster": "JOBC",
+    "empCode": "903340",
     "coords": { "lat": 25.24, "lng": 87.64 }
   },
   {
@@ -412,6 +436,29 @@
     "email": "arindom.s@hepl.com",
     "location": "Kokrajhar",
     "cluster": "JOBC",
+    "empCode": "902996",
     "coords": { "lat": 26.40, "lng": 90.27 }
+  },
+  {
+    "name": "Akhilesh",
+    "org": "HEPL",
+    "doj": "N/A",
+    "tenure": 0,
+    "email": "akhilesh.r@hepl.com",
+    "location": "UP",
+    "cluster": "North",
+    "empCode": "903507",
+    "coords": { "lat": 26.84, "lng": 80.94 }
+  },
+  {
+    "name": "Roshan",
+    "org": "HEPL",
+    "doj": "N/A",
+    "tenure": 0,
+    "email": "roshan.m@hepl.com",
+    "location": "Nagpur",
+    "cluster": "West",
+    "empCode": "903509",
+    "coords": { "lat": 21.14, "lng": 79.08 }
   }
 ]
