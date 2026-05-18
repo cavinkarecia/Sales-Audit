@@ -845,44 +845,8 @@ const AttendanceDashboard = () => {
               {isFetchingHistory ? <div className="spinner-small"></div> : <Upload size={14} />}
               Sync Spreadsheet
             </button>
-
-            {historyData.length > 0 && (
-              <button 
-                onClick={handleFetchAllAIInsights}
-                disabled={isAnalyzingAll}
-                style={{ 
-                  background: 'rgba(188, 140, 255, 0.1)', 
-                  color: '#bc8cff', 
-                  border: '1px solid rgba(188, 140, 255, 0.3)', 
-                  padding: '10px 16px', 
-                  borderRadius: '8px', 
-                  cursor: 'pointer', 
-                  fontWeight: '600',
-                  fontSize: '0.8rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  opacity: isAnalyzingAll ? 0.6 : 1
-                }}
-              >
-                {isAnalyzingAll ? <div className="spinner-small"></div> : <Activity size={14} />}
-                Team AI Summary
-              </button>
-            )}
           </div>
         </div>
-
-        {/* Global Team AI Insights if active */}
-        {allAuditorsInsights && (
-          <div className="animate-in" style={{ padding: '16px', background: 'rgba(188, 140, 255, 0.05)', borderRadius: '12px', border: '1px solid rgba(188, 140, 255, 0.15)', marginBottom: '24px' }}>
-            <h3 style={{ fontSize: '0.9rem', color: '#bc8cff', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 10px 0' }}>
-              <Activity size={16} /> Regional Field Telemetry (DeepSeek AI Analysis)
-            </h3>
-            <div style={{ whiteSpace: 'pre-line', fontSize: '0.8rem', color: '#c9d1d9', lineHeight: '1.5' }}>
-              {allAuditorsInsights}
-            </div>
-          </div>
-        )}
 
         {historyData.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
@@ -990,56 +954,7 @@ const AttendanceDashboard = () => {
               </div>
             )}
 
-            {/* DeepSeek Travel Analysis AI Agent Block */}
-            {historyStats && (
-              <div style={{ background: 'rgba(88, 166, 255, 0.02)', padding: '20px', borderRadius: '14px', border: '1px solid rgba(88, 166, 255, 0.1)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px', flexWrap: 'wrap', gap: '10px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '8px', height: '8px', background: '#58a6ff', borderRadius: '50%' }}></div>
-                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: '#58a6ff' }}>DeepSeek AI Travel Agent Insights</span>
-                  </div>
-                  
-                  <button
-                    onClick={() => handleFetchAIInsights(
-                      selectedHistoryAuditor, 
-                      selectedHistoryMonth, 
-                      filteredHistoryRecords.filter(r => r.employeeName === selectedHistoryAuditor),
-                      historyStats
-                    )}
-                    disabled={isAnalyzingTravel}
-                    style={{ 
-                      background: 'rgba(88, 166, 255, 0.1)', 
-                      color: 'var(--accent-primary)', 
-                      border: '1px solid rgba(88, 166, 255, 0.3)', 
-                      padding: '6px 14px', 
-                      borderRadius: '6px', 
-                      cursor: 'pointer', 
-                      fontSize: '0.75rem',
-                      fontWeight: '600',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}
-                  >
-                    {isAnalyzingTravel ? <div className="spinner-small"></div> : <Compass size={12} />}
-                    Analyze Travel Strategy
-                  </button>
-                </div>
 
-                {isAnalyzingTravel && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '16px 0', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-                    <div className="spinner-small"></div>
-                    DeepSeek is analyzing coordinates, base proximity and travel efficiency patterns...
-                  </div>
-                )}
-
-                {aiAnalysisText && (
-                  <div className="animate-in" style={{ padding: '14px', background: 'rgba(255,255,255,0.01)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)', fontSize: '0.8rem', lineHeight: '1.6', color: '#c9d1d9', whiteSpace: 'pre-wrap' }}>
-                    {aiAnalysisText}
-                  </div>
-                )}
-              </div>
-            )}
 
             {/* Travel Map */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>

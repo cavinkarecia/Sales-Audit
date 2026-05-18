@@ -321,37 +321,62 @@ const IndiaLiveMap = ({ data, auditorsMaster, historyData = [] }) => {
         position: 'absolute', 
         top: '20px', 
         right: '20px', 
-        background: 'rgba(13, 17, 23, 0.7)', 
+        background: 'rgba(13, 17, 23, 0.85)', 
+        backdropFilter: 'blur(10px)',
         padding: '12px', 
         borderRadius: '10px', 
         border: '1px solid var(--border-main)',
-        pointerEvents: 'none'
+        pointerEvents: 'none',
+        zIndex: 10
       }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '6px', height: '6px', background: 'rgba(139, 148, 158, 0.8)', borderRadius: '50%' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Home Base</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '8px', height: '12px', background: '#3fb950', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Present</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '8px', height: '12px', background: '#f85149', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Absent</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '6px', height: '6px', background: '#3fb950', borderRadius: '50%' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Base Location (Green)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '6px', height: '6px', background: '#f85149', borderRadius: '50%' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Visited Town (Red)</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <div style={{ width: '12px', height: '2px', background: 'var(--accent-primary)' }}></div>
-            <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Travel Route</span>
-          </div>
+          {historyData && historyData.length > 0 ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="10" height="12" viewBox="0 0 24 24" style={{ display: 'block' }}>
+                  <path
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                    fill="#3fb950"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  <circle cx="12" cy="9" r="3" fill="#fff" />
+                </svg>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Base Location (Green Pin)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="10" height="12" viewBox="0 0 24 24" style={{ display: 'block' }}>
+                  <path
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                    fill="#f85149"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  <circle cx="12" cy="9" r="3" fill="#fff" />
+                </svg>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Visited Town (Red Pin)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '12px', height: '2px', background: 'var(--accent-primary)' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Travel Route</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '6px', height: '6px', background: 'rgba(139, 148, 158, 0.8)', borderRadius: '50%' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Home Base</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '12px', background: '#3fb950', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Present</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '12px', background: '#f85149', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Absent</span>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
