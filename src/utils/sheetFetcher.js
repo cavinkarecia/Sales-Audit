@@ -38,22 +38,41 @@ export const parseExcelDate = (val) => {
   const str = String(val).trim();
   if (!str) return null;
 
-  // Check split formats like dd-mm-yyyy or dd/mm/yyyy
+  // Check split formats like dd-mm-yyyy or dd/mm/yyyy or dd-MMM-yyyy
   const parts = str.split(/[-/]/);
   if (parts.length === 3) {
+    const monthsMap = {
+      jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+      jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+      january: 0, february: 1, march: 2, april: 3, june: 5,
+      july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+    };
+
     if (parts[0].length === 4) {
       // yyyy-mm-dd
       const y = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
+      let m = parseInt(parts[1], 10) - 1;
+      if (isNaN(m)) {
+        const mLower = parts[1].toLowerCase();
+        if (mLower in monthsMap) m = monthsMap[mLower];
+      }
       const d = parseInt(parts[2], 10);
-      return new Date(y, m, d);
+      if (!isNaN(y) && !isNaN(m) && !isNaN(d)) {
+        return new Date(y, m, d);
+      }
     } else {
-      // dd-mm-yyyy or mm-dd-yyyy
+      // dd-mm-yyyy or mm-dd-yyyy or dd-MMM-yyyy
       const d = parseInt(parts[0], 10);
-      const m = parseInt(parts[1], 10) - 1;
+      let m = parseInt(parts[1], 10) - 1;
+      if (isNaN(m)) {
+        const mLower = parts[1].toLowerCase();
+        if (mLower in monthsMap) m = monthsMap[mLower];
+      }
       const y = parseInt(parts[2], 10);
       const fullY = y < 100 ? (y < 50 ? 2000 + y : 1900 + y) : y;
-      return new Date(fullY, m, d);
+      if (!isNaN(d) && !isNaN(m) && !isNaN(fullY)) {
+        return new Date(fullY, m, d);
+      }
     }
   }
 

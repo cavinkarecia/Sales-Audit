@@ -446,11 +446,11 @@ const AttendanceDashboard = () => {
   }, [historyData, selectedHistoryAuditor, selectedHistoryMonth, selectedHistoryDate]);
 
   const activeHistoryDates = useMemo(() => {
-    if (historyData.length === 0 || !selectedHistoryAuditor) return [];
+    if (historyData.length === 0) return [];
     
-    // Filter records of selected auditor and selected month
+    // Filter records of selected auditor (or all if empty) and selected month (or all if empty)
     const audRecords = historyData.filter(record => {
-      if (record.employeeName !== selectedHistoryAuditor) return false;
+      if (selectedHistoryAuditor && record.employeeName !== selectedHistoryAuditor) return false;
       if (selectedHistoryMonth) {
         const parts = record.date.split('-');
         if (parts.length === 3) {
@@ -463,15 +463,27 @@ const AttendanceDashboard = () => {
       return true;
     });
 
-    return Array.from(new Set(audRecords.map(r => r.date))).filter(Boolean);
+    const uniqueDates = Array.from(new Set(audRecords.map(r => r.date))).filter(Boolean);
+    
+    // Sort unique dates chronologically
+    return uniqueDates.sort((a, b) => {
+      const aParts = a.split('-');
+      const bParts = b.split('-');
+      if (aParts.length === 3 && bParts.length === 3) {
+        const aDateStr = `${aParts[2]}-${aParts[1]}-${aParts[0]}`;
+        const bDateStr = `${bParts[2]}-${bParts[1]}-${bParts[0]}`;
+        return aDateStr.localeCompare(bDateStr);
+      }
+      return a.localeCompare(b);
+    });
   }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
 
   const historyStats = useMemo(() => {
-    if (historyData.length === 0 || !selectedHistoryAuditor) return null;
+    if (historyData.length === 0) return null;
     
     // Filter records of this auditor in this specific month
     const audMonthRecords = historyData.filter(record => {
-      if (record.employeeName !== selectedHistoryAuditor) return false;
+      if (selectedHistoryAuditor && record.employeeName !== selectedHistoryAuditor) return false;
       if (selectedHistoryMonth) {
         const parts = record.date.split('-');
         if (parts.length === 3) {
@@ -485,12 +497,15 @@ const AttendanceDashboard = () => {
     });
 
     // Lookup base location from master list
-    const masterInfo = auditorsMaster.find(a => 
-      a.name.toLowerCase().includes(selectedHistoryAuditor.toLowerCase()) ||
-      selectedHistoryAuditor.toLowerCase().includes(a.name.toLowerCase())
-    );
+    let baseLoc = 'All Regions';
+    if (selectedHistoryAuditor) {
+      const masterInfo = auditorsMaster.find(a => 
+        a.name.toLowerCase().includes(selectedHistoryAuditor.toLowerCase()) ||
+        selectedHistoryAuditor.toLowerCase().includes(a.name.toLowerCase())
+      );
+      baseLoc = masterInfo?.location || 'Unknown';
+    }
     
-    const baseLoc = masterInfo?.location || 'Unknown';
     return calculateTravelStats(audMonthRecords, baseLoc);
   }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
 
