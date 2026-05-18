@@ -427,9 +427,9 @@ const AttendanceDashboard = () => {
       
       // Filter by Month
       if (selectedHistoryMonth) {
-        const parsed = new Date(record.date);
-        if (!isNaN(parsed.getTime())) {
-          const mKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+        const parts = record.date.split('-');
+        if (parts.length === 3) {
+          const mKey = `${parts[2]}-${parts[1]}`; // "yyyy-MM"
           if (mKey !== selectedHistoryMonth) return false;
         } else {
           return false;
@@ -452,10 +452,12 @@ const AttendanceDashboard = () => {
     const audRecords = historyData.filter(record => {
       if (record.employeeName !== selectedHistoryAuditor) return false;
       if (selectedHistoryMonth) {
-        const parsed = new Date(record.date);
-        if (!isNaN(parsed.getTime())) {
-          const mKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+        const parts = record.date.split('-');
+        if (parts.length === 3) {
+          const mKey = `${parts[2]}-${parts[1]}`;
           if (mKey !== selectedHistoryMonth) return false;
+        } else {
+          return false;
         }
       }
       return true;
@@ -471,10 +473,12 @@ const AttendanceDashboard = () => {
     const audMonthRecords = historyData.filter(record => {
       if (record.employeeName !== selectedHistoryAuditor) return false;
       if (selectedHistoryMonth) {
-        const parsed = new Date(record.date);
-        if (!isNaN(parsed.getTime())) {
-          const mKey = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(2, '0')}`;
+        const parts = record.date.split('-');
+        if (parts.length === 3) {
+          const mKey = `${parts[2]}-${parts[1]}`;
           if (mKey !== selectedHistoryMonth) return false;
+        } else {
+          return false;
         }
       }
       return true;
@@ -917,19 +921,9 @@ const AttendanceDashboard = () => {
                     style={{ background: 'var(--bg-secondary)', color: '#fff', border: 'none', padding: '6px 12px 6px 4px', fontSize: '0.8rem', outline: 'none', cursor: 'pointer' }}
                   >
                     <option value="" style={{ background: '#161b22', color: '#fff' }}>Show All Month Dates</option>
-                    {activeHistoryDates.map(date => {
-                      // Formatting helper for readable dates
-                      let formattedOption = date;
-                      try {
-                        const parsedDate = new Date(date);
-                        if (!isNaN(parsedDate.getTime())) {
-                          formattedOption = format(parsedDate, 'dd MMM yyyy (eee)');
-                        }
-                      } catch (err) {}
-                      return (
-                        <option key={date} value={date} style={{ background: '#161b22', color: '#fff' }}>{formattedOption}</option>
-                      );
-                    })}
+                    {activeHistoryDates.map(date => (
+                      <option key={date} value={date} style={{ background: '#161b22', color: '#fff' }}>{date}</option>
+                    ))}
                   </select>
                 </div>
               </div>
