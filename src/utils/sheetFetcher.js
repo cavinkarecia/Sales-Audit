@@ -108,8 +108,8 @@ export const fetchAllSheets = async (url) => {
   const arrayBuffer = await response.arrayBuffer();
   const data = new Uint8Array(arrayBuffer);
   
-  // Use cellDates: true so XLSX parses Excel serial dates into JS Date objects
-  const workbook = XLSX.read(data, { type: 'array', cellDates: true });
+  // Read raw workbook without auto-parsing dates to let our custom parser handle formats correctly
+  const workbook = XLSX.read(data, { type: 'array' });
 
   const allRecords = [];
   const sheetSummary = [];
@@ -117,7 +117,7 @@ export const fetchAllSheets = async (url) => {
   // Process each sheet (each sheet = one auditor typically)
   workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+    const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
 
     if (jsonData.length === 0) return;
 

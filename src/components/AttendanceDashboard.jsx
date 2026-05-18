@@ -481,9 +481,11 @@ const AttendanceDashboard = () => {
   const historyStats = useMemo(() => {
     if (historyData.length === 0) return null;
     
-    // Filter records of this auditor in this specific month
+    // Filter records of this auditor in this specific month and date
     const audMonthRecords = historyData.filter(record => {
       if (selectedHistoryAuditor && record.employeeName !== selectedHistoryAuditor) return false;
+      
+      // Filter by Month
       if (selectedHistoryMonth) {
         const parts = record.date.split('-');
         if (parts.length === 3) {
@@ -493,6 +495,12 @@ const AttendanceDashboard = () => {
           return false;
         }
       }
+      
+      // Filter by Date
+      if (selectedHistoryDate && record.date !== selectedHistoryDate) {
+        return false;
+      }
+      
       return true;
     });
 
@@ -507,7 +515,7 @@ const AttendanceDashboard = () => {
     }
     
     return calculateTravelStats(audMonthRecords, baseLoc);
-  }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
+  }, [historyData, selectedHistoryAuditor, selectedHistoryMonth, selectedHistoryDate]);
 
   // We no longer return the ExcelUpload component as a separate page.
   // Instead, we always show the dashboard shell.
