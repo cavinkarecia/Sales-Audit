@@ -28,6 +28,7 @@ import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
 import { parseAttendanceExcel } from '../utils/ExcelParser';
 import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats } from '../utils/sheetFetcher';
+import { buildTravelLegs, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 
 const AttendanceDashboard = () => {
@@ -477,6 +478,14 @@ const AttendanceDashboard = () => {
       return a.localeCompare(b);
     });
   }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
+
+  // Date-wise travel legs (built from filtered history records, sorted chronologically)
+  const travelMap = useMemo(() => {
+    if (!filteredHistoryRecords || filteredHistoryRecords.length === 0) {
+      return { legs: [], unmappedTowns: [], dayKeys: [] };
+    }
+    return buildTravelLegs(filteredHistoryRecords, auditorsMaster);
+  }, [filteredHistoryRecords]);
 
   const historyStats = useMemo(() => {
     if (historyData.length === 0) return null;
@@ -960,15 +969,118 @@ const AttendanceDashboard = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '20px' }}>
               <div className="card" style={{ padding: '16px', background: 'rgba(0,0,0,0.2)' }}>
                 <h3 style={{ fontSize: '0.85rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <MapPin size={16} color="#ffd700" /> Auditor Travel Footprint Map (Yellow: History Points)
+                  <MapPin size={16} color="var(--accent-primary)" /> Auditor Travel Footprint Map — Date-wise Routes
                 </h3>
-                <IndiaLiveMap 
-                  data={[]} 
+                <IndiaLiveMap
+                  data={[]}
                   historyData={filteredHistoryRecords}
-                  auditorsMaster={auditorsMaster} 
+                  travelLegs={travelMap.legs}
+                  auditorsMaster={auditorsMaster}
                 />
               </div>
             </div>
+
+            {/* Day-wise route summary: one row per leg, in chronological order */}
+            {travelMap.legs.length > 0 && (
+              <div className="chart-card" style={{ padding: '16px' }}>
+                <h3 className="chart-title" style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Compass size={16} color="var(--accent-primary)" /> Date-wise Route ({travelMap.legs.length} legs across {travelMap.dayKeys.length} day{travelMap.dayKeys.length === 1 ? '' : 's'})
+                </h3>
+                <div className="table-container" style={{ maxHeight: '320px', overflowY: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Day</th>
+                        <th>Date</th>
+                        <th>Auditor</th>
+                        <th>From</th>
+                        <th>To</th>
+                        <th>Distance</th>
+                        <th>Mapped</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {travelMap.legs.map((leg) => (
+                        <tr key={leg.id}>
+                          <td style={{ fontSize: '0.75rem', fontWeight: '700' }}>
+                            <span style={{
+                              display: 'inline-block',
+                              minWidth: '36px',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              background: `${dayColor(leg.dayIndex)}22`,
+                              color: dayColor(leg.dayIndex),
+                              textAlign: 'center'
+                            }}>
+                              D{leg.dayIndex}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: '0.75rem', fontWeight: '600' }}>{leg.date}</td>
+                          <td style={{ fontSize: '0.75rem' }}>{leg.employeeName || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                          <td style={{ fontSize: '0.75rem' }}>
+                            {leg.fromTown || <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                            {leg.fromMatchedCity && leg.fromTown && leg.fromMatchedCity.toLowerCase() !== leg.fromTown.toLowerCase() && (
+                              <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({leg.fromMatchedCity})</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--accent-primary)' }}>
+                            {leg.toTown || <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                            {leg.toMatchedCity && leg.toTown && leg.toMatchedCity.toLowerCase() !== leg.toTown.toLowerCase() && (
+                              <span style={{ color: 'var(--text-muted)', marginLeft: '4px' }}>({leg.toMatchedCity})</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>
+                            {leg.kms != null ? `${Math.round(leg.kms)} km` : <span style={{ color: 'var(--text-muted)' }}>-</span>}
+                            {leg.reportedKms == null && leg.computedKms != null && (
+                              <span style={{ color: 'var(--text-muted)', marginLeft: '4px', fontWeight: 'normal' }}>(calc)</span>
+                            )}
+                          </td>
+                          <td style={{ fontSize: '0.75rem' }}>
+                            <span className={`status-badge ${leg.mapped ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 6px', fontSize: '0.65rem' }}>
+                              {leg.mapped ? 'Yes' : 'Partial'}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Unmapped towns — names from the sheet that don't resolve to a city in cities.json */}
+            {travelMap.unmappedTowns.length > 0 && (
+              <div className="chart-card" style={{ padding: '16px', border: '1px solid rgba(248, 81, 73, 0.25)', background: 'rgba(248, 81, 73, 0.04)' }}>
+                <h3 className="chart-title" style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', color: '#f85149' }}>
+                  <AlertTriangle size={16} /> Unmapped Towns ({travelMap.unmappedTowns.length})
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 12px' }}>
+                  These town names did not match anything in <code>cities.json</code>. Add aliases in <code>src/utils/geoUtils.js</code> (the <code>TOWN_ALIASES</code> map) or correct them in the spreadsheet so they plot accurately.
+                </p>
+                <div className="table-container" style={{ maxHeight: '220px', overflowY: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Town (as entered)</th>
+                        <th>State</th>
+                        <th>Occurrences</th>
+                        <th>Reported by</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {travelMap.unmappedTowns.map((u, idx) => (
+                        <tr key={`unmapped-${idx}`}>
+                          <td style={{ fontSize: '0.75rem', fontWeight: '600' }}>{u.town || <span style={{ color: 'var(--text-muted)' }}>(blank)</span>}</td>
+                          <td style={{ fontSize: '0.75rem' }}>{u.state || <span style={{ color: 'var(--text-muted)' }}>-</span>}</td>
+                          <td style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{u.count}</td>
+                          <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{u.employees.join(', ') || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Detailed Travel Log Table */}
             <div className="chart-card" style={{ padding: '16px' }}>
