@@ -85,11 +85,85 @@ export const parseExcelDate = (val) => {
 };
 
 /**
+ * Aggressively normalize a header key:
+ *  - lower case
+ *  - strip everything that isn't a-z or 0-9
+ * So "Employee Name", "Employee_Name", "EmployeeName ", "EMP NAME" all
+ * map to the same canonical key. This is what lets us match real-world
+ * spreadsheets where typists use spaces, dots, slashes or punctuation
+ * inconsistently.
+ */
+const canonHeader = (k) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+/**
+ * Build a forgiving accessor map for one row by normalising each header
+ * and pointing at the original value.
+ */
+const buildRowAccessor = (row) => {
+  const map = {};
+  Object.keys(row).forEach((key) => {
+    const k = canonHeader(key);
+    if (!k) return;
+    const val = row[key];
+    map[k] = typeof val === 'string' ? val.trim() : val;
+  });
+  return map;
+};
+
+const CANDIDATES = {
+  date: ['date', 'logdate', 'travelldate', 'traveldate', 'day', 'visitdate'],
+  employeeCode: ['employeecode', 'empcode', 'employeeid', 'empid', 'staffcode'],
+  employeeName: ['employeename', 'empname', 'name', 'auditorname', 'staffname', 'nameofemployee'],
+  workType: ['worktype', 'typeofwork', 'activity', 'work', 'visittype'],
+  state: ['state', 'statename'],
+  fromTown: ['fromtownname', 'fromtown', 'from', 'origintown', 'startingtown', 'startpoint', 'departureplace', 'fromcity'],
+  toTown: ['totownname', 'totown', 'to', 'destinationtown', 'endingtown', 'endpoint', 'destinationplace', 'tocity'],
+  kms: ['kmstravelled', 'kmstraveled', 'kms', 'km', 'distance', 'distancekm', 'distancetravelled', 'kilometers', 'kilometres'],
+  asmName: ['asmname', 'asm', 'areasalesmanager'],
+  hotelStay: ['hotelstayyesno', 'hotelstay', 'hotel', 'stay', 'overnight'],
+  plannedRSName: ['plannedrsname', 'plannedrs', 'plannedretailstore', 'planneddistributor', 'plannedshop'],
+  channel: ['channel', 'channelname'],
+};
+
+const pickField = (accessor, field) => {
+  const keys = CANDIDATES[field] || [];
+  for (const k of keys) {
+    if (accessor[k] !== undefined && accessor[k] !== '') return accessor[k];
+  }
+  return '';
+};
+
+const cleanValue = (val) => {
+  if (val === null || val === undefined) return '';
+  const s = String(val).trim();
+  if (!s) return '';
+  if (s.toLowerCase() === 'n/a' || s.toLowerCase() === 'na' || s === '-' || s === '--') return '';
+  return s;
+};
+
+const looksLikeHeaderRow = (raw, dateRaw, employeeName) => {
+  const dateStr = String(dateRaw || '').toLowerCase().trim();
+  const nameStr = String(employeeName || '').toLowerCase().trim();
+  return dateStr === 'date' || nameStr === 'employee name' || nameStr === 'name' || nameStr === 'employee_name';
+};
+
+/**
  * Fetches the entire Google Spreadsheet as XLSX and parses ALL sheets.
- * Each sheet typically represents one auditor's travel data.
- * 
- * @param {string} url - Google Sheets URL (any tab)
- * @returns {Promise<Array>} - Consolidated array of travel records from all sheets
+ * Returns rich diagnostics so callers can show which sheets failed and why.
+ *
+ * Return shape:
+ *   {
+ *     records: [...]              // all parsed travel records
+ *     sheetSummary: [             // ONE entry PER workbook sheet (loaded or not)
+ *       { sheetName, employeeName, recordCount, status, reason, headers }
+ *     ],
+ *     loadedSheets, skippedSheets,
+ *     totalSheets, totalRecords
+ *   }
+ *
+ *   status is one of: 'loaded' | 'empty' | 'headers-not-recognised'
+ *                    | 'no-valid-rows' | 'all-dates-unparseable'
+ *                    | 'all-rows-missing-name'
  */
 export const fetchAllSheets = async (url) => {
   const spreadsheetId = extractSpreadsheetId(url);
@@ -97,9 +171,7 @@ export const fetchAllSheets = async (url) => {
     throw new Error('Invalid Google Sheets URL. Please provide a valid spreadsheet link.');
   }
 
-  // Export entire spreadsheet as XLSX (includes ALL sheets)
   const exportUrl = `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`;
-  
   const response = await fetch(exportUrl);
   if (!response.ok) {
     throw new Error(`Failed to fetch spreadsheet (HTTP ${response.status}). Ensure the sheet is shared as "Anyone with the link can view".`);
@@ -107,72 +179,94 @@ export const fetchAllSheets = async (url) => {
 
   const arrayBuffer = await response.arrayBuffer();
   const data = new Uint8Array(arrayBuffer);
-  
-  // Read raw workbook without auto-parsing dates to let our custom parser handle formats correctly
   const workbook = XLSX.read(data, { type: 'array' });
 
   const allRecords = [];
   const sheetSummary = [];
 
-  // Process each sheet (each sheet = one auditor typically)
   workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
 
-    if (jsonData.length === 0) return;
+    if (!jsonData || jsonData.length === 0) {
+      sheetSummary.push({
+        sheetName, employeeName: '', recordCount: 0,
+        status: 'empty', reason: 'Sheet is blank (no rows)', headers: [],
+      });
+      return;
+    }
+
+    const headerSample = Object.keys(jsonData[0] || {});
+    const canonHeaders = new Set(headerSample.map(canonHeader));
+    const hasDateHeader = CANDIDATES.date.some(c => canonHeaders.has(c));
+    const hasNameHeader = CANDIDATES.employeeName.some(c => canonHeaders.has(c));
+
+    if (!hasDateHeader || !hasNameHeader) {
+      sheetSummary.push({
+        sheetName, employeeName: '', recordCount: 0,
+        status: 'headers-not-recognised',
+        reason: `Could not find ${!hasDateHeader ? 'a Date column' : ''}${!hasDateHeader && !hasNameHeader ? ' or ' : ''}${!hasNameHeader ? 'an Employee Name column' : ''}. Found headers: ${headerSample.join(', ')}`,
+        headers: headerSample,
+      });
+      return;
+    }
 
     let sheetRecordCount = 0;
+    let firstEmployeeName = '';
+    let dateAttemptCount = 0;
+    let dateFailCount = 0;
+    let missingNameCount = 0;
 
     jsonData.forEach((row) => {
-      // Normalize column names (handle spaces, case variations)
-      const normalized = {};
-      Object.keys(row).forEach(key => {
-        normalized[key.trim()] = typeof row[key] === 'string' ? row[key].trim() : row[key];
-      });
+      const acc = buildRowAccessor(row);
 
-      // Find the right column names by checking common patterns
-      const dateRaw = normalized['Date'] || normalized['Date '] || normalized['date'] || '';
-      const employeeCode = normalized['Employee Code'] || normalized['Employee code'] || normalized['Emp Code'] || '';
-      const employeeName = normalized['Employee Name'] || normalized['Employee name'] || normalized['Name'] || '';
-      const workType = normalized['Work Type'] || normalized['Work type'] || '';
-      const state = normalized['State'] || normalized['state'] || '';
-      const fromTown = normalized['From Town Name'] || normalized['From Town'] || normalized['From town Name'] || '';
-      const toTown = normalized['To Town Name'] || normalized['To Town'] || normalized['To town Name'] || '';
-      const kms = normalized['Kms Travelled'] || normalized['Kms travelled'] || normalized['KMS Travelled'] || '';
-      const asmName = normalized['ASM Name'] || normalized['ASM name'] || '';
-      const hotelStay = normalized['Hotel Stay (yes/No)'] || normalized['Hotel Stay'] || '';
-      const plannedRSName = normalized['Planned RS Name'] || normalized['Planned RS name'] || '';
-      const channel = normalized['Channel'] || '';
+      const dateRaw = pickField(acc, 'date');
+      const employeeName = pickField(acc, 'employeeName');
 
-      // Skip empty/header rows
-      if (!dateRaw || !employeeName) return;
-      
+      if (looksLikeHeaderRow(row, dateRaw, employeeName)) return;
+      if (!dateRaw && !employeeName) return;
+
+      if (!employeeName) {
+        missingNameCount++;
+        return;
+      }
+      if (!dateRaw) return;
+
+      dateAttemptCount++;
       const dateObj = parseExcelDate(dateRaw);
-      if (!dateObj) return;
+      if (!dateObj) {
+        dateFailCount++;
+        return;
+      }
 
-      // Strictly pad as dd-MM-yyyy format to prevent timezone and parsing discrepancies
       const pad = (n) => String(n).padStart(2, '0');
       const dateStr = `${pad(dateObj.getDate())}-${pad(dateObj.getMonth() + 1)}-${dateObj.getFullYear()}`;
 
-      // Normalize N/A values
-      const cleanValue = (val) => {
-        if (!val) return '';
-        const s = String(val).trim();
-        if (s.toLowerCase() === 'n/a' || s === '-' || s === '') return '';
-        return s;
-      };
+      const employeeCode = pickField(acc, 'employeeCode');
+      const workType = pickField(acc, 'workType');
+      const state = pickField(acc, 'state');
+      const fromTown = pickField(acc, 'fromTown');
+      const toTown = pickField(acc, 'toTown');
+      const kmsRaw = pickField(acc, 'kms');
+      const asmName = pickField(acc, 'asmName');
+      const hotelStay = pickField(acc, 'hotelStay');
+      const plannedRSName = pickField(acc, 'plannedRSName');
+      const channel = pickField(acc, 'channel');
 
-      // Parse kms - handle N/A and non-numeric
       let parsedKms = 0;
-      const kmsStr = cleanValue(String(kms));
+      const kmsStr = cleanValue(String(kmsRaw));
       if (kmsStr && !isNaN(parseFloat(kmsStr))) {
         parsedKms = parseFloat(kmsStr);
       }
 
-      const record = {
-        date: dateStr, // "dd-MM-yyyy"
-        employeeCode: String(employeeCode),
-        employeeName: String(employeeName),
+      if (!firstEmployeeName) {
+        firstEmployeeName = String(employeeName).trim();
+      }
+
+      allRecords.push({
+        date: dateStr,
+        employeeCode: String(employeeCode || ''),
+        employeeName: String(employeeName).trim(),
         workType: cleanValue(workType),
         state: cleanValue(state),
         fromTown: cleanValue(fromTown),
@@ -182,37 +276,52 @@ export const fetchAllSheets = async (url) => {
         hotelStay: cleanValue(hotelStay),
         plannedRSName: cleanValue(plannedRSName),
         channel: cleanValue(channel),
-        sheetName: sheetName,
-        isWorkingDay: !!cleanValue(workType)
-      };
-
-      allRecords.push(record);
+        sheetName,
+        isWorkingDay: !!cleanValue(workType),
+      });
       sheetRecordCount++;
     });
 
     if (sheetRecordCount > 0) {
-      // Get the first employee name from this sheet
-      const firstRecord = jsonData.find(r => {
-        const name = r['Employee Name'] || r['Employee name'] || r['Name'] || '';
-        return name && String(name).trim().toLowerCase() !== 'employee name';
-      });
-      const empName = firstRecord 
-        ? (firstRecord['Employee Name'] || firstRecord['Employee name'] || firstRecord['Name'] || sheetName)
-        : sheetName;
-
       sheetSummary.push({
         sheetName,
-        employeeName: String(empName).trim(),
-        recordCount: sheetRecordCount
+        employeeName: firstEmployeeName || sheetName,
+        recordCount: sheetRecordCount,
+        status: 'loaded',
+        reason: '',
+        headers: headerSample,
       });
+      return;
     }
+
+    let status = 'no-valid-rows';
+    let reason = 'Headers were recognised but no rows contained both a parseable date and an employee name.';
+    if (dateAttemptCount > 0 && dateFailCount === dateAttemptCount) {
+      status = 'all-dates-unparseable';
+      reason = `Found ${dateAttemptCount} rows with dates but none could be parsed (check the Date column format).`;
+    } else if (missingNameCount > 0 && dateAttemptCount === 0) {
+      status = 'all-rows-missing-name';
+      reason = `Found ${missingNameCount} rows without an Employee Name value.`;
+    }
+
+    sheetSummary.push({
+      sheetName, employeeName: '', recordCount: 0,
+      status, reason, headers: headerSample,
+    });
   });
+
+  const loadedSheets = sheetSummary.filter(s => s.status === 'loaded');
+  const skippedSheets = sheetSummary.filter(s => s.status !== 'loaded');
 
   return {
     records: allRecords,
     sheetSummary,
-    totalSheets: sheetSummary.length,
-    totalRecords: allRecords.length
+    loadedSheets,
+    skippedSheets,
+    totalSheets: workbook.SheetNames.length,
+    totalLoadedSheets: loadedSheets.length,
+    totalSkippedSheets: skippedSheets.length,
+    totalRecords: allRecords.length,
   };
 };
 

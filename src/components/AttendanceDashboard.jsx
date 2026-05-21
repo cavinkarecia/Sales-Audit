@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import IndiaLiveMap from './IndiaLiveMap';
+import LeafletTravelMap from './LeafletTravelMap';
 import auditorsMaster from '../data/auditors.json';
 import asmMapping from '../data/asm_mapping.json';
 import { ReasonAnalysis } from './analytics/ReasonAnalysis';
@@ -95,25 +95,28 @@ const AttendanceDashboard = () => {
       const result = await fetchAllSheets(historyUrl);
       setHistoryData(result.records);
       setHistorySheetsSummary(result.sheetSummary);
-      
-      // Determine unique auditors and months
-      const uniqueAuditors = Array.from(new Set(result.records.map(r => r.employeeName))).filter(Boolean);
-      
-      // Basic grouping to set defaults
+
       if (result.records.length > 0) {
         const firstRecord = result.records[0];
         setSelectedHistoryAuditor(firstRecord.employeeName || '');
-        
-        // Find months
+
         const monthGroup = groupByMonth(result.records);
         if (monthGroup.length > 0) {
           setSelectedHistoryMonth(monthGroup[0].key);
         }
-        
-        setSelectedHistoryDate(''); // Default to 'All' or empty
-        alert(`Successfully fetched all travel history! Loaded ${result.totalSheets} sheets with ${result.totalRecords} daily travel records.`);
+        setSelectedHistoryDate('');
+
+        const loadedCount = result.totalLoadedSheets ?? result.sheetSummary.filter(s => s.status === 'loaded').length;
+        const skippedCount = result.totalSkippedSheets ?? (result.totalSheets - loadedCount);
+        const skippedSheets = (result.skippedSheets || result.sheetSummary.filter(s => s.status !== 'loaded')) || [];
+        const skippedNote = skippedCount > 0
+          ? `\n\n${skippedCount} sheet${skippedCount === 1 ? '' : 's'} skipped:\n` +
+            skippedSheets.slice(0, 6).map(s => `  • ${s.sheetName} — ${s.reason || s.status}`).join('\n') +
+            (skippedSheets.length > 6 ? `\n  • … and ${skippedSheets.length - 6} more (see the Sync Summary panel)` : '')
+          : '';
+        alert(`Loaded ${loadedCount} of ${result.totalSheets} sheets (${result.totalRecords} travel records).${skippedNote}`);
       } else {
-        alert('Successfully fetched spreadsheet, but no valid travel records were found. Check headers (Date, Employee Name, To Town Name).');
+        alert(`Fetched the spreadsheet but no rows could be parsed across its ${result.totalSheets} sheet${result.totalSheets === 1 ? '' : 's'}. Check that the sheets contain Date and Employee Name columns.`);
       }
     } catch (err) {
       console.error('Error fetching history:', err);
@@ -686,7 +689,7 @@ const AttendanceDashboard = () => {
                   <MapPin size={18} color="var(--accent-primary)" /> Geographic Footprint
                 </h3>
               </div>
-              <IndiaLiveMap data={filteredData} auditorsMaster={auditorsMaster} />
+              <LeafletTravelMap data={filteredData} auditorsMaster={auditorsMaster} height="520px" />
             </div>
 
             <div className="card" style={{ padding: '20px' }}>
@@ -859,6 +862,57 @@ const AttendanceDashboard = () => {
 
         {historyData.length > 0 ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            {/* Sync Summary — every workbook sheet with status (loaded / skipped + reason) */}
+            {historySheetsSummary && historySheetsSummary.length > 0 && (
+              <div className="chart-card" style={{ padding: '14px 16px' }}>
+                {(() => {
+                  const loaded = historySheetsSummary.filter(s => s.status === 'loaded');
+                  const skipped = historySheetsSummary.filter(s => s.status !== 'loaded');
+                  return (
+                    <>
+                      <h3 className="chart-title" style={{ fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                        <FileText size={16} color="var(--accent-primary)" />
+                        Sync Summary — {loaded.length} of {historySheetsSummary.length} sheets loaded
+                        {skipped.length > 0 && (
+                          <span style={{ marginLeft: '6px', padding: '2px 8px', borderRadius: '10px', background: 'rgba(248,81,73,0.15)', color: '#f85149', fontSize: '0.65rem', fontWeight: '700' }}>
+                            {skipped.length} skipped
+                          </span>
+                        )}
+                      </h3>
+                      <div className="table-container" style={{ maxHeight: '240px', overflowY: 'auto' }}>
+                        <table className="data-table">
+                          <thead>
+                            <tr>
+                              <th>Sheet</th>
+                              <th>Auditor (first row)</th>
+                              <th>Records</th>
+                              <th>Status</th>
+                              <th>Reason</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {historySheetsSummary.map((s, idx) => (
+                              <tr key={`sync-${idx}-${s.sheetName}`}>
+                                <td style={{ fontSize: '0.75rem', fontWeight: '600' }}>{s.sheetName}</td>
+                                <td style={{ fontSize: '0.75rem' }}>{s.employeeName || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                                <td style={{ fontSize: '0.75rem', fontWeight: 'bold' }}>{s.recordCount}</td>
+                                <td style={{ fontSize: '0.72rem' }}>
+                                  <span className={`status-badge ${s.status === 'loaded' ? 'status-active' : 'status-inactive'}`} style={{ padding: '2px 6px', fontSize: '0.65rem' }}>
+                                    {s.status === 'loaded' ? 'Loaded' : s.status.replace(/-/g, ' ')}
+                                  </span>
+                                </td>
+                                <td style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>{s.reason || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
             {/* Filters panel */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
               
@@ -971,11 +1025,12 @@ const AttendanceDashboard = () => {
                 <h3 style={{ fontSize: '0.85rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <MapPin size={16} color="var(--accent-primary)" /> Auditor Travel Footprint Map — Date-wise Routes
                 </h3>
-                <IndiaLiveMap
+                <LeafletTravelMap
                   data={[]}
                   historyData={filteredHistoryRecords}
                   travelLegs={travelMap.legs}
                   auditorsMaster={auditorsMaster}
+                  height="600px"
                 />
               </div>
             </div>
