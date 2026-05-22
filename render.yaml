@@ -1,7 +1,13 @@
 services:
   - type: web
-    name: sales-audit-intelligence
-    env: static
+    name: sales-audit-2-0
+    runtime: node
+    plan: free
     buildCommand: npm install --legacy-peer-deps && npm run build
-    staticPublishPath: dist
+    startCommand: node server/server.js
     autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: PORT
+        value: 10000
