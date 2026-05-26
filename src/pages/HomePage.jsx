@@ -1,15 +1,14 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, Loader2, Users, MapPin, Route, ChevronRight } from 'lucide-react';
+import { MapPin, Route, ChevronRight } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
-import { parseAttendanceExcel } from '../utils/ExcelParser';
 import { fetchAllSheets } from '../utils/sheetFetcher';
 import SheetLinkUpload from '../components/SheetLinkUpload';
 import AttendanceMap from '../components/AttendanceMap';
+
 const HomePage = () => {
   const {
     attendanceRecords,
-    setAttendanceRecords,
     pjpRecords,
     setPjpRecords,
     pjpSheetSummary,
@@ -18,25 +17,7 @@ const HomePage = () => {
     setPjpSpreadsheetUrl,
   } = useAuditData();
 
-  const [isParsing, setIsParsing] = useState(false);
   const [isFetchingPjp, setIsFetchingPjp] = useState(false);
-  const fileInputRef = useRef(null);
-
-  const handleAttendanceUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsParsing(true);
-    try {
-      const data = await parseAttendanceExcel(file);
-      setAttendanceRecords(data);
-      alert(`Loaded ${data.length} attendance rows (latest entry per auditor per day).`);
-    } catch (err) {
-      alert(`Attendance parse failed: ${err.message}`);
-    } finally {
-      setIsParsing(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  };
 
   const handlePjpSync = async () => {
     if (!pjpSpreadsheetUrl.trim()) return;
@@ -55,84 +36,27 @@ const HomePage = () => {
     }
   };
 
-  const stats = useMemo(() => {
-    if (!attendanceRecords.length) return null;
-    const present = attendanceRecords.filter((r) => r.isPresent).length;
-    const unique = new Set(attendanceRecords.map((r) => r.name)).size;
-    return {
-      total: attendanceRecords.length,
-      unique,
-      present,
-      rate: Math.round((present / attendanceRecords.length) * 100),
-    };
-  }, [attendanceRecords]);
-
   const pjpPreview = useMemo(() => pjpRecords.slice(0, 12), [pjpRecords]);
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: 1200, margin: '0 auto' }}>
       <header style={{ marginBottom: '1.5rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.4rem' }}>Field Intelligence — Attendance & PJP</h1>
+        <h1 style={{ margin: 0, fontSize: '1.4rem' }}>Field Intelligence — PJP</h1>
         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: 6 }}>
-          Upload attendance (GoSurvey) and sync PJP travel sheets. Then verify allowance claims on the{' '}
+          Sync auditor PJP travel sheets, then verify allowance claims on the{' '}
           <Link to="/allowance" style={{ color: 'var(--accent-primary)' }}>
             Allowance Audit
           </Link>{' '}
-          page.
+          page. Attendance data comes from the{' '}
+          <Link to="/dashboard" style={{ color: 'var(--accent-primary)' }}>
+            Full Dashboard
+          </Link>{' '}
+          upload.
         </p>
       </header>
 
-      {/* 1 — Attendance */}
-      <div className="glass-card" style={{ padding: '1rem 1.25rem', marginBottom: '1rem', border: '1px solid var(--border-main)' }}>
-        <h3 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>1. Auditors attendance upload</h3>
-        <p style={{ margin: '0 0 12px', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          Maps: <strong>Choose Your Name</strong> → auditor, <strong>Location</strong> → lat/long,{' '}
-          <strong>Are You on field Today?</strong> → Yes = present. Duplicate rows on the same date use the{' '}
-          <em>latest</em> submission (e.g. morning Yes, later No → marked absent).
-        </p>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls,.csv"
-          hidden
-          onChange={handleAttendanceUpload}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isParsing}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '10px 18px',
-            borderRadius: 8,
-            border: '1px solid var(--border-main)',
-            background: 'var(--accent-primary)',
-            color: '#fff',
-            cursor: isParsing ? 'wait' : 'pointer',
-            fontWeight: 600,
-            fontSize: '0.8rem',
-          }}
-        >
-          {isParsing ? <Loader2 size={16} className="spin" /> : <Upload size={16} />}
-          {isParsing ? 'Processing…' : 'Upload attendance Excel / CSV'}
-        </button>
-        {stats && (
-          <div style={{ display: 'flex', gap: 16, marginTop: 16, flexWrap: 'wrap' }}>
-            <span>
-              <Users size={14} /> {stats.unique} auditors
-            </span>
-            <span>
-              {stats.present} / {stats.total} present ({stats.rate}%)
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* 2 — PJP */}
       <SheetLinkUpload
-        title="2. Auditors PJP upload (From, To, Kms…)"
+        title="1. Auditors PJP upload (From, To, Kms…)"
         description="Paste the public Google Sheet with one tab per auditor. All sheets are fetched automatically."
         url={pjpSpreadsheetUrl}
         onUrlChange={setPjpSpreadsheetUrl}
@@ -145,7 +69,7 @@ const HomePage = () => {
       {attendanceRecords.length > 0 && (
         <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
           <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MapPin size={16} /> Step 1 — Attendance locations (latest per day)
+            <MapPin size={16} /> Attendance locations (from dashboard)
           </h3>
           <AttendanceMap records={attendanceRecords} />
         </div>
@@ -173,7 +97,7 @@ const HomePage = () => {
       {pjpRecords.length > 0 && (
         <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
           <h3 style={{ margin: '0 0 12px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Route size={16} /> Step 2 — PJP preview (from → to, kms)
+            <Route size={16} /> PJP preview (from → to, kms)
           </h3>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', fontSize: '0.78rem', borderCollapse: 'collapse' }}>

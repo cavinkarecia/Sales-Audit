@@ -135,13 +135,13 @@ const AllowanceAuditPage = () => {
           }}
         >
           <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: 8 }} />
-          Upload <strong>Attendance</strong> and <strong>PJP</strong> on the main dashboard first. Claim
-          checks cross-reference both datasets.
+          Upload <strong>Attendance</strong> on the Full Dashboard and sync <strong>PJP</strong> on the
+          Uploads page first. Claim checks cross-reference both datasets.
         </div>
       )}
 
       <SheetLinkUpload
-        title="3. Allowance Sheet upload"
+        title="2. Allowance Sheet upload"
         description='Single consolidated claim sheet (all auditors in rows). Each claim is checked against that auditor’s footprint from Attendance GPS + PJP — not parsed like PJP tabs. Share: Anyone with the link → Viewer.'
         url={allowanceSpreadsheetUrl}
         onUrlChange={(v) => {
