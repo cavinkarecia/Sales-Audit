@@ -119,7 +119,7 @@ const AllowanceAuditPage = () => {
             fontSize: '0.85rem',
           }}
         >
-          <ArrowLeft size={16} /> Dashboard
+          <ArrowLeft size={16} /> Full Dashboard
         </Link>
         <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Allowance & Claim Audit</h1>
       </div>

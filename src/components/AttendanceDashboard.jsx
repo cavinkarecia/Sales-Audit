@@ -341,6 +341,18 @@ const AttendanceDashboard = () => {
     };
   }, [filteredData]);
 
+  const emptyStats = {
+    total: 0,
+    totalAuditorNames: [],
+    absent: 0,
+    absenteeNames: [],
+    attendanceRate: 0,
+    plannedRate: 0,
+    absenceReasons: [],
+    clusterAudits: [],
+  };
+  const displayStats = stats || emptyStats;
+
   const trendData = useMemo(() => {
     if (filteredData.length === 0 || timeFilter === 'daily') return [];
     const dayGroups = filteredData.reduce((acc, curr) => {
@@ -630,7 +642,7 @@ const AttendanceDashboard = () => {
           ) : (
             <Upload size={14} />
           )}
-          {isParsing ? 'Processing...' : '1. Attendance Upload'}
+          {isParsing ? 'Processing...' : 'Upload attendance'}
         </button>
 
         <div style={{ width: '1px', height: '20px', background: 'var(--border-main)' }}></div>
@@ -651,29 +663,29 @@ const AttendanceDashboard = () => {
         </div>
       </div>
 
-      {reportData.length === 0 ? (
-        <div className="card" style={{ padding: '60px', textAlign: 'center', background: 'rgba(88, 166, 255, 0.02)', border: '2px dashed var(--border-main)' }}>
-          <div style={{ marginBottom: '20px', color: 'var(--accent-primary)' }}>
-            <Upload size={48} style={{ opacity: 0.5 }} />
-          </div>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '8px' }}>No Data Available</h2>
-          <p style={{ color: 'var(--text-secondary)', marginBottom: '24px' }}>Please upload a GoSurvey attendance file to populate the dashboard.</p>
-          <button 
-            onClick={() => fileInputRef.current?.click()}
-            style={{ background: 'var(--accent-primary)', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }}
-          >
-            Select File
-          </button>
+      {reportData.length === 0 && (
+        <div
+          className="card"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '16px',
+            fontSize: '0.8rem',
+            color: 'var(--text-secondary)',
+            borderLeft: '3px solid var(--accent-primary)',
+          }}
+        >
+          No attendance loaded yet — use <strong>Upload attendance</strong> above, then sync PJP below.
         </div>
-      ) : stats && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {/* KPI Grid */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
             {[
-              { id: 'rate', label: 'Attendance Rate', value: `${stats.attendanceRate}%`, icon: <CheckCircle size={20} />, color: 'var(--accent-success)' },
-              { id: 'total', label: 'Active Auditors', value: stats.total, icon: <Users size={20} />, color: 'var(--accent-primary)', interactive: true },
-              { id: 'planned', label: 'Planned Coverage', value: `${stats.plannedRate}%`, icon: <Clock size={20} />, color: '#bc8cff' },
-              { id: 'absent', label: 'Absentees', value: stats.absent, icon: <AlertTriangle size={20} />, color: 'var(--accent-danger)', interactive: true }
+              { id: 'rate', label: 'Attendance Rate', value: `${displayStats.attendanceRate}%`, icon: <CheckCircle size={20} />, color: 'var(--accent-success)' },
+              { id: 'total', label: 'Active Auditors', value: displayStats.total, icon: <Users size={20} />, color: 'var(--accent-primary)', interactive: true },
+              { id: 'planned', label: 'Planned Coverage', value: `${displayStats.plannedRate}%`, icon: <Clock size={20} />, color: '#bc8cff' },
+              { id: 'absent', label: 'Absentees', value: displayStats.absent, icon: <AlertTriangle size={20} />, color: 'var(--accent-danger)', interactive: true }
             ].map(kpi => (
               <div 
                 key={kpi.id} 
@@ -706,7 +718,7 @@ const AttendanceDashboard = () => {
                 <Users size={14} /> {expandedKpi === 'total' ? 'Active Roster' : 'Absent Members'}
               </h4>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {(expandedKpi === 'total' ? stats.totalAuditorNames : stats.absenteeNames).map((name, i) => (
+                {(expandedKpi === 'total' ? displayStats.totalAuditorNames : displayStats.absenteeNames).map((name, i) => (
                   <span key={i} style={{ padding: '4px 10px', background: 'var(--bg-secondary)', border: '1px solid var(--border-main)', borderRadius: '16px', fontSize: '0.7rem' }}>
                     {name}
                   </span>
@@ -731,7 +743,7 @@ const AttendanceDashboard = () => {
                 <TrendingUp size={18} color="var(--accent-primary)" /> Cluster Summary
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {stats.clusterAudits.map((cluster, i) => (
+                {displayStats.clusterAudits.map((cluster, i) => (
                   <div 
                     key={i} 
                     onClick={() => setSelectedCluster(selectedCluster === cluster.name ? null : cluster.name)}
@@ -769,7 +781,7 @@ const AttendanceDashboard = () => {
           </div>
 
           </div>
-      )}
+      </div>
 
       {/* Field Force Status Table */}
       <div className="chart-card" style={{ marginTop: '24px' }}>
@@ -846,7 +858,7 @@ const AttendanceDashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ fontSize: '1.45rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Compass size={28} color="var(--accent-primary)" /> 2. Auditors PJP (From, To, Kms)
+              <Compass size={28} color="var(--accent-primary)" /> PJP sync (From, To, Kms)
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Paste PJP Google Sheet — fetches all auditor tabs automatically</p>
           </div>

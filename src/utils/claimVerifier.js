@@ -98,7 +98,7 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
         flags,
         'FOOTPRINT_MISSING',
         'No auditor footprint for this day',
-        `No attendance GPS and no PJP travel for "${auditor}" on ${claim.date}. Upload attendance + PJP on the home page first.`,
+        `No attendance GPS and no PJP travel for "${auditor}" on ${claim.date}. Upload attendance + PJP on Full Dashboard first.`,
       );
     } else if (!footprintCheck.routeOk && (claim.fromTown || claim.toTown)) {
       addFlag(

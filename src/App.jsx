@@ -11,7 +11,7 @@ function App() {
       <nav className="app-nav">
         <span className="app-brand">Sales Audit 2.0</span>
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-          <Map size={16} /> Dashboard
+          <Map size={16} /> Full Dashboard
         </NavLink>
         <NavLink to="/allowance" className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
           <Receipt size={16} /> Allowance Audit

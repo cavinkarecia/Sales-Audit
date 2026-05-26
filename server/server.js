@@ -20,6 +20,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
+    build: '2026-05-26-two-page',
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
@@ -123,9 +124,20 @@ app.post('/api/ai/chat', async (req, res) => {
 });
 
 const distDir = path.resolve(__dirname, '..', 'dist');
-app.use(express.static(distDir, { index: 'index.html', maxAge: '1h' }));
+app.use(
+  express.static(distDir, {
+    index: false,
+    maxAge: '1d',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  }),
+);
 
 app.get(/^(?!\/api\/).*/, (_req, res) => {
+  res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(path.join(distDir, 'index.html'));
 });
 
