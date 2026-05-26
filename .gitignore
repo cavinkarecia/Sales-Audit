@@ -1,0 +1,8 @@
+node_modules
+dist
+.env
+*.log
+scratch
+build_output.txt
+.DS_Store
+.mingit

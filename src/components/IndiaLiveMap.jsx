@@ -1,0 +1,674 @@
+import React, { useMemo, useState } from 'react';
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+  Line,
+} from 'react-simple-maps';
+import { MapPin, X, Home, Navigation, Info } from 'lucide-react';
+
+import indiaTopo from '../data/india_topo.json';
+import { getDistance, findNearestCity, findCityCoords } from '../utils/geoUtils';
+import { dayColor } from '../utils/travelMapUtils';
+
+const IndiaLiveMap = ({ data, auditorsMaster, historyData = [], travelLegs = null }) => {
+  const [selectedPoint, setSelectedPoint] = useState(null);
+
+  const getDisplayDistance = (d) => {
+    if (d.details && d.details['Kms Travelled']) {
+      return `${d.details['Kms Travelled']} km`;
+    }
+    if (d.details && d.details.kms) {
+      return `${d.details.kms} km`;
+    }
+    if (d.lineFrom && d.lineFrom.lat && d.lineFrom.lng && d.coords && d.coords.lat && d.coords.lng) {
+      const dist = getDistance(d.lineFrom.lat, d.lineFrom.lng, d.coords.lat, d.coords.lng);
+      if (dist !== null) {
+        return `${parseFloat(dist).toFixed(0)} km`;
+      }
+    }
+    return '0 km';
+  };
+
+  const isLegMode = Array.isArray(travelLegs) && travelLegs.length > 0;
+  const isHistoryMode = !isLegMode && historyData && historyData.length > 0;
+
+  /* ------------------------------------------------------------------ *
+   *  Build the marker list used by both legacy modes (Base / Live /     *
+   *  History) so the existing UI stays intact.                          *
+   * ------------------------------------------------------------------ */
+  const deployments = useMemo(() => {
+    const markers = [];
+
+    if (!isLegMode && !isHistoryMode) {
+      auditorsMaster.forEach(auditor => {
+        if (auditor.coords) {
+          markers.push({
+            id: `base-${auditor.name}`,
+            name: auditor.name,
+            type: 'Base',
+            coords: auditor.coords,
+            cluster: auditor.cluster,
+            homeCity: auditor.location,
+            empCode: auditor.empCode
+          });
+        }
+      });
+    }
+
+    if (!isLegMode && !isHistoryMode && data) {
+      data.forEach(record => {
+        const auditor = auditorsMaster.find(a => a.name.toLowerCase() === record.name?.toLowerCase());
+        if (record.location) {
+          const parts = record.location.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p));
+          if (parts.length >= 2) {
+            const currentCoords = { lat: parts[0], lng: parts[1] };
+            markers.push({
+              id: `live-${record.name}-${Date.now()}`,
+              name: record.name,
+              type: 'Live',
+              coords: currentCoords,
+              cluster: record.cluster,
+              isPresent: record.isPresent,
+              baseCoords: auditor?.coords,
+              currentCity: findNearestCity(currentCoords.lat, currentCoords.lng)
+            });
+          }
+        }
+      });
+    }
+
+    if (isHistoryMode) {
+      historyData.forEach((h, idx) => {
+        const empName = h['Employee Name'] || h.employeeName || '';
+        const fromTown = h['From Town Name'] || h.fromTown || '';
+        const toTown = h['To Town Name'] || h.toTown || '';
+        const dateVal = h['Date'] || h.date || '';
+        const state = h.state || h['State'] || '';
+
+        const auditor = auditorsMaster.find(a =>
+          a.name.toLowerCase().includes(empName.toLowerCase()) ||
+          empName.toLowerCase().includes(a.name.toLowerCase())
+        );
+
+        let fromCoords = findCityCoords(fromTown, state);
+        const toCoords = findCityCoords(toTown, state);
+
+        if (!fromCoords && auditor && auditor.coords) {
+          fromCoords = auditor.coords;
+        }
+
+        if (fromCoords) {
+          markers.push({
+            id: `history-from-${idx}`,
+            name: empName,
+            type: 'History',
+            coords: fromCoords,
+            label: `From: ${fromTown || auditor?.location || 'Base'}`,
+            date: dateVal,
+            details: h
+          });
+        }
+
+        if (toCoords) {
+          markers.push({
+            id: `history-to-${idx}`,
+            name: empName,
+            type: 'History',
+            coords: toCoords,
+            label: `To: ${toTown}`,
+            date: dateVal,
+            details: h,
+            lineFrom: fromCoords || (auditor && auditor.coords)
+          });
+        }
+      });
+    }
+
+    return markers;
+  }, [data, auditorsMaster, historyData, isLegMode, isHistoryMode]);
+
+  /* ------------------------------------------------------------------ *
+   *  Travel-Leg mode: per-day, per-leg markers with town labels and     *
+   *  per-leg kilometre badges.                                          *
+   * ------------------------------------------------------------------ */
+  const legMarkers = useMemo(() => {
+    if (!isLegMode) return [];
+    const seen = new Map();
+    const result = [];
+    travelLegs.forEach((leg) => {
+      const push = (kind, town, coords, matched) => {
+        if (!coords) return;
+        const key = `${kind}-${(town || '').toLowerCase()}-${coords.lat.toFixed(3)}-${coords.lng.toFixed(3)}`;
+        if (seen.has(key)) return;
+        seen.set(key, true);
+        result.push({
+          id: `leg-${kind}-${leg.id}`,
+          kind,
+          town,
+          matched,
+          coords,
+          dayIndex: leg.dayIndex,
+          date: leg.date,
+          employeeName: leg.employeeName,
+          legIndex: leg.legIndex,
+          kms: leg.kms,
+        });
+      };
+      push('from', leg.fromTown, leg.fromCoords, leg.fromMatchedCity);
+      push('to', leg.toTown, leg.toCoords, leg.toMatchedCity);
+    });
+    return result;
+  }, [isLegMode, travelLegs]);
+
+  /* ------------------------------------------------------------------ *
+   *  Map centring / zoom                                                *
+   * ------------------------------------------------------------------ */
+  const mapConfig = useMemo(() => {
+    const pointsForBounds = isLegMode
+      ? legMarkers.map(m => m.coords).filter(Boolean)
+      : deployments.filter(d => d.type === 'History' && d.coords).map(d => d.coords);
+
+    if (pointsForBounds.length > 0) {
+      let minLat = 90, maxLat = -90, minLng = 180, maxLng = -180;
+      pointsForBounds.forEach((c) => {
+        if (typeof c.lat === 'number' && typeof c.lng === 'number') {
+          if (c.lat < minLat) minLat = c.lat;
+          if (c.lat > maxLat) maxLat = c.lat;
+          if (c.lng < minLng) minLng = c.lng;
+          if (c.lng > maxLng) maxLng = c.lng;
+        }
+      });
+
+      const centerLat = (minLat + maxLat) / 2;
+      const centerLng = (minLng + maxLng) / 2;
+      const latSpan = Math.abs(maxLat - minLat);
+      const lngSpan = Math.abs(maxLng - minLng);
+      const maxSpan = Math.max(latSpan, lngSpan);
+
+      let scale;
+      if (maxSpan === 0) {
+        scale = 8000;
+      } else {
+        scale = Math.min(12000, Math.max(2500, Math.round(500 / maxSpan)));
+      }
+      return { center: [centerLng, centerLat], scale };
+    }
+
+    return { center: [80, 22], scale: 1000 };
+  }, [deployments, legMarkers, isLegMode]);
+
+  return (
+    <div style={{ height: '600px', width: '100%', position: 'relative', background: 'rgba(13, 17, 23, 0.4)', borderRadius: '16px', overflow: 'hidden', border: '1px solid rgba(48, 54, 61, 0.5)' }}>
+      <ComposableMap
+        projection="geoMercator"
+        projectionConfig={{
+          scale: mapConfig.scale,
+          center: mapConfig.center,
+        }}
+        style={{ width: "100%", height: "100%" }}
+      >
+        <Geographies geography={indiaTopo}>
+          {({ geographies }) =>
+            geographies.map((geo) => (
+              <Geography
+                key={geo.rsmKey}
+                geography={geo}
+                style={{
+                  default: {
+                    fill: "rgba(88, 166, 255, 0.05)",
+                    stroke: "rgba(255,255,255,0.15)",
+                    strokeWidth: 0.8,
+                    outline: "none",
+                  },
+                  hover: {
+                    fill: "rgba(88, 166, 255, 0.15)",
+                    stroke: "rgba(88, 166, 255, 0.5)",
+                    strokeWidth: 1.2,
+                    outline: "none",
+                    cursor: 'pointer'
+                  },
+                  pressed: {
+                    fill: "rgba(88, 166, 255, 0.2)",
+                    outline: "none",
+                  },
+                }}
+              />
+            ))
+          }
+        </Geographies>
+
+        {/* Leg-mode rendering: per-day colored lines + km badges */}
+        {isLegMode && travelLegs.map((leg) => {
+          if (!leg.fromCoords || !leg.toCoords) return null;
+          const color = dayColor(leg.dayIndex);
+          const midLng = (leg.fromCoords.lng + leg.toCoords.lng) / 2;
+          const midLat = (leg.fromCoords.lat + leg.toCoords.lat) / 2;
+          const kmsLabel = leg.kms != null ? `${Math.round(leg.kms)} km` : '';
+          return (
+            <React.Fragment key={`legline-${leg.id}`}>
+              <Line
+                from={[leg.fromCoords.lng, leg.fromCoords.lat]}
+                to={[leg.toCoords.lng, leg.toCoords.lat]}
+                stroke={color}
+                strokeWidth={2}
+                strokeDasharray="4 3"
+                opacity={0.85}
+              />
+              <Marker coordinates={[midLng, midLat]}>
+                <g transform="translate(0, -6)">
+                  <rect
+                    x={-30}
+                    y={-9}
+                    width={60}
+                    height={18}
+                    rx={9}
+                    fill="rgba(13, 17, 23, 0.95)"
+                    stroke={color}
+                    strokeWidth={1}
+                  />
+                  <text
+                    textAnchor="middle"
+                    y={3}
+                    style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontSize: '0.55rem',
+                      fontWeight: '800',
+                      fill: color,
+                    }}
+                  >
+                    D{leg.dayIndex} · {kmsLabel}
+                  </text>
+                </g>
+              </Marker>
+            </React.Fragment>
+          );
+        })}
+
+        {/* Leg-mode rendering: town pins */}
+        {isLegMode && legMarkers.map((m) => {
+          const color = dayColor(m.dayIndex);
+          return (
+            <Marker key={m.id} coordinates={[m.coords.lng, m.coords.lat]}>
+              <g
+                transform={selectedPoint?.id === m.id ? "translate(-12, -22) scale(1.2)" : "translate(-12, -22)"}
+                style={{ cursor: 'pointer', transition: 'transform 0.2s ease-out' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedPoint({
+                    id: m.id,
+                    type: 'Leg',
+                    name: m.employeeName,
+                    label: `${m.kind === 'from' ? 'From' : 'To'}: ${m.town}`,
+                    matchedCity: m.matched,
+                    date: m.date,
+                    dayIndex: m.dayIndex,
+                    kms: m.kms,
+                    coords: m.coords,
+                  });
+                }}
+              >
+                <path
+                  d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                  fill={color}
+                  stroke="#fff"
+                  strokeWidth={selectedPoint?.id === m.id ? 2 : 1.2}
+                />
+                <circle cx={12} cy={9} r={3} fill="#fff" />
+              </g>
+              <text
+                textAnchor="middle"
+                y={-28}
+                style={{
+                  fontFamily: 'Inter, sans-serif',
+                  fontSize: '0.6rem',
+                  fontWeight: '800',
+                  fill: '#ffffff',
+                  paintOrder: 'stroke',
+                  stroke: 'rgba(13, 17, 23, 0.95)',
+                  strokeWidth: '4px',
+                  pointerEvents: 'none'
+                }}
+              >
+                {m.town || m.matched || '?'}
+              </text>
+            </Marker>
+          );
+        })}
+
+        {/* Legacy Base / Live / History rendering */}
+        {!isLegMode && deployments.map((d) => (
+          <React.Fragment key={d.id}>
+            {d.type === 'Live' && d.baseCoords && (
+              <Line
+                from={[d.baseCoords.lng, d.baseCoords.lat]}
+                to={[d.coords.lng, d.coords.lat]}
+                stroke="var(--accent-primary)"
+                strokeWidth={0.6}
+                strokeDasharray="2 2"
+                opacity={0.3}
+              />
+            )}
+
+            {d.type === 'History' && d.lineFrom && (
+              <>
+                <Line
+                  from={[d.lineFrom.lng, d.lineFrom.lat]}
+                  to={[d.coords.lng, d.coords.lat]}
+                  stroke="var(--accent-primary)"
+                  strokeWidth={2}
+                  strokeDasharray="3 3"
+                  opacity={0.7}
+                />
+                <Marker coordinates={[
+                  (d.lineFrom.lng + d.coords.lng) / 2,
+                  (d.lineFrom.lat + d.coords.lat) / 2
+                ]}>
+                  <g transform="translate(0, -6)">
+                    <rect
+                      x={-24}
+                      y={-9}
+                      width={48}
+                      height={18}
+                      rx={9}
+                      fill="rgba(13, 17, 23, 0.95)"
+                      stroke="var(--accent-primary)"
+                      strokeWidth={1}
+                    />
+                    <text
+                      textAnchor="middle"
+                      y={3}
+                      style={{
+                        fontFamily: 'Inter, sans-serif',
+                        fontSize: '0.55rem',
+                        fontWeight: '800',
+                        fill: 'var(--accent-primary)'
+                      }}
+                    >
+                      {getDisplayDistance(d)}
+                    </text>
+                  </g>
+                </Marker>
+              </>
+            )}
+
+            <Marker coordinates={[d.coords.lng, d.coords.lat]}>
+              {d.type === 'Base' ? (
+                <circle
+                  r={selectedPoint?.name === d.name && selectedPoint?.type === 'Base' ? 4 : 2}
+                  fill={selectedPoint?.name === d.name && selectedPoint?.type === 'Base' ? "var(--accent-primary)" : "rgba(139, 148, 158, 0.5)"}
+                  stroke="#fff"
+                  strokeWidth={0.3}
+                  style={{ cursor: 'pointer', transition: 'all 0.2s' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPoint(d);
+                  }}
+                />
+              ) : d.type === 'Live' ? (
+                <g
+                  transform="translate(-6, -12) scale(0.8)"
+                  style={{ cursor: 'pointer' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedPoint(d);
+                  }}
+                >
+                  <path
+                    d="M6 0C2.686 0 0 2.686 0 6c0 4.5 6 10 6 10s6-5.5 6-10c0-3.314-2.686-6-6-6zm0 8c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2z"
+                    fill={d.isPresent ? "#3fb950" : "#f85149"}
+                    stroke="white"
+                    strokeWidth={selectedPoint?.id === d.id ? 1.5 : 0.5}
+                  />
+                </g>
+              ) : (
+                <>
+                  <g
+                    transform={selectedPoint?.id === d.id ? "translate(-12, -22) scale(1.2)" : "translate(-12, -22)"}
+                    style={{ cursor: 'pointer', transition: 'transform 0.2s ease-out' }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPoint(d);
+                    }}
+                  >
+                    <path
+                      d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                      fill={d.label?.startsWith('From:') ? "#3fb950" : "#f85149"}
+                      stroke="#fff"
+                      strokeWidth={selectedPoint?.id === d.id ? 2 : 1.2}
+                    />
+                    <circle
+                      cx={12}
+                      cy={9}
+                      r={3}
+                      fill="#fff"
+                    />
+                  </g>
+                  <text
+                    textAnchor="middle"
+                    y={-28}
+                    style={{
+                      fontFamily: 'Inter, sans-serif',
+                      fontSize: '0.65rem',
+                      fontWeight: '800',
+                      fill: '#ffffff',
+                      paintOrder: 'stroke',
+                      stroke: 'rgba(13, 17, 23, 0.95)',
+                      strokeWidth: '4px',
+                      pointerEvents: 'none'
+                    }}
+                  >
+                    {d.label?.replace('From: ', '').replace('To: ', '')}
+                  </text>
+                </>
+              )}
+            </Marker>
+          </React.Fragment>
+        ))}
+      </ComposableMap>
+
+      {/* Selection Info Popup */}
+      {selectedPoint && (
+        <div style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '24px',
+          width: '300px',
+          background: 'rgba(13, 17, 23, 0.95)',
+          backdropFilter: 'blur(20px)',
+          padding: '16px',
+          borderRadius: '12px',
+          border: `1px solid ${
+            selectedPoint.type === 'Base' ? '#58a6ff'
+            : selectedPoint.type === 'Leg' ? dayColor(selectedPoint.dayIndex)
+            : (selectedPoint.isPresent ? '#3fb950' : '#f85149')
+          }`,
+          boxShadow: '0 12px 48px rgba(0,0,0,0.5)',
+          animation: 'slideUp 0.3s ease',
+          zIndex: 100
+        }}>
+          <button
+            onClick={() => setSelectedPoint(null)}
+            style={{ position: 'absolute', top: '12px', right: '12px', background: 'none', border: 'none', color: '#8b949e', cursor: 'pointer' }}
+          >
+            <X size={14} />
+          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+            <div style={{
+              width: '40px', height: '40px', borderRadius: '10px',
+              background: 'rgba(255,255,255,0.03)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: selectedPoint.type === 'Base' ? '#58a6ff'
+                : selectedPoint.type === 'Leg' ? dayColor(selectedPoint.dayIndex)
+                : (selectedPoint.isPresent ? '#3fb950' : '#f85149')
+            }}>
+              {selectedPoint.type === 'Base' ? <Home size={18} /> : <Navigation size={18} />}
+            </div>
+            <div>
+              <h4 style={{ margin: 0, fontSize: '0.9rem', color: '#fff', fontWeight: '700' }}>{selectedPoint.name || 'Travel Point'}</h4>
+              <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>
+                {selectedPoint.type === 'Leg' ? `Day ${selectedPoint.dayIndex} • ${selectedPoint.date}` : `Sales Auditor • ${selectedPoint.empCode || 'Staff'}`}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {selectedPoint.type !== 'Leg' && (
+              <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ fontSize: '0.65rem', color: '#8b949e', textTransform: 'uppercase', marginBottom: '4px' }}>Base Location</div>
+                <div style={{ fontSize: '0.8rem', color: '#c9d1d9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <MapPin size={12} color="#58a6ff" /> {selectedPoint.homeCity}
+                </div>
+              </div>
+            )}
+
+            {selectedPoint.type === 'Live' && (
+              <>
+                <div style={{ padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ fontSize: '0.65rem', color: '#8b949e', textTransform: 'uppercase', marginBottom: '4px' }}>Current Location</div>
+                  <div style={{ fontSize: '0.8rem', color: '#c9d1d9', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Info size={12} color="var(--accent-primary)" /> {selectedPoint.currentCity}
+                  </div>
+                </div>
+                <div style={{ padding: '8px 12px', background: 'rgba(63, 185, 80, 0.05)', borderRadius: '8px', border: '1px solid rgba(63, 185, 80, 0.1)' }}>
+                  <div style={{ fontSize: '0.65rem', color: '#3fb950', textTransform: 'uppercase', marginBottom: '4px' }}>Proximity to Base</div>
+                  <div style={{ fontSize: '1rem', color: '#fff', fontWeight: '800' }}>
+                    {selectedPoint.distance} <span style={{ fontSize: '0.7rem', fontWeight: '400' }}>KM AWAY</span>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {selectedPoint.type === 'History' && (
+              <div style={{ padding: '8px 12px', background: 'rgba(255, 215, 0, 0.05)', borderRadius: '8px', border: '1px solid rgba(255, 215, 0, 0.2)' }}>
+                <div style={{ fontSize: '0.65rem', color: '#ffd700', textTransform: 'uppercase', marginBottom: '4px' }}>Historical Travel</div>
+                <div style={{ fontSize: '0.8rem', color: '#fff', marginBottom: '4px' }}>{selectedPoint.label}</div>
+                <div style={{ fontSize: '0.7rem', color: '#8b949e' }}>Date: {selectedPoint.date}</div>
+                <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: '8px' }}>
+                  Planned RS: {selectedPoint.details?.['Planned RS Name'] || selectedPoint.details?.plannedRSName || 'N/A'}
+                </div>
+                <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: '4px' }}>
+                  Kms Travelled: {selectedPoint.details?.['Kms Travelled'] || selectedPoint.details?.kms || 0} km
+                </div>
+              </div>
+            )}
+
+            {selectedPoint.type === 'Leg' && (
+              <div style={{ padding: '8px 12px', background: 'rgba(88, 166, 255, 0.05)', borderRadius: '8px', border: `1px solid ${dayColor(selectedPoint.dayIndex)}33` }}>
+                <div style={{ fontSize: '0.65rem', color: dayColor(selectedPoint.dayIndex), textTransform: 'uppercase', marginBottom: '4px' }}>Travel Leg</div>
+                <div style={{ fontSize: '0.85rem', color: '#fff', marginBottom: '4px', fontWeight: '600' }}>{selectedPoint.label}</div>
+                {selectedPoint.matchedCity && selectedPoint.matchedCity.toLowerCase() !== selectedPoint.label?.replace(/^(From|To):\s*/, '').toLowerCase() && (
+                  <div style={{ fontSize: '0.7rem', color: '#8b949e', marginBottom: '4px' }}>Matched: {selectedPoint.matchedCity}</div>
+                )}
+                <div style={{ fontSize: '0.7rem', color: '#8b949e' }}>Date: {selectedPoint.date}</div>
+                {selectedPoint.kms != null && (
+                  <div style={{ fontSize: '0.7rem', color: '#8b949e', marginTop: '4px' }}>
+                    Leg distance: {Math.round(selectedPoint.kms)} km
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Legend */}
+      <div style={{
+        position: 'absolute',
+        top: '20px',
+        right: '20px',
+        background: 'rgba(13, 17, 23, 0.85)',
+        backdropFilter: 'blur(10px)',
+        padding: '12px',
+        borderRadius: '10px',
+        border: '1px solid var(--border-main)',
+        pointerEvents: 'none',
+        zIndex: 10,
+        maxWidth: '220px'
+      }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {isLegMode ? (
+            <>
+              <div style={{ fontSize: '0.65rem', color: '#8b949e', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '2px' }}>Date-wise Travel</div>
+              {(() => {
+                const seenDays = new Set();
+                const items = [];
+                travelLegs.forEach(leg => {
+                  if (seenDays.has(leg.dayIndex)) return;
+                  seenDays.add(leg.dayIndex);
+                  items.push(
+                    <div key={`legend-day-${leg.dayIndex}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ width: '14px', height: '3px', background: dayColor(leg.dayIndex), borderRadius: '2px' }}></div>
+                      <span style={{ fontSize: '0.7rem', color: '#c9d1d9' }}>Day {leg.dayIndex} • {leg.date}</span>
+                    </div>
+                  );
+                });
+                return items.slice(0, 10);
+              })()}
+              {travelLegs.length > 10 && (
+                <span style={{ fontSize: '0.65rem', color: '#8b949e' }}>+ {new Set(travelLegs.slice(10).map(l => l.dayIndex)).size} more days</span>
+              )}
+            </>
+          ) : isHistoryMode ? (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="10" height="12" viewBox="0 0 24 24" style={{ display: 'block' }}>
+                  <path
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                    fill="#3fb950"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  <circle cx="12" cy="9" r="3" fill="#fff" />
+                </svg>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Base Location (Green Pin)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <svg width="10" height="12" viewBox="0 0 24 24" style={{ display: 'block' }}>
+                  <path
+                    d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
+                    fill="#f85149"
+                    stroke="#fff"
+                    strokeWidth="1.5"
+                  />
+                  <circle cx="12" cy="9" r="3" fill="#fff" />
+                </svg>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Visited Town (Red Pin)</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '12px', height: '2px', background: 'var(--accent-primary)' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Travel Route</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '6px', height: '6px', background: 'rgba(139, 148, 158, 0.8)', borderRadius: '50%' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Home Base</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '12px', background: '#3fb950', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Present</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{ width: '8px', height: '12px', background: '#f85149', clipPath: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)' }}></div>
+                <span style={{ fontSize: '0.7rem', color: '#8b949e' }}>Live: Absent</span>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+
+      <style>{`
+        @keyframes slideUp {
+          from { transform: translateY(12px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default IndiaLiveMap;
