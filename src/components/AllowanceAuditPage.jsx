@@ -119,7 +119,7 @@ const AllowanceAuditPage = () => {
             fontSize: '0.85rem',
           }}
         >
-          <ArrowLeft size={16} /> Attendance & PJP
+          <ArrowLeft size={16} /> Dashboard
         </Link>
         <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Allowance & Claim Audit</h1>
       </div>
@@ -135,8 +135,8 @@ const AllowanceAuditPage = () => {
           }}
         >
           <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: 8 }} />
-          Upload <strong>Attendance</strong> on the Full Dashboard and sync <strong>PJP</strong> on the
-          Uploads page first. Claim checks cross-reference both datasets.
+          Upload <strong>Attendance</strong> and sync <strong>PJP</strong> on the Dashboard first. Claim
+          checks cross-reference both datasets.
         </div>
       )}
 
