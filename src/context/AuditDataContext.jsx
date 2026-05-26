@@ -38,8 +38,11 @@ export const AuditDataProvider = ({ children }) => {
   const [pjpSpreadsheetUrl, setPjpSpreadsheetUrl] = useState(
     () => localStorage.getItem(STORAGE_KEYS.pjpUrl) || '',
   );
+  const DEFAULT_ALLOWANCE_URL =
+    'https://docs.google.com/spreadsheets/d/1txSfkx3ITPJe_K0g8vJrZDVy1RbL2aD0SG1XYWe70MY/edit?gid=0#gid=0';
+
   const [allowanceSpreadsheetUrl, setAllowanceSpreadsheetUrl] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || '',
+    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || DEFAULT_ALLOWANCE_URL,
   );
 
   useEffect(() => {

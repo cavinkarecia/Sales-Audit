@@ -142,7 +142,7 @@ const AllowanceAuditPage = () => {
 
       <SheetLinkUpload
         title="3. Allowance Sheet upload"
-        description='Paste the full Google Sheets URL (Share → Anyone with the link → Viewer). Do not use a published HTML link.'
+        description='Single consolidated claim sheet (all auditors in rows). Each claim is checked against that auditor’s footprint from Attendance GPS + PJP — not parsed like PJP tabs. Share: Anyone with the link → Viewer.'
         url={allowanceSpreadsheetUrl}
         onUrlChange={(v) => {
           setAllowanceSpreadsheetUrl(v);
@@ -185,6 +185,7 @@ const AllowanceAuditPage = () => {
             <thead>
               <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
                 <th style={{ padding: 6 }}>Tab</th>
+                <th style={{ padding: 6 }}>Layout</th>
                 <th style={{ padding: 6 }}>Status</th>
                 <th style={{ padding: 6 }}>Rows</th>
                 <th style={{ padding: 6 }}>Note</th>
@@ -194,6 +195,7 @@ const AllowanceAuditPage = () => {
               {allowanceSheetSummary.map((s) => (
                 <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
                   <td style={{ padding: 6 }}>{s.sheetName}</td>
+                  <td style={{ padding: 6 }}>{s.layout || '—'}</td>
                   <td style={{ padding: 6 }}>{s.status}</td>
                   <td style={{ padding: 6 }}>{s.recordCount ?? 0}</td>
                   <td style={{ padding: 6, color: 'var(--text-secondary)' }}>
@@ -320,11 +322,12 @@ const AllowanceAuditPage = () => {
 
           <div style={{ marginBottom: '1rem' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>
-              Steps 3–4 — Flagged claims with structured explanation
+              Allowance vs auditor footprint — flagged claims
             </h3>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Each card shows why a row failed (attendance, PJP, petrol ₹4/₹8 per km, bus, GPS). Expand for
-              side-by-side data.
+              Compares each allowance row to where the auditor actually was (attendance GPS + PJP route), not
+              to the allowance sheet layout. Flags include footprint mismatch, petrol ₹4/₹8 per km, and bus
+              without PJP.
             </p>
             {filteredResults.length === 0 ? (
               <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>

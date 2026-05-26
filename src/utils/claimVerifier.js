@@ -1,4 +1,5 @@
 import { parseLocationCoords, getAttendanceForAuditorDate } from './attendanceProcessor.js';
+import { buildAuditorFootprint, evaluateClaimVsFootprint } from './auditorFootprint.js';
 import { geocodeTown, findNearestCity } from './geoUtils.js';
 import { namesMatch } from './nameMatcher.js';
 
@@ -65,6 +66,8 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
 
     const attendance = getAttendanceForAuditorDate(attendanceRecords, auditor, dateKey);
     const pjpLegs = pjpForClaim(pjpRecords, auditor, dateKey);
+    const footprint = buildAuditorFootprint(attendanceRecords, pjpRecords, auditor, dateKey);
+    const footprintCheck = evaluateClaimVsFootprint(claim, footprint);
     const coords = attendance ? parseLocationCoords(attendance.location) : null;
 
     const pjpFromTowns = [...new Set(pjpLegs.map((l) => l.fromTown).filter(Boolean))];
@@ -86,6 +89,24 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
         'Auditor marked absent',
         `Latest attendance on ${claim.date} shows NOT on field, but an allowance was claimed.`,
         'high',
+      );
+    }
+
+    // --- Auditor footprint (attendance GPS + PJP route — not allowance sheet layout) ---
+    if (!footprint.hasData) {
+      addFlag(
+        flags,
+        'FOOTPRINT_MISSING',
+        'No auditor footprint for this day',
+        `No attendance GPS and no PJP travel for "${auditor}" on ${claim.date}. Upload attendance + PJP on the home page first.`,
+      );
+    } else if (!footprintCheck.routeOk && (claim.fromTown || claim.toTown)) {
+      addFlag(
+        flags,
+        'FOOTPRINT_ROUTE_MISMATCH',
+        'Claim route does not match auditor footprint',
+        footprintCheck.reason ||
+          `Claimed ${claim.fromTown || '—'} → ${claim.toTown || '—'} but footprint shows: ${footprint.routeSummary}. Towns visited: ${footprint.townsVisited.join(', ') || '—'}.`,
       );
     }
 
@@ -233,6 +254,16 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
             : null,
       },
       gpsDistanceKm: gpsDistanceKm != null ? `${Math.round(gpsDistanceKm)} km` : '—',
+      footprint: {
+        hasData: footprint.hasData,
+        routeSummary: footprint.routeSummary,
+        townsVisited: footprint.townsVisited.join(', ') || '—',
+        gps: footprint.gps
+          ? `${footprint.gps.lat.toFixed(4)}, ${footprint.gps.lng.toFixed(4)} (${footprint.gps.nearestCity})`
+          : '—',
+        matchesClaim: footprintCheck.routeOk ? 'Yes' : footprintCheck.routeOk === false ? 'No' : '—',
+        detail: footprintCheck.reason || (footprintCheck.routeOk ? 'Route matches footprint' : '—'),
+      },
     };
 
     const issues = flags.map((f) => f.detail);
@@ -248,7 +279,7 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
       comparison,
       verdict:
         flags.length === 0
-          ? 'Claim aligns with attendance, PJP route, and petrol rate.'
+          ? 'Claim aligns with auditor footprint (attendance GPS + PJP), and petrol rate.'
           : flags.map((f) => f.title).join(' · '),
     });
   });

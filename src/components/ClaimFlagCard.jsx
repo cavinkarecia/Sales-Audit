@@ -124,7 +124,18 @@ const ClaimFlagCard = ({ result }) => {
               ]}
             />
             <DataBlock
-              title="Step 2 — PJP"
+              title="Step 2 — Auditor footprint (GPS + PJP)"
+              rows={[
+                ['Footprint found', comparison.footprint?.hasData ? 'Yes' : 'No'],
+                ['Actual route', comparison.footprint?.routeSummary || '—'],
+                ['Towns visited', comparison.footprint?.townsVisited || '—'],
+                ['Attendance GPS', comparison.footprint?.gps || '—'],
+                ['Claim vs footprint', comparison.footprint?.matchesClaim || '—'],
+                ['Note', comparison.footprint?.detail || '—'],
+              ]}
+            />
+            <DataBlock
+              title="PJP legs (detail)"
               rows={[
                 ['Found', comparison.pjp.found ? 'Yes' : 'No'],
                 ['Route towns', comparison.pjp.towns],
