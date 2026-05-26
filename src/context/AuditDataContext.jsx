@@ -1,13 +1,14 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEYS = {
   attendance: 'sales_audit_report_data',
   pjp: 'sales_audit_pjp_v2',
   pjpSummary: 'sales_audit_pjp_summary_v2',
-  allowance: 'sales_audit_allowance_v2',
-  allowanceSummary: 'sales_audit_allowance_summary_v2',
+  allowance: 'sales_audit_allowance_v3',
+  allowanceSummary: 'sales_audit_allowance_summary_v3',
   pjpUrl: 'sales_audit_pjp_url',
-  allowanceUrl: 'sales_audit_allowance_url',
+  allowanceUrl: 'sales_audit_allowance_url_v3',
+  allowanceLegacy: ['sales_audit_allowance_v2', 'sales_audit_allowance_summary_v2', 'sales_audit_allowance_url'],
 };
 
 const loadJson = (key, fallback) => {
@@ -38,12 +39,23 @@ export const AuditDataProvider = ({ children }) => {
   const [pjpSpreadsheetUrl, setPjpSpreadsheetUrl] = useState(
     () => localStorage.getItem(STORAGE_KEYS.pjpUrl) || '',
   );
-  const DEFAULT_ALLOWANCE_URL =
-    'https://docs.google.com/spreadsheets/d/1txSfkx3ITPJe_K0g8vJrZDVy1RbL2aD0SG1XYWe70MY/edit?gid=0#gid=0';
-
   const [allowanceSpreadsheetUrl, setAllowanceSpreadsheetUrl] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || DEFAULT_ALLOWANCE_URL,
+    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || '',
   );
+
+  useEffect(() => {
+    STORAGE_KEYS.allowanceLegacy.forEach((key) => localStorage.removeItem(key));
+  }, []);
+
+  const clearAllowanceData = useCallback(() => {
+    setAllowanceClaims([]);
+    setAllowanceSheetSummary([]);
+    setAllowanceSpreadsheetUrl('');
+    localStorage.removeItem(STORAGE_KEYS.allowance);
+    localStorage.removeItem(STORAGE_KEYS.allowanceSummary);
+    localStorage.removeItem(STORAGE_KEYS.allowanceUrl);
+    STORAGE_KEYS.allowanceLegacy.forEach((key) => localStorage.removeItem(key));
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.attendance, JSON.stringify(attendanceRecords));
@@ -89,6 +101,7 @@ export const AuditDataProvider = ({ children }) => {
       setPjpSpreadsheetUrl,
       allowanceSpreadsheetUrl,
       setAllowanceSpreadsheetUrl,
+      clearAllowanceData,
       hasAttendance: attendanceRecords.length > 0,
       hasPjp: pjpRecords.length > 0,
       hasAllowance: allowanceClaims.length > 0,

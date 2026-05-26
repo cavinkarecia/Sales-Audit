@@ -14,6 +14,8 @@ const SheetLinkUpload = ({
   loadedCount = 0,
   totalSheets = 0,
   placeholder = 'https://docs.google.com/spreadsheets/d/...',
+  syncLabel = 'Fetch all auditor sheets',
+  loadingLabel = 'Fetching all sheets…',
 }) => (
   <div
     className="glass-card"
@@ -27,9 +29,11 @@ const SheetLinkUpload = ({
       <Link2 size={18} style={{ color: 'var(--accent-primary)', marginTop: 2 }} />
       <div>
         <h3 style={{ margin: 0, fontSize: '0.95rem' }}>{title}</h3>
-        <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-          {description}
-        </p>
+        {description ? (
+          <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+            {description}
+          </p>
+        ) : null}
       </div>
       {loadedCount > 0 && (
         <span
@@ -85,7 +89,7 @@ const SheetLinkUpload = ({
         }}
       >
         {isLoading ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
-        {isLoading ? 'Fetching all sheets…' : 'Fetch all auditor sheets'}
+        {isLoading ? loadingLabel : syncLabel}
       </button>
     </div>
   </div>

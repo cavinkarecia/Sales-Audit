@@ -1,13 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Bot,
-  AlertTriangle,
-  MapPin,
-  FileSpreadsheet,
-  Loader2,
-} from 'lucide-react';
+import { ArrowLeft, Bot, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
 import ClaimFlagCard from './ClaimFlagCard';
@@ -17,9 +10,6 @@ import {
   buildVerificationPayloadForAI,
 } from '../utils/claimVerifier';
 import { verifyClaimsWithAI } from '../utils/deepseekAgent';
-import AttendanceMap from './AttendanceMap';
-import PjpRouteMap from './PjpRouteMap';
-import { namesMatch } from '../utils/nameMatcher';
 
 const AllowanceAuditPage = () => {
   const {
@@ -31,15 +21,12 @@ const AllowanceAuditPage = () => {
     setAllowanceSheetSummary,
     allowanceSpreadsheetUrl,
     setAllowanceSpreadsheetUrl,
-    hasAttendance,
-    hasPjp,
   } = useAuditData();
 
   const [isFetching, setIsFetching] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiReport, setAiReport] = useState('');
   const [filterStatus, setFilterStatus] = useState('flag');
-  const [selectedAuditor, setSelectedAuditor] = useState('');
   const [syncError, setSyncError] = useState('');
 
   const handleAllowanceSync = async () => {
@@ -51,15 +38,9 @@ const AllowanceAuditPage = () => {
       const result = await fetchAllowanceSheets(allowanceSpreadsheetUrl.trim());
       setAllowanceClaims(result.claims);
       setAllowanceSheetSummary(result.sheetSummary);
-      const failed = result.sheetSummary.filter((s) => s.status !== 'loaded');
-      if (failed.length > 0 && result.totalRecords > 0) {
-        setSyncError(
-          `Loaded ${result.totalRecords} rows. ${failed.length} tab(s) skipped — expand sheet summary below.`,
-        );
-      }
     } catch (err) {
       console.error(err);
-      setSyncError(err.message || 'Allowance sync failed');
+      setSyncError(err.message || 'Sync failed');
       setAllowanceClaims([]);
       setAllowanceSheetSummary([]);
     } finally {
@@ -78,17 +59,6 @@ const AllowanceAuditPage = () => {
     return verification.results.filter((r) => r.status === filterStatus);
   }, [verification, filterStatus]);
 
-  const auditorOptions = useMemo(() => {
-    const names = new Set(allowanceClaims.map((c) => c.employeeName).filter(Boolean));
-    return Array.from(names).sort();
-  }, [allowanceClaims]);
-
-  const pjpLegsForMap = useMemo(() => {
-    if (!pjpRecords.length) return [];
-    if (!selectedAuditor) return pjpRecords.slice(0, 30);
-    return pjpRecords.filter((r) => namesMatch(r.employeeName, selectedAuditor));
-  }, [pjpRecords, selectedAuditor]);
-
   const handleAiVerify = async () => {
     if (!verification) return;
     setIsAiRunning(true);
@@ -99,7 +69,7 @@ const AllowanceAuditPage = () => {
       setAiReport(text);
     } catch (err) {
       console.error(err);
-      alert(`AI verification failed: ${err.message}`);
+      alert(err.message);
     } finally {
       setIsAiRunning(false);
     }
@@ -121,28 +91,11 @@ const AllowanceAuditPage = () => {
         >
           <ArrowLeft size={16} /> Full Dashboard
         </Link>
-        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Allowance & Claim Audit</h1>
+        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Allowance Audit</h1>
       </div>
 
-      {(!hasAttendance || !hasPjp) && (
-        <div
-          className="glass-card"
-          style={{
-            padding: '1rem',
-            marginBottom: '1rem',
-            borderLeft: '4px solid var(--accent-danger)',
-            fontSize: '0.85rem',
-          }}
-        >
-          <AlertTriangle size={16} style={{ verticalAlign: 'middle', marginRight: 8 }} />
-          Upload <strong>Attendance</strong> and sync <strong>PJP</strong> on the Dashboard first. Claim
-          checks cross-reference both datasets.
-        </div>
-      )}
-
       <SheetLinkUpload
-        title="2. Allowance Sheet upload"
-        description='Single consolidated claim sheet (all auditors in rows). Each claim is checked against that auditor’s footprint from Attendance GPS + PJP — not parsed like PJP tabs. Share: Anyone with the link → Viewer.'
+        title="Allowance sheet"
         url={allowanceSpreadsheetUrl}
         onUrlChange={(v) => {
           setAllowanceSpreadsheetUrl(v);
@@ -152,60 +105,11 @@ const AllowanceAuditPage = () => {
         isLoading={isFetching}
         loadedCount={allowanceSheetSummary.filter((s) => s.status === 'loaded').length}
         totalSheets={allowanceSheetSummary.length}
+        syncLabel="Sync"
       />
 
       {syncError && (
-        <div
-          className="glass-card"
-          style={{
-            padding: '1rem',
-            marginBottom: '1rem',
-            borderLeft: '4px solid var(--accent-danger)',
-            fontSize: '0.85rem',
-            color: '#f85149',
-          }}
-        >
-          <strong>Allowance sync failed</strong>
-          <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>{syncError}</p>
-          <ul style={{ margin: '10px 0 0', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
-            <li>Use the browser address bar URL: <code>docs.google.com/spreadsheets/d/…/edit</code></li>
-            <li>Sharing: Anyone with the link → Viewer</li>
-            <li>Sheet must contain Date, Name/Auditor, and route or amount columns</li>
-          </ul>
-        </div>
-      )}
-
-      {allowanceSheetSummary.length > 0 && (
-        <details className="glass-card" style={{ padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
-          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
-            Sheet tabs ({allowanceSheetSummary.filter((s) => s.status === 'loaded').length}/
-            {allowanceSheetSummary.length} loaded)
-          </summary>
-          <table style={{ width: '100%', marginTop: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                <th style={{ padding: 6 }}>Tab</th>
-                <th style={{ padding: 6 }}>Layout</th>
-                <th style={{ padding: 6 }}>Status</th>
-                <th style={{ padding: 6 }}>Rows</th>
-                <th style={{ padding: 6 }}>Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {allowanceSheetSummary.map((s) => (
-                <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
-                  <td style={{ padding: 6 }}>{s.sheetName}</td>
-                  <td style={{ padding: 6 }}>{s.layout || '—'}</td>
-                  <td style={{ padding: 6 }}>{s.status}</td>
-                  <td style={{ padding: 6 }}>{s.recordCount ?? 0}</td>
-                  <td style={{ padding: 6, color: 'var(--text-secondary)' }}>
-                    {s.reason || (s.headers?.slice(0, 5).join(', ') ?? '—')}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </details>
+        <p style={{ color: '#f85149', fontSize: '0.85rem', marginBottom: '1rem' }}>{syncError}</p>
       )}
 
       {verification && (
@@ -219,7 +123,7 @@ const AllowanceAuditPage = () => {
             }}
           >
             {[
-              { label: 'Claims checked', value: verification.summary.total },
+              { label: 'Checked', value: verification.summary.total },
               { label: 'Passed', value: verification.summary.passed, color: 'var(--accent-success)' },
               { label: 'Flagged', value: verification.summary.flagged, color: 'var(--accent-danger)' },
               {
@@ -278,94 +182,34 @@ const AllowanceAuditPage = () => {
               }}
             >
               {isAiRunning ? <Loader2 size={16} className="spin" /> : <Bot size={16} />}
-              AI Agent — Review flagged claims
+              AI review
             </button>
           </div>
 
-          {attendanceRecords.length > 0 && (
-            <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <MapPin size={16} /> Step 1 — Attendance GPS (latest entry per day)
-              </h3>
-              <AttendanceMap records={attendanceRecords} height="320px" />
+          {filteredResults.length === 0 ? (
+            <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              No rows in this filter.
             </div>
+          ) : (
+            filteredResults.map((row) => <ClaimFlagCard key={row.id} result={row} />)
           )}
-
-          {pjpRecords.length > 0 && (
-            <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-              <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>Step 2 — PJP routes (from → to, kms)</h3>
-              {auditorOptions.length > 0 && (
-                <select
-                  value={selectedAuditor}
-                  onChange={(e) => setSelectedAuditor(e.target.value)}
-                  style={{
-                    marginBottom: 10,
-                    background: 'var(--bg-secondary)',
-                    color: '#fff',
-                    border: '1px solid var(--border-main)',
-                    padding: '6px 10px',
-                    borderRadius: 6,
-                    fontSize: '0.8rem',
-                  }}
-                >
-                  <option value="">All auditors (sample)</option>
-                  {auditorOptions.map((n) => (
-                    <option key={n} value={n}>
-                      {n}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <PjpRouteMap pjpLegs={pjpLegsForMap} height="280px" />
-            </div>
-          )}
-
-          <div style={{ marginBottom: '1rem' }}>
-            <h3 style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>
-              Allowance vs auditor footprint — flagged claims
-            </h3>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-              Compares each allowance row to where the auditor actually was (attendance GPS + PJP route), not
-              to the allowance sheet layout. Flags include footprint mismatch, petrol ₹4/₹8 per km, and bus
-              without PJP.
-            </p>
-            {filteredResults.length === 0 ? (
-              <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-                No claims in this filter.
-              </div>
-            ) : (
-              filteredResults.map((row) => <ClaimFlagCard key={row.id} result={row} />)
-            )}
-          </div>
 
           {aiReport && (
             <div
               className="glass-card"
               style={{
                 padding: '1.25rem',
+                marginTop: '1rem',
                 borderLeft: '4px solid #8b5cf6',
                 whiteSpace: 'pre-wrap',
                 fontSize: '0.85rem',
                 lineHeight: 1.6,
               }}
             >
-              <h3 style={{ margin: '0 0 12px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Bot size={18} /> AI Claim Audit Report
-              </h3>
               {aiReport}
             </div>
           )}
         </>
-      )}
-
-      {!allowanceClaims.length && !syncError && (
-        <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
-          <FileSpreadsheet size={40} style={{ opacity: 0.4, marginBottom: 12 }} />
-          <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
-            Upload the allowance spreadsheet link above to verify petrol & bus claims against attendance
-            GPS and PJP routes.
-          </p>
-        </div>
       )}
     </div>
   );
