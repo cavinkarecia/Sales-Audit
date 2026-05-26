@@ -1,10 +1,6 @@
 import * as XLSX from 'xlsx';
 import { parseExcelDate } from './sheetFetcher.js';
-
-const extractSpreadsheetId = (url) => {
-  const match = String(url || '').match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : null;
-};
+import { downloadSpreadsheetXlsx } from './sheetDownload.js';
 
 const canonHeader = (k) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -20,16 +16,40 @@ const buildRowAccessor = (row) => {
 };
 
 const CANDIDATES = {
-  date: ['date', 'claimdate', 'expensedate', 'traveldate', 'visitdate'],
-  employeeName: ['employeename', 'auditorname', 'name', 'staffname', 'claimant'],
-  fromTown: ['fromtown', 'from', 'fromcity', 'startingpoint', 'origin'],
-  toTown: ['totown', 'to', 'tocity', 'destination', 'endpoint'],
-  kms: ['kms', 'km', 'distance', 'kmstravelled', 'kilometers'],
-  petrolAmount: ['petrol', 'petrolamount', 'fuel', 'fuelamount', 'petrolclaim'],
-  busAmount: ['bus', 'busticket', 'busfare', 'publictransport'],
-  totalAmount: ['total', 'totalamount', 'claimamount', 'amount', 'expense'],
-  tripType: ['triptype', 'roundtrip', 'journeytype', 'onewayroundtrip'],
-  billType: ['billtype', 'expensetype', 'category', 'mode'],
+  date: [
+    'date', 'claimdate', 'expensedate', 'traveldate', 'visitdate', 'billdate',
+    'dated', 'ondate', 'journeydate', 'submissiondate',
+  ],
+  employeeName: [
+    'employeename', 'auditorname', 'name', 'staffname', 'claimant', 'chooseyourname',
+    'yourname', 'executivename', 'salesmanname', 'auditor', 'employee',
+  ],
+  fromTown: [
+    'fromtown', 'from', 'fromcity', 'startingpoint', 'origin', 'fromplace',
+    'startlocation', 'startingfrom', 'fromlocation', 'departure', 'starttown',
+  ],
+  toTown: [
+    'totown', 'to', 'tocity', 'destination', 'endpoint', 'toplace',
+    'endlocation', 'goingto', 'tolocation', 'arrival', 'destinationtown',
+  ],
+  kms: [
+    'kms', 'km', 'distance', 'kmstravelled', 'kilometers', 'kilometres',
+    'distancekm', 'travelledkm', 'totalkms', 'kmtravelled', 'noofkms',
+  ],
+  petrolAmount: [
+    'petrol', 'petrolamount', 'fuel', 'fuelamount', 'petrolclaim', 'petrolamt',
+    'fuelclaim', 'twowheeler', 'bike', 'conveyancepetrol', 'petrolexpense',
+  ],
+  busAmount: [
+    'bus', 'busticket', 'busfare', 'publictransport', 'busamount', 'busclaim',
+    'travelbus', 'busexpense', 'train', 'trainfare', 'auto', 'autofare',
+  ],
+  totalAmount: [
+    'total', 'totalamount', 'claimamount', 'amount', 'expense', 'totalclaim',
+    'grandtotal', 'netamount', 'conveyance', 'travelamount', 'da',
+  ],
+  tripType: ['triptype', 'roundtrip', 'journeytype', 'onewayroundtrip', 'journey'],
+  billType: ['billtype', 'expensetype', 'category', 'mode', 'expensehead', 'particulars'],
 };
 
 const pickField = (accessor, field) => {
@@ -56,6 +76,8 @@ const parseKms = (val) => {
   return Number.isNaN(n) ? 0 : n;
 };
 
+const normTown = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
 const isRoundTrip = (tripType, fromTown, toTown) => {
   const t = String(tripType || '').toLowerCase();
   if (t.includes('round')) return true;
@@ -63,22 +85,82 @@ const isRoundTrip = (tripType, fromTown, toTown) => {
   return false;
 };
 
-const normTown = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+const looksLikeHeaderRow = (acc) => {
+  const dateStr = String(pickField(acc, 'date') || '').toLowerCase();
+  const nameStr = String(pickField(acc, 'employeeName') || '').toLowerCase();
+  return (
+    dateStr === 'date' ||
+    nameStr === 'employee name' ||
+    nameStr === 'name' ||
+    nameStr === 'auditor name' ||
+    nameStr.includes('chooseyour')
+  );
+};
+
+const sheetHasClaimHeaders = (jsonData) => {
+  if (!jsonData?.length) return false;
+  const headers = Object.keys(jsonData[0] || {}).map(canonHeader);
+  const set = new Set(headers);
+  const hasDate = CANDIDATES.date.some((c) => set.has(c));
+  const hasName = CANDIDATES.employeeName.some((c) => set.has(c));
+  return hasDate && hasName;
+};
+
+const parseSheetRows = (jsonData, sheetName) => {
+  const claims = [];
+  if (!jsonData?.length) return claims;
+
+  jsonData.forEach((row, rowIndex) => {
+    const acc = buildRowAccessor(row);
+    if (looksLikeHeaderRow(acc)) return;
+
+    const dateRaw = pickField(acc, 'date');
+    let employeeName = pickField(acc, 'employeeName');
+
+    // Fallback: sheet tab name is often the auditor name
+    if (!employeeName && sheetName && !/sheet\d|summary|total/i.test(sheetName)) {
+      employeeName = sheetName;
+    }
+
+    if (!employeeName || !dateRaw) return;
+
+    const dateObj = parseExcelDate(dateRaw);
+    if (!dateObj) return;
+
+    const fromTown = String(pickField(acc, 'fromTown') || '').trim();
+    const toTown = String(pickField(acc, 'toTown') || '').trim();
+    const kms = parseKms(pickField(acc, 'kms'));
+    const petrolAmount = parseMoney(pickField(acc, 'petrolAmount'));
+    const busAmount = parseMoney(pickField(acc, 'busAmount'));
+    const totalAmount = parseMoney(pickField(acc, 'totalAmount'));
+    const tripType = pickField(acc, 'tripType');
+    const billType = String(pickField(acc, 'billType') || 'travel').trim();
+
+    if (!fromTown && !toTown && !kms && !petrolAmount && !busAmount && !totalAmount) return;
+
+    claims.push({
+      sheetName,
+      rowIndex: rowIndex + 2,
+      date: toDateStr(dateObj),
+      dateKey: `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`,
+      employeeName: String(employeeName).trim(),
+      fromTown,
+      toTown,
+      kms,
+      petrolAmount,
+      busAmount,
+      totalAmount: totalAmount || petrolAmount + busAmount,
+      billType,
+      roundTrip: isRoundTrip(tripType, fromTown, toTown),
+    });
+  });
+
+  return claims;
+};
 
 export const fetchAllowanceSheets = async (url) => {
-  const spreadsheetId = extractSpreadsheetId(url);
-  if (!spreadsheetId) {
-    throw new Error('Invalid Google Sheets URL.');
-  }
-
-  const exportUrl = `/api/sheet?id=${spreadsheetId}`;
-  const response = await fetch(exportUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch allowance sheet (HTTP ${response.status}).`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
+  const { buffer } = await downloadSpreadsheetXlsx(url);
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
 
   const claims = [];
   const sheetSummary = [];
@@ -86,53 +168,63 @@ export const fetchAllowanceSheets = async (url) => {
   workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: true, defval: '' });
+
     if (!jsonData.length) {
-      sheetSummary.push({ sheetName, recordCount: 0, status: 'empty' });
+      sheetSummary.push({
+        sheetName,
+        recordCount: 0,
+        status: 'empty',
+        reason: 'Sheet is blank',
+        headers: [],
+      });
       return;
     }
 
-    let count = 0;
-    jsonData.forEach((row) => {
-      const acc = buildRowAccessor(row);
-      const dateRaw = pickField(acc, 'date');
-      const employeeName = pickField(acc, 'employeeName');
-      if (!employeeName || !dateRaw) return;
+    const headerSample = Object.keys(jsonData[0] || {});
 
-      const dateObj = parseExcelDate(dateRaw);
-      if (!dateObj) return;
-
-      const fromTown = String(pickField(acc, 'fromTown') || '').trim();
-      const toTown = String(pickField(acc, 'toTown') || '').trim();
-      const kms = parseKms(pickField(acc, 'kms'));
-      const petrolAmount = parseMoney(pickField(acc, 'petrolAmount'));
-      const busAmount = parseMoney(pickField(acc, 'busAmount'));
-      const totalAmount = parseMoney(pickField(acc, 'totalAmount'));
-      const tripType = pickField(acc, 'tripType');
-      const billType = String(pickField(acc, 'billType') || 'travel').trim();
-
-      claims.push({
+    if (!sheetHasClaimHeaders(jsonData)) {
+      // Try row 2+ as data with sheet name as auditor (common layout)
+      const parsed = parseSheetRows(jsonData, sheetName);
+      if (parsed.length === 0) {
+        sheetSummary.push({
+          sheetName,
+          recordCount: 0,
+          status: 'headers-not-recognised',
+          reason: `Could not find Date + Name columns. Found: ${headerSample.slice(0, 8).join(', ')}`,
+          headers: headerSample,
+        });
+        return;
+      }
+      claims.push(...parsed);
+      sheetSummary.push({
         sheetName,
-        date: toDateStr(dateObj),
-        dateKey: `${dateObj.getFullYear()}-${pad(dateObj.getMonth() + 1)}-${pad(dateObj.getDate())}`,
-        employeeName: String(employeeName).trim(),
-        fromTown,
-        toTown,
-        kms,
-        petrolAmount,
-        busAmount,
-        totalAmount: totalAmount || petrolAmount + busAmount,
-        billType,
-        roundTrip: isRoundTrip(tripType, fromTown, toTown),
+        recordCount: parsed.length,
+        status: 'loaded',
+        reason: 'Matched using sheet tab name as auditor',
+        headers: headerSample,
       });
-      count += 1;
-    });
+      return;
+    }
 
+    const parsed = parseSheetRows(jsonData, sheetName);
     sheetSummary.push({
       sheetName,
-      recordCount: count,
-      status: count > 0 ? 'loaded' : 'no-valid-rows',
+      recordCount: parsed.length,
+      status: parsed.length > 0 ? 'loaded' : 'no-valid-rows',
+      reason:
+        parsed.length > 0
+          ? ''
+          : 'Headers found but no rows with date, auditor name, and an amount or route.',
+      headers: headerSample,
     });
+    claims.push(...parsed);
   });
+
+  if (claims.length === 0 && workbook.SheetNames.length > 0) {
+    throw new Error(
+      `Fetched ${workbook.SheetNames.length} sheet(s) but no allowance rows parsed. Check column names (Date, Auditor/Name, From, To, Kms, Petrol/Bus amount) or share a sample layout.`,
+    );
+  }
 
   return {
     claims,
@@ -141,4 +233,3 @@ export const fetchAllowanceSheets = async (url) => {
     totalSheets: workbook.SheetNames.length,
   };
 };
-

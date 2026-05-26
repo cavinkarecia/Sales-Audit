@@ -1,13 +1,15 @@
 import { parseLocationCoords, getAttendanceForAuditorDate } from './attendanceProcessor.js';
-import { geocodeTown } from './geoUtils.js';
+import { geocodeTown, findNearestCity } from './geoUtils.js';
 import { namesMatch } from './nameMatcher.js';
 
 const RATE_ONE_WAY = 4;
 const RATE_ROUND_TRIP = 8;
 const TOWN_MATCH_TOLERANCE_KM = 35;
 
-const norm = (s) => String(s || '').trim().toLowerCase();
-const normTown = (s) => norm(s).replace(/[^a-z0-9]/g, '');
+const normTown = (s) =>
+  String(s || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
 
 const haversineKm = (a, b) => {
   if (!a || !b) return null;
@@ -46,15 +48,18 @@ const expectedPetrolAmount = (kms, roundTrip) => {
   return Math.round(kms * rate * 100) / 100;
 };
 
+const addFlag = (flags, code, title, detail, severity = 'high') => {
+  flags.push({ code, title, detail, severity });
+};
+
 /**
- * Rule-based verification before / alongside AI review.
+ * Rule-based verification with structured flags for UI.
  */
 export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceClaims) => {
   const results = [];
 
   allowanceClaims.forEach((claim, index) => {
-    const issues = [];
-    const notes = [];
+    const flags = [];
     const auditor = claim.employeeName;
     const dateKey = claim.dateKey;
 
@@ -62,21 +67,37 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
     const pjpLegs = pjpForClaim(pjpRecords, auditor, dateKey);
     const coords = attendance ? parseLocationCoords(attendance.location) : null;
 
-    if (!attendance) {
-      issues.push('No attendance record for this auditor on claim date.');
-    } else if (!attendance.isPresent) {
-      issues.push('Auditor marked absent on claim date (latest attendance entry).');
-    } else {
-      notes.push(`Attendance: present at ${attendance.location || 'unknown location'}.`);
-    }
-
-    if (pjpLegs.length === 0) {
-      issues.push('No PJP travel row for this auditor on claim date.');
-    }
-
-    const pjpFromTowns = pjpLegs.map((l) => l.fromTown).filter(Boolean);
-    const pjpToTowns = pjpLegs.map((l) => l.toTown).filter(Boolean);
+    const pjpFromTowns = [...new Set(pjpLegs.map((l) => l.fromTown).filter(Boolean))];
+    const pjpToTowns = [...new Set(pjpLegs.map((l) => l.toTown).filter(Boolean))];
     const pjpKms = pjpLegs.reduce((s, l) => s + (l.kms || 0), 0);
+
+    // --- Attendance ---
+    if (!attendance) {
+      addFlag(
+        flags,
+        'ATTENDANCE_MISSING',
+        'No attendance on claim date',
+        `No GoSurvey attendance row for "${auditor}" on ${claim.date}. Upload attendance first.`,
+      );
+    } else if (!attendance.isPresent) {
+      addFlag(
+        flags,
+        'ATTENDANCE_ABSENT',
+        'Auditor marked absent',
+        `Latest attendance on ${claim.date} shows NOT on field, but an allowance was claimed.`,
+        'high',
+      );
+    }
+
+    // --- PJP ---
+    if (pjpLegs.length === 0) {
+      addFlag(
+        flags,
+        'PJP_MISSING',
+        'No PJP route for this day',
+        `PJP sheet has no travel row for "${auditor}" on ${claim.date}. Cannot verify route or kms.`,
+      );
+    }
 
     const fromOk =
       !claim.fromTown ||
@@ -88,64 +109,147 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
       pjpFromTowns.some((t) => townsMatch(t, claim.toTown));
 
     if (claim.fromTown && !fromOk) {
-      issues.push(`Claim "from" (${claim.fromTown}) does not match PJP towns (${pjpFromTowns.join(', ') || 'n/a'}).`);
+      addFlag(
+        flags,
+        'FROM_TOWN_MISMATCH',
+        'From town does not match PJP',
+        `Claim from "${claim.fromTown}" but PJP shows: ${pjpFromTowns.join(', ') || '—'} → ${pjpToTowns.join(', ') || '—'}.`,
+      );
     }
     if (claim.toTown && !toOk) {
-      issues.push(`Claim "to" (${claim.toTown}) does not match PJP towns (${pjpToTowns.join(', ') || 'n/a'}).`);
+      addFlag(
+        flags,
+        'TO_TOWN_MISMATCH',
+        'To town does not match PJP',
+        `Claim to "${claim.toTown}" but PJP route towns are: ${pjpFromTowns.join(', ') || '—'} → ${pjpToTowns.join(', ') || '—'}.`,
+      );
     }
 
+    // --- Petrol / kms ---
     const refKms = claim.kms > 0 ? claim.kms : pjpKms;
+    const rate = claim.roundTrip ? RATE_ROUND_TRIP : RATE_ONE_WAY;
     const expectedPetrol = refKms > 0 ? expectedPetrolAmount(refKms, claim.roundTrip) : 0;
+
+    if (claim.petrolAmount > 0 && refKms <= 0) {
+      addFlag(
+        flags,
+        'KMS_MISSING',
+        'Petrol claimed but no kms',
+        `Petrol ₹${claim.petrolAmount} claimed but neither allowance nor PJP has distance (kms).`,
+      );
+    }
 
     if (claim.petrolAmount > 0 && expectedPetrol > 0) {
       const diff = Math.abs(claim.petrolAmount - expectedPetrol);
       if (diff > 5) {
-        issues.push(
-          `Petrol claim ₹${claim.petrolAmount} vs expected ₹${expectedPetrol} (${refKms} km × ₹${claim.roundTrip ? RATE_ROUND_TRIP : RATE_ONE_WAY}/km).`,
+        addFlag(
+          flags,
+          'PETROL_AMOUNT_MISMATCH',
+          'Petrol amount incorrect',
+          `Claimed ₹${claim.petrolAmount} but expected ₹${expectedPetrol} (${refKms} km × ₹${rate}/km${claim.roundTrip ? ', round trip' : ''}). Difference ₹${Math.round(diff)}.`,
         );
-      } else {
-        notes.push(`Petrol amount aligns with ${refKms} km at ₹${claim.roundTrip ? RATE_ROUND_TRIP : RATE_ONE_WAY}/km.`);
       }
     }
 
-    if (claim.busAmount > 0 && pjpLegs.length === 0) {
-      issues.push('Bus fare claimed but no PJP route logged for the day.');
+    if (claim.kms > 0 && pjpKms > 0 && Math.abs(claim.kms - pjpKms) > 10) {
+      addFlag(
+        flags,
+        'KMS_PJP_MISMATCH',
+        'Kms differ from PJP',
+        `Allowance claims ${claim.kms} km but PJP total for the day is ${pjpKms} km.`,
+        'medium',
+      );
     }
 
-    let geoNote = null;
-    if (coords && claim.toTown) {
-      const geo = geocodeTown(claim.toTown);
-      if (geo?.mapped && geo.lat != null) {
-        const dist = haversineKm(coords, { lat: geo.lat, lng: geo.lng });
-        if (dist != null && dist > TOWN_MATCH_TOLERANCE_KM) {
-          issues.push(
-            `Attendance GPS is ~${Math.round(dist)} km from claimed destination "${claim.toTown}".`,
-          );
-        } else {
-          geoNote = `GPS within ~${Math.round(dist || 0)} km of ${claim.toTown}.`;
+    // --- Bus ---
+    if (claim.busAmount > 0 && pjpLegs.length === 0) {
+      addFlag(
+        flags,
+        'BUS_WITHOUT_PJP',
+        'Bus fare without PJP route',
+        `Bus/ticket ₹${claim.busAmount} claimed but no PJP travel logged on ${claim.date}.`,
+      );
+    }
+
+    // --- GPS ---
+    let nearestCity = null;
+    let gpsDistanceKm = null;
+    if (coords) {
+      nearestCity = findNearestCity(coords.lat, coords.lng);
+      if (claim.toTown) {
+        const geo = geocodeTown(claim.toTown);
+        if (geo?.mapped && geo.lat != null) {
+          gpsDistanceKm = haversineKm(coords, { lat: geo.lat, lng: geo.lng });
+          if (gpsDistanceKm != null && gpsDistanceKm > TOWN_MATCH_TOLERANCE_KM) {
+            addFlag(
+              flags,
+              'GPS_DESTINATION_MISMATCH',
+              'GPS far from claimed destination',
+              `Attendance GPS (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}${nearestCity ? `, near ${nearestCity}` : ''}) is ~${Math.round(gpsDistanceKm)} km from "${claim.toTown}".`,
+              'medium',
+            );
+          }
         }
       }
     }
+
+    const comparison = {
+      attendance: attendance
+        ? {
+            found: true,
+            present: attendance.isPresent,
+            location: attendance.location || '—',
+            nearestCity: nearestCity || '—',
+          }
+        : { found: false, present: null, location: '—', nearestCity: '—' },
+      pjp: {
+        found: pjpLegs.length > 0,
+        legs: pjpLegs.map((l) => ({
+          from: l.fromTown || '—',
+          to: l.toTown || '—',
+          kms: l.kms ?? '—',
+        })),
+        totalKms: pjpKms || '—',
+        towns: `${pjpFromTowns.join(', ') || '—'} → ${pjpToTowns.join(', ') || '—'}`,
+      },
+      allowance: {
+        from: claim.fromTown || '—',
+        to: claim.toTown || '—',
+        kms: claim.kms || '—',
+        petrol: claim.petrolAmount ? `₹${claim.petrolAmount}` : '—',
+        bus: claim.busAmount ? `₹${claim.busAmount}` : '—',
+        total: claim.totalAmount ? `₹${claim.totalAmount}` : '—',
+        roundTrip: claim.roundTrip ? 'Yes' : 'No',
+        billType: claim.billType || '—',
+      },
+      petrolCheck: {
+        ratePerKm: rate,
+        referenceKms: refKms || 0,
+        expected: expectedPetrol ? `₹${expectedPetrol}` : '—',
+        claimed: claim.petrolAmount ? `₹${claim.petrolAmount}` : '—',
+        match:
+          claim.petrolAmount > 0 && expectedPetrol > 0
+            ? Math.abs(claim.petrolAmount - expectedPetrol) <= 5
+            : null,
+      },
+      gpsDistanceKm: gpsDistanceKm != null ? `${Math.round(gpsDistanceKm)} km` : '—',
+    };
+
+    const issues = flags.map((f) => f.detail);
 
     results.push({
       id: `claim-${index}`,
       claim,
       auditor,
       dateKey,
-      status: issues.length === 0 ? 'pass' : 'flag',
+      status: flags.length === 0 ? 'pass' : 'flag',
+      flags,
       issues,
-      notes: geoNote ? [...notes, geoNote] : notes,
-      context: {
-        attendancePresent: attendance?.isPresent ?? null,
-        attendanceLocation: attendance?.location ?? null,
-        pjpLegs: pjpLegs.map((l) => ({
-          from: l.fromTown,
-          to: l.toTown,
-          kms: l.kms,
-        })),
-        expectedPetrol,
-        pjpTotalKms: pjpKms,
-      },
+      comparison,
+      verdict:
+        flags.length === 0
+          ? 'Claim aligns with attendance, PJP route, and petrol rate.'
+          : flags.map((f) => f.title).join(' · '),
     });
   });
 
@@ -171,14 +275,7 @@ export const buildVerificationPayloadForAI = (verification) => ({
     .map((r) => ({
       auditor: r.auditor,
       date: r.claim.date,
-      from: r.claim.fromTown,
-      to: r.claim.toTown,
-      kms: r.claim.kms,
-      petrol: r.claim.petrolAmount,
-      bus: r.claim.busAmount,
-      roundTrip: r.claim.roundTrip,
-      issues: r.issues,
-      pjp: r.context.pjpLegs,
-      attendance: r.context.attendanceLocation,
+      flags: r.flags,
+      comparison: r.comparison,
     })),
 });

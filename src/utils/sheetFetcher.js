@@ -1,12 +1,8 @@
 import * as XLSX from 'xlsx';
+import { extractSpreadsheetId } from './spreadsheetUrl.js';
+import { downloadSpreadsheetXlsx } from './sheetDownload.js';
 
-/**
- * Extracts the spreadsheet ID from a Google Sheets URL
- */
-const extractSpreadsheetId = (url) => {
-  const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
-  return match ? match[1] : null;
-};
+export { extractSpreadsheetId };
 
 /**
  * Safely parses Excel date values (strings, serial numbers, Date objects)
@@ -166,19 +162,8 @@ const looksLikeHeaderRow = (raw, dateRaw, employeeName) => {
  *                    | 'all-rows-missing-name'
  */
 export const fetchAllSheets = async (url) => {
-  const spreadsheetId = extractSpreadsheetId(url);
-  if (!spreadsheetId) {
-    throw new Error('Invalid Google Sheets URL. Please provide a valid spreadsheet link.');
-  }
-
-  const exportUrl = `/api/sheet?id=${spreadsheetId}`;
-  const response = await fetch(exportUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch spreadsheet (HTTP ${response.status}). Ensure the sheet is shared as "Anyone with the link can view".`);
-  }
-
-  const arrayBuffer = await response.arrayBuffer();
-  const data = new Uint8Array(arrayBuffer);
+  const { buffer } = await downloadSpreadsheetXlsx(url);
+  const data = new Uint8Array(buffer);
   const workbook = XLSX.read(data, { type: 'array' });
 
   const allRecords = [];

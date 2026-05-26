@@ -27,19 +27,55 @@ app.get('/api/health', (_req, res) => {
   });
 });
 
-app.get('/api/sheet', async (req, res) => {
-  const id = String(req.query.id || '').trim();
-  if (!/^[a-zA-Z0-9-_]+$/.test(id)) {
-    return res.status(400).json({ error: 'Invalid spreadsheet id' });
+const sanitizeSpreadsheetId = (raw) => {
+  const id = String(raw || '').trim();
+  const m = id.match(/([a-zA-Z0-9-_]{20,})/);
+  const cleaned = m ? m[1] : id;
+  if (!/^[a-zA-Z0-9-_]+$/.test(cleaned)) return null;
+  return cleaned;
+};
+
+const fetchSheetXlsx = async (id) => {
+  const urls = [
+    `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`,
+    `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=0`,
+  ];
+  let lastStatus = 0;
+  let lastBody = '';
+  for (const upstream of urls) {
+    const r = await fetch(upstream, { redirect: 'follow' });
+    lastStatus = r.status;
+    if (r.ok) {
+      const buf = Buffer.from(await r.arrayBuffer());
+      if (buf.length > 100) return { ok: true, buf };
+    }
+    lastBody = await r.text().catch(() => '');
   }
-  const upstream = `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
+  return { ok: false, status: lastStatus, body: lastBody.slice(0, 200) };
+};
+
+app.get('/api/sheet', async (req, res) => {
+  const id = sanitizeSpreadsheetId(req.query.id);
+  if (!id) {
+    return res.status(400).json({
+      error: 'Invalid spreadsheet id',
+      hint: 'Paste the full Google Sheets URL from your browser address bar.',
+    });
+  }
   try {
-    const r = await fetch(upstream);
-    if (!r.ok) return res.status(r.status).json({ error: `Upstream HTTP ${r.status}` });
-    const buf = Buffer.from(await r.arrayBuffer());
+    const result = await fetchSheetXlsx(id);
+    if (!result.ok) {
+      const msg =
+        result.status === 404
+          ? 'Spreadsheet not found'
+          : result.status === 403 || result.status === 401
+            ? 'Sheet not shared publicly — set to Anyone with the link can view'
+            : `Google export failed (HTTP ${result.status})`;
+      return res.status(result.status >= 400 ? result.status : 502).json({ error: msg });
+    }
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Cache-Control', 'public, max-age=60');
-    res.send(buf);
+    res.send(result.buf);
   } catch (err) {
     res.status(502).json({ error: 'Failed to fetch upstream sheet', detail: String(err?.message || err) });
   }

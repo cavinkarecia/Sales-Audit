@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
   Bot,
-  CheckCircle2,
   AlertTriangle,
   MapPin,
   FileSpreadsheet,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
+import ClaimFlagCard from './ClaimFlagCard';
 import { fetchAllowanceSheets } from '../utils/allowanceParser';
 import {
   verifyAllowanceClaims,
@@ -38,23 +38,30 @@ const AllowanceAuditPage = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiReport, setAiReport] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('flag');
   const [selectedAuditor, setSelectedAuditor] = useState('');
+  const [syncError, setSyncError] = useState('');
 
   const handleAllowanceSync = async () => {
     if (!allowanceSpreadsheetUrl.trim()) return;
     setIsFetching(true);
     setAiReport('');
+    setSyncError('');
     try {
       const result = await fetchAllowanceSheets(allowanceSpreadsheetUrl.trim());
       setAllowanceClaims(result.claims);
       setAllowanceSheetSummary(result.sheetSummary);
-      alert(
-        `Loaded ${result.totalRecords} allowance rows from ${result.totalSheets} sheet(s).`,
-      );
+      const failed = result.sheetSummary.filter((s) => s.status !== 'loaded');
+      if (failed.length > 0 && result.totalRecords > 0) {
+        setSyncError(
+          `Loaded ${result.totalRecords} rows. ${failed.length} tab(s) skipped — expand sheet summary below.`,
+        );
+      }
     } catch (err) {
       console.error(err);
-      alert(`Allowance sync failed: ${err.message}`);
+      setSyncError(err.message || 'Allowance sync failed');
+      setAllowanceClaims([]);
+      setAllowanceSheetSummary([]);
     } finally {
       setIsFetching(false);
     }
@@ -135,14 +142,69 @@ const AllowanceAuditPage = () => {
 
       <SheetLinkUpload
         title="3. Allowance Sheet upload"
-        description="Paste the public Google Spreadsheet link for travel/petrol/bus claims. All sheets (tabs) are fetched automatically — one per auditor when structured that way."
+        description='Paste the full Google Sheets URL (Share → Anyone with the link → Viewer). Do not use a published HTML link.'
         url={allowanceSpreadsheetUrl}
-        onUrlChange={setAllowanceSpreadsheetUrl}
+        onUrlChange={(v) => {
+          setAllowanceSpreadsheetUrl(v);
+          setSyncError('');
+        }}
         onSync={handleAllowanceSync}
         isLoading={isFetching}
         loadedCount={allowanceSheetSummary.filter((s) => s.status === 'loaded').length}
         totalSheets={allowanceSheetSummary.length}
       />
+
+      {syncError && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '1rem',
+            marginBottom: '1rem',
+            borderLeft: '4px solid var(--accent-danger)',
+            fontSize: '0.85rem',
+            color: '#f85149',
+          }}
+        >
+          <strong>Allowance sync failed</strong>
+          <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>{syncError}</p>
+          <ul style={{ margin: '10px 0 0', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+            <li>Use the browser address bar URL: <code>docs.google.com/spreadsheets/d/…/edit</code></li>
+            <li>Sharing: Anyone with the link → Viewer</li>
+            <li>Sheet must contain Date, Name/Auditor, and route or amount columns</li>
+          </ul>
+        </div>
+      )}
+
+      {allowanceSheetSummary.length > 0 && (
+        <details className="glass-card" style={{ padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 600 }}>
+            Sheet tabs ({allowanceSheetSummary.filter((s) => s.status === 'loaded').length}/
+            {allowanceSheetSummary.length} loaded)
+          </summary>
+          <table style={{ width: '100%', marginTop: 12, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                <th style={{ padding: 6 }}>Tab</th>
+                <th style={{ padding: 6 }}>Status</th>
+                <th style={{ padding: 6 }}>Rows</th>
+                <th style={{ padding: 6 }}>Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {allowanceSheetSummary.map((s) => (
+                <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
+                  <td style={{ padding: 6 }}>{s.sheetName}</td>
+                  <td style={{ padding: 6 }}>{s.status}</td>
+                  <td style={{ padding: 6 }}>{s.recordCount ?? 0}</td>
+                  <td style={{ padding: 6, color: 'var(--text-secondary)' }}>
+                    {s.reason || (s.headers?.slice(0, 5).join(', ') ?? '—')}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
 
       {verification && (
         <>
@@ -174,7 +236,7 @@ const AllowanceAuditPage = () => {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            {['all', 'pass', 'flag'].map((f) => (
+            {['flag', 'pass', 'all'].map((f) => (
               <button
                 key={f}
                 type="button"
@@ -190,13 +252,13 @@ const AllowanceAuditPage = () => {
                   textTransform: 'capitalize',
                 }}
               >
-                {f}
+                {f === 'flag' ? `Flagged (${verification.summary.flagged})` : f}
               </button>
             ))}
             <button
               type="button"
               onClick={handleAiVerify}
-              disabled={isAiRunning}
+              disabled={isAiRunning || verification.summary.flagged === 0}
               style={{
                 marginLeft: 'auto',
                 padding: '8px 16px',
@@ -210,6 +272,7 @@ const AllowanceAuditPage = () => {
                 gap: 8,
                 fontWeight: 600,
                 fontSize: '0.8rem',
+                opacity: verification.summary.flagged === 0 ? 0.5 : 1,
               }}
             >
               {isAiRunning ? <Loader2 size={16} className="spin" /> : <Bot size={16} />}
@@ -222,9 +285,6 @@ const AllowanceAuditPage = () => {
               <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <MapPin size={16} /> Step 1 — Attendance GPS (latest entry per day)
               </h3>
-              <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-                Locations from &quot;Choose Your Name&quot; + Location (lat/long). Latest row wins when duplicated on the same date.
-              </p>
               <AttendanceMap records={attendanceRecords} height="320px" />
             </div>
           )}
@@ -258,66 +318,21 @@ const AllowanceAuditPage = () => {
             </div>
           )}
 
-          <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+          <div style={{ marginBottom: '1rem' }}>
             <h3 style={{ margin: '0 0 12px', fontSize: '0.9rem' }}>
-              Steps 3–4 — Allowance claims vs PJP & attendance (₹4/km one-way, ₹8/km round trip)
+              Steps 3–4 — Flagged claims with structured explanation
             </h3>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                <thead>
-                  <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
-                    <th style={{ padding: 8 }}>Status</th>
-                    <th style={{ padding: 8 }}>Auditor</th>
-                    <th style={{ padding: 8 }}>Date</th>
-                    <th style={{ padding: 8 }}>Claim From → To</th>
-                    <th style={{ padding: 8 }}>Kms</th>
-                    <th style={{ padding: 8 }}>Petrol ₹</th>
-                    <th style={{ padding: 8 }}>Bus ₹</th>
-                    <th style={{ padding: 8 }}>PJP match</th>
-                    <th style={{ padding: 8 }}>Issues</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredResults.map((row) => (
-                    <tr
-                      key={row.id}
-                      style={{ borderTop: '1px solid var(--border-main)' }}
-                    >
-                      <td style={{ padding: 8 }}>
-                        {row.status === 'pass' ? (
-                          <CheckCircle2 size={16} color="var(--accent-success)" />
-                        ) : (
-                          <AlertTriangle size={16} color="var(--accent-danger)" />
-                        )}
-                      </td>
-                      <td style={{ padding: 8 }}>{row.auditor}</td>
-                      <td style={{ padding: 8 }}>{row.claim.date}</td>
-                      <td style={{ padding: 8 }}>
-                        {row.claim.fromTown || '—'} → {row.claim.toTown || '—'}
-                        {row.claim.roundTrip && (
-                          <span style={{ marginLeft: 4, fontSize: '0.65rem', opacity: 0.7 }}>
-                            (round)
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: 8 }}>{row.claim.kms || row.context.pjpTotalKms || '—'}</td>
-                      <td style={{ padding: 8 }}>{row.claim.petrolAmount || '—'}</td>
-                      <td style={{ padding: 8 }}>{row.claim.busAmount || '—'}</td>
-                      <td style={{ padding: 8, maxWidth: 140 }}>
-                        {row.context.pjpLegs.length
-                          ? row.context.pjpLegs
-                              .map((l) => `${l.from || '?'}→${l.to || '?'}`)
-                              .join('; ')
-                          : '—'}
-                      </td>
-                      <td style={{ padding: 8, color: 'var(--accent-danger)', maxWidth: 280 }}>
-                        {row.issues.length ? row.issues.join(' ') : row.notes.join(' ')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+              Each card shows why a row failed (attendance, PJP, petrol ₹4/₹8 per km, bus, GPS). Expand for
+              side-by-side data.
+            </p>
+            {filteredResults.length === 0 ? (
+              <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                No claims in this filter.
+              </div>
+            ) : (
+              filteredResults.map((row) => <ClaimFlagCard key={row.id} result={row} />)
+            )}
           </div>
 
           {aiReport && (
@@ -340,7 +355,7 @@ const AllowanceAuditPage = () => {
         </>
       )}
 
-      {!allowanceClaims.length && (
+      {!allowanceClaims.length && !syncError && (
         <div className="glass-card" style={{ padding: '2rem', textAlign: 'center' }}>
           <FileSpreadsheet size={40} style={{ opacity: 0.4, marginBottom: 12 }} />
           <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
