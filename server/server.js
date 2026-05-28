@@ -3,6 +3,7 @@ import compression from 'compression';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
+import XLSX from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,7 +21,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
-    build: '2026-05-28-pubhtml-fix-v2',
+    build: '2026-05-28-pubhtml-csv-fallback-v1',
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
@@ -61,6 +62,62 @@ const fetchSheetXlsx = async (id) => {
   return { ok: false, status: lastStatus, body: lastBody.slice(0, 200) };
 };
 
+const sanitizeSheetName = (name, index) => {
+  const cleaned = String(name || `Sheet${index + 1}`)
+    .replace(/[\\/?*[\]:]/g, ' ')
+    .trim();
+  return (cleaned || `Sheet${index + 1}`).slice(0, 31);
+};
+
+const parsePublishedTabs = (html) => {
+  const tabs = [];
+  const re = /[?&]gid=(\d+)[^>]*>([^<]+)</g;
+  let m;
+  while ((m = re.exec(html)) !== null) {
+    tabs.push({ gid: m[1], name: m[2].trim() });
+  }
+  const unique = new Map();
+  tabs.forEach((t) => {
+    if (!unique.has(t.gid)) unique.set(t.gid, t.name || `gid-${t.gid}`);
+  });
+  return Array.from(unique.entries()).map(([gid, name]) => ({ gid, name }));
+};
+
+const fetchPublishedAsXlsx = async (id) => {
+  const pubHtmlUrl = `https://docs.google.com/spreadsheets/d/e/${id}/pubhtml`;
+  const htmlResp = await fetch(pubHtmlUrl, { redirect: 'follow' });
+  if (!htmlResp.ok) {
+    return { ok: false, status: htmlResp.status, body: 'Failed to open published html' };
+  }
+  const html = await htmlResp.text();
+  let tabs = parsePublishedTabs(html);
+  if (!tabs.length) tabs = [{ gid: '0', name: 'Sheet1' }];
+
+  const workbook = XLSX.utils.book_new();
+  let loaded = 0;
+
+  for (let i = 0; i < tabs.length; i++) {
+    const t = tabs[i];
+    const csvUrl = `https://docs.google.com/spreadsheets/d/e/${id}/pub?gid=${t.gid}&single=true&output=csv`;
+    const csvResp = await fetch(csvUrl, { redirect: 'follow' });
+    if (!csvResp.ok) continue;
+    const csv = await csvResp.text();
+    if (!csv || csv.trim().length === 0) continue;
+    const parsed = XLSX.read(csv, { type: 'string' });
+    const first = parsed.SheetNames[0];
+    if (!first) continue;
+    XLSX.utils.book_append_sheet(workbook, parsed.Sheets[first], sanitizeSheetName(t.name, i));
+    loaded++;
+  }
+
+  if (loaded === 0) {
+    return { ok: false, status: 404, body: 'Published sheet tabs could not be downloaded as csv' };
+  }
+
+  const out = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  return { ok: true, buf: Buffer.from(out) };
+};
+
 app.get('/api/sheet', async (req, res) => {
   const id = sanitizeSpreadsheetId(req.query.id);
   if (!id) {
@@ -71,6 +128,14 @@ app.get('/api/sheet', async (req, res) => {
   }
   try {
     const result = await fetchSheetXlsx(id);
+    if (!result.ok && id.startsWith('2PACX-')) {
+      const fallback = await fetchPublishedAsXlsx(id);
+      if (fallback.ok) {
+        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        return res.send(fallback.buf);
+      }
+    }
     if (!result.ok) {
       const msg =
         result.status === 404
