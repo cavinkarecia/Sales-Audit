@@ -249,14 +249,104 @@ const parseSheetRows = (jsonData, sheetName, layout) => {
 const parseWorksheet = (worksheet, sheetName) => {
   const matrix = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true, defval: '' });
   if (!matrix.length) {
-    return { jsonData: [], headerRow: 0, headers: [] };
+    return { jsonData: [], headerRow: 0, headers: [], matrix: [] };
   }
 
   const headerRow = findHeaderRowIndex(matrix);
   const jsonData = rowsToObjects(matrix, headerRow);
   const headers = (matrix[headerRow] || []).map((h) => String(h ?? '').trim()).filter(Boolean);
 
-  return { jsonData, headerRow, headers };
+  return { jsonData, headerRow, headers, matrix };
+};
+
+const parseDateFromMatrix = (matrix) => {
+  for (let r = 0; r < matrix.length; r++) {
+    for (let c = 0; c < (matrix[r] || []).length; c++) {
+      const v = matrix[r][c];
+      const d = parseExcelDate(v);
+      if (d) return d;
+      const s = String(v || '').trim();
+      if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(s)) {
+        const d2 = parseExcelDate(s);
+        if (d2) return d2;
+      }
+    }
+  }
+  return null;
+};
+
+const parseNumberFromRow = (row) => {
+  if (!row) return 0;
+  for (let i = 0; i < row.length; i++) {
+    const n = parseMoney(row[i]);
+    if (n > 0) return n;
+  }
+  return 0;
+};
+
+const findRowByLabel = (matrix, re) => {
+  for (let r = 0; r < matrix.length; r++) {
+    const row = matrix[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      if (re.test(String(row[c] || '').toLowerCase().trim())) {
+        return { r, c, row };
+      }
+    }
+  }
+  return null;
+};
+
+const nextNonEmptyInRow = (row, startCol) => {
+  for (let c = startCol + 1; c < row.length; c++) {
+    const v = String(row[c] ?? '').trim();
+    if (v) return v;
+  }
+  return '';
+};
+
+const parseVoucherFormSheet = (matrix, sheetName) => {
+  if (!matrix?.length) return [];
+
+  const requestedBy = findRowByLabel(matrix, /^requested by$/i);
+  const totalRow = findRowByLabel(matrix, /^total$/i);
+  const fuelRow = findRowByLabel(matrix, /fuel expenses/i);
+  const ticketRow = findRowByLabel(matrix, /(tickets|local conveyance|bus|train)/i);
+  const travelKmsRow = findRowByLabel(matrix, /^travel$/i);
+
+  const employeeName = requestedBy
+    ? String(nextNonEmptyInRow(requestedBy.row, requestedBy.c) || '').trim()
+    : '';
+  const voucherDate = parseDateFromMatrix(matrix);
+  const petrolAmount = fuelRow ? parseNumberFromRow(fuelRow.row) : 0;
+  const busAmount = ticketRow ? parseNumberFromRow(ticketRow.row) : 0;
+  const totalAmount = totalRow ? parseNumberFromRow(totalRow.row) : petrolAmount + busAmount;
+  const kms = travelKmsRow ? parseNumberFromRow(travelKmsRow.row) : 0;
+
+  if (!employeeName || !voucherDate || (!petrolAmount && !busAmount && !totalAmount)) {
+    return [];
+  }
+
+  return [
+    {
+      sheetName,
+      rowIndex: 1,
+      date: toDateStr(voucherDate),
+      dateKey: `${voucherDate.getFullYear()}-${pad(voucherDate.getMonth() + 1)}-${pad(voucherDate.getDate())}`,
+      employeeName,
+      fromTown: '',
+      toTown: '',
+      kms,
+      petrolAmount,
+      busAmount,
+      totalAmount: totalAmount || petrolAmount + busAmount,
+      billType: 'voucher',
+      roundTrip: false,
+      layout: 'voucher-form',
+      busBillImage: '',
+      petrolBillImage: '',
+      travelMapImage: '',
+    },
+  ];
 };
 
 export const fetchAllowanceSheets = async (url) => {
@@ -268,7 +358,7 @@ export const fetchAllowanceSheets = async (url) => {
 
   workbook.SheetNames.forEach((sheetName) => {
     const worksheet = workbook.Sheets[sheetName];
-    const { jsonData, headerRow, headers } = parseWorksheet(worksheet, sheetName);
+    const { jsonData, headerRow, headers, matrix } = parseWorksheet(worksheet, sheetName);
 
     if (!jsonData.length) {
       sheetSummary.push({
@@ -288,6 +378,19 @@ export const fetchAllowanceSheets = async (url) => {
     if (!hasHeaders) {
       const parsed = parseSheetRows(jsonData, sheetName, layout);
       if (parsed.length === 0) {
+        const voucherParsed = parseVoucherFormSheet(matrix, sheetName);
+        if (voucherParsed.length > 0) {
+          claims.push(...voucherParsed);
+          sheetSummary.push({
+            sheetName,
+            recordCount: voucherParsed.length,
+            status: 'loaded',
+            reason: 'Parsed voucher-style claim form',
+            headers,
+            layout: 'voucher-form',
+          });
+          return;
+        }
         sheetSummary.push({
           sheetName,
           recordCount: 0,
@@ -311,20 +414,24 @@ export const fetchAllowanceSheets = async (url) => {
     }
 
     const parsed = parseSheetRows(jsonData, sheetName, layout);
+    const voucherParsed = parsed.length === 0 ? parseVoucherFormSheet(matrix, sheetName) : [];
+    const finalParsed = parsed.length > 0 ? parsed : voucherParsed;
     sheetSummary.push({
       sheetName,
-      recordCount: parsed.length,
-      status: parsed.length > 0 ? 'loaded' : 'no-valid-rows',
+      recordCount: finalParsed.length,
+      status: finalParsed.length > 0 ? 'loaded' : 'no-valid-rows',
       reason:
-        parsed.length > 0
+        finalParsed.length > 0
           ? layout === 'consolidated'
             ? 'Consolidated allowance log (all auditors in rows — compared to footprint, not PJP tabs)'
+            : voucherParsed.length > 0
+              ? 'Parsed voucher-style claim form'
             : ''
           : 'Headers found but no rows with date, auditor name, and amount/route.',
       headers,
-      layout,
+      layout: voucherParsed.length > 0 ? 'voucher-form' : layout,
     });
-    claims.push(...parsed);
+    claims.push(...finalParsed);
   });
 
   if (claims.length === 0 && workbook.SheetNames.length > 0) {
