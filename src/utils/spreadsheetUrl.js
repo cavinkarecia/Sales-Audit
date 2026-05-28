@@ -16,8 +16,10 @@ export const extractSpreadsheetId = (input) => {
   // Full URL patterns
   const patterns = [
     /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/i,
+    /\/spreadsheets\/d\/e\/([a-zA-Z0-9-_]+)/i,
     /\/spreadsheet\/ccc\?key=([a-zA-Z0-9-_]+)/i,
     /[?&]id=([a-zA-Z0-9-_]+)/i,
+    /^(2PACX-[a-zA-Z0-9-_]+)$/,
     /^([a-zA-Z0-9-_]{20,})$/,
   ];
 

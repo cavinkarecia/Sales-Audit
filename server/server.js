@@ -37,10 +37,16 @@ const sanitizeSpreadsheetId = (raw) => {
 };
 
 const fetchSheetXlsx = async (id) => {
-  const urls = [
-    `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`,
-    `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=0`,
-  ];
+  const isPublishedId = id.startsWith('2PACX-');
+  const urls = isPublishedId
+    ? [
+        `https://docs.google.com/spreadsheets/d/e/${id}/pub?output=xlsx`,
+        `https://docs.google.com/spreadsheets/d/e/${id}/pub?single=true&output=xlsx`,
+      ]
+    : [
+        `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`,
+        `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=0`,
+      ];
   let lastStatus = 0;
   let lastBody = '';
   for (const upstream of urls) {
