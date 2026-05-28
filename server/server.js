@@ -20,7 +20,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
-    build: '2026-05-26-two-page',
+    build: '2026-05-28-pubhtml-fix-v2',
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
