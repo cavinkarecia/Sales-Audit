@@ -64,6 +64,18 @@ const CANDIDATES = {
   ],
   tripType: ['triptype', 'roundtrip', 'journeytype', 'onewayroundtrip', 'journey', 'modeoftravel'],
   billType: ['billtype', 'expensetype', 'category', 'mode', 'expensehead', 'particulars', 'type'],
+  busBillImage: [
+    'busbill', 'busbillimage', 'busimage', 'trainbill', 'trainbillimage', 'ticketimage',
+    'busortrainbill', 'travelbillimage', 'ticketphoto', 'ticketproof',
+  ],
+  petrolBillImage: [
+    'petrolbill', 'petrolbillimage', 'fuelbill', 'fuelbillimage', 'petrolimage',
+    'fuelimage', 'gpayimage', 'petrolproof', 'fuelproof',
+  ],
+  travelMapImage: [
+    'travelmap', 'mapimage', 'travelmapimage', 'routeimage', 'journeymap',
+    'googlemap', 'mapproof', 'travelproof',
+  ],
 };
 
 const pickField = (accessor, field) => {
@@ -204,6 +216,9 @@ const parseSheetRows = (jsonData, sheetName, layout) => {
     const totalAmount = parseMoney(pickField(acc, 'totalAmount'));
     const tripType = pickField(acc, 'tripType');
     const billType = String(pickField(acc, 'billType') || 'travel').trim();
+    const busBillImage = String(pickField(acc, 'busBillImage') || '').trim();
+    const petrolBillImage = String(pickField(acc, 'petrolBillImage') || '').trim();
+    const travelMapImage = String(pickField(acc, 'travelMapImage') || '').trim();
 
     if (!fromTown && !toTown && !kms && !petrolAmount && !busAmount && !totalAmount) return;
 
@@ -222,6 +237,9 @@ const parseSheetRows = (jsonData, sheetName, layout) => {
       billType,
       roundTrip: isRoundTrip(tripType, fromTown, toTown),
       layout,
+      busBillImage,
+      petrolBillImage,
+      travelMapImage,
     });
   });
 

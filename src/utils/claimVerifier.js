@@ -6,6 +6,8 @@ import { namesMatch } from './nameMatcher.js';
 const RATE_ONE_WAY = 4;
 const RATE_ROUND_TRIP = 8;
 const TOWN_MATCH_TOLERANCE_KM = 35;
+const ORANGE_REASON_KEYWORDS = ['auditor', 'distributor', 'dse', 'sde', 'related issue'];
+const RED_REASON_KEYWORDS = ['education leave', 'no audit planned', 'on leave', 'leave'];
 
 const normTown = (s) =>
   String(s || '')
@@ -53,6 +55,31 @@ const addFlag = (flags, code, title, detail, severity = 'high') => {
   flags.push({ code, title, detail, severity });
 };
 
+const resolveAttendanceFlag = (attendance) => {
+  if (!attendance) {
+    return { color: 'red', label: 'No attendance row found', reject: true };
+  }
+  if (attendance.isPresent) {
+    return { color: 'green', label: 'Are You on field Today = Yes', reject: false };
+  }
+
+  const reason = String(attendance.absentReason || '').toLowerCase();
+  if (reason.includes('travelling')) {
+    return { color: 'green', label: 'Absent Reason = Travelling', reject: false };
+  }
+  if (ORANGE_REASON_KEYWORDS.some((k) => reason.includes(k))) {
+    return {
+      color: 'orange',
+      label: 'Absent Reason = Auditor/Distributor/DSE/SDE related Issue',
+      reject: false,
+    };
+  }
+  if (RED_REASON_KEYWORDS.some((k) => reason.includes(k))) {
+    return { color: 'red', label: 'Absent Reason = Leave / No audit planned', reject: true };
+  }
+  return { color: 'orange', label: `Absent Reason = ${attendance.absentReason || 'Unknown'}`, reject: false };
+};
+
 /**
  * Rule-based verification with structured flags for UI.
  */
@@ -65,6 +92,7 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
     const dateKey = claim.dateKey;
 
     const attendance = getAttendanceForAuditorDate(attendanceRecords, auditor, dateKey);
+    const attendanceFlag = resolveAttendanceFlag(attendance);
     const pjpLegs = pjpForClaim(pjpRecords, auditor, dateKey);
     const footprint = buildAuditorFootprint(attendanceRecords, pjpRecords, auditor, dateKey);
     const footprintCheck = evaluateClaimVsFootprint(claim, footprint);
@@ -88,6 +116,24 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
         'ATTENDANCE_ABSENT',
         'Auditor marked absent',
         `Latest attendance on ${claim.date} shows NOT on field, but an allowance was claimed.`,
+        'high',
+      );
+    }
+    if (attendanceFlag.color === 'orange') {
+      addFlag(
+        flags,
+        'ABSENT_REASON_ORANGE',
+        'Orange attendance flag',
+        attendanceFlag.label,
+        'medium',
+      );
+    }
+    if (attendanceFlag.color === 'red') {
+      addFlag(
+        flags,
+        'ABSENT_REASON_RED',
+        'Red attendance reject flag',
+        attendanceFlag.label,
         'high',
       );
     }
@@ -191,6 +237,33 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
         `Bus/ticket ₹${claim.busAmount} claimed but no PJP travel logged on ${claim.date}.`,
       );
     }
+    if (!claim.busBillImage && claim.busAmount > 0) {
+      addFlag(
+        flags,
+        'BUS_BILL_IMAGE_MISSING',
+        'Bus/train bill image missing',
+        'Bus/train amount exists but no bus/train bill image reference in sheet.',
+        'medium',
+      );
+    }
+    if (!claim.petrolBillImage && claim.petrolAmount > 0) {
+      addFlag(
+        flags,
+        'PETROL_BILL_IMAGE_MISSING',
+        'Petrol bill image missing',
+        'Petrol amount exists but no petrol/GPay image reference in sheet.',
+        'medium',
+      );
+    }
+    if (!claim.travelMapImage) {
+      addFlag(
+        flags,
+        'TRAVEL_MAP_MISSING',
+        'Travel map image missing',
+        'No travel map image reference found for this claim row.',
+        'low',
+      );
+    }
 
     // --- GPS ---
     let nearestCity = null;
@@ -242,6 +315,9 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
         total: claim.totalAmount ? `₹${claim.totalAmount}` : '—',
         roundTrip: claim.roundTrip ? 'Yes' : 'No',
         billType: claim.billType || '—',
+        busBillImage: claim.busBillImage || '—',
+        petrolBillImage: claim.petrolBillImage || '—',
+        travelMapImage: claim.travelMapImage || '—',
       },
       petrolCheck: {
         ratePerKm: rate,
@@ -264,6 +340,11 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
         matchesClaim: footprintCheck.routeOk ? 'Yes' : footprintCheck.routeOk === false ? 'No' : '—',
         detail: footprintCheck.reason || (footprintCheck.routeOk ? 'Route matches footprint' : '—'),
       },
+      attendanceFlag: {
+        color: attendanceFlag.color,
+        label: attendanceFlag.label,
+        absentReason: attendance?.absentReason || '—',
+      },
     };
 
     const issues = flags.map((f) => f.detail);
@@ -274,6 +355,8 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
       auditor,
       dateKey,
       status: flags.length === 0 ? 'pass' : 'flag',
+      attendanceColor: attendanceFlag.color,
+      shouldReject: attendanceFlag.reject,
       flags,
       issues,
       comparison,
@@ -286,6 +369,10 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
 
   const passed = results.filter((r) => r.status === 'pass').length;
   const flagged = results.filter((r) => r.status === 'flag').length;
+  const green = results.filter((r) => r.attendanceColor === 'green').length;
+  const orange = results.filter((r) => r.attendanceColor === 'orange').length;
+  const red = results.filter((r) => r.attendanceColor === 'red').length;
+  const reject = results.filter((r) => r.shouldReject).length;
 
   return {
     results,
@@ -294,6 +381,10 @@ export const verifyAllowanceClaims = (attendanceRecords, pjpRecords, allowanceCl
       passed,
       flagged,
       passRate: results.length ? Math.round((passed / results.length) * 100) : 0,
+      green,
+      orange,
+      red,
+      reject,
     },
   };
 };
@@ -306,6 +397,8 @@ export const buildVerificationPayloadForAI = (verification) => ({
     .map((r) => ({
       auditor: r.auditor,
       date: r.claim.date,
+      attendanceColor: r.attendanceColor,
+      shouldReject: r.shouldReject,
       flags: r.flags,
       comparison: r.comparison,
     })),

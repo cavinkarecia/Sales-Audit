@@ -69,11 +69,17 @@ export const verifyClaimsWithAI = async (verificationPayload) => {
   const prompt = `
 Audit travel expense claims (India FMCG field auditors).
 Rules: petrol ₹4/km one-way, ₹8/km round trip; claims must match PJP from/to towns and attendance GPS.
+Attendance flag policy:
+- Green: "Are You on field Today = Yes" OR "Absent Reason = Travelling"
+- Orange: "Absent Reason = Auditor/Distributor/DSE/SDE related Issue"
+- Red reject: "Education Leave", "No audit Planned today", "On leave", "Any leave"
+Check evidence fields for bus/train bill image, petrol/GPay bill image, and travel map image.
 
 Summary: ${JSON.stringify(verificationPayload.summary, null, 2)}
 Flagged: ${JSON.stringify(verificationPayload.flaggedClaims, null, 2)}
 
-For each flagged claim: justify petrol/bus vs PJP kms; town alignment; approve/partial/reject with reason.
+For each flagged claim: justify attendance flag color, petrol/bus vs PJP kms, town alignment, and evidence completeness.
+Give approve/partial/reject with reason and cite missing image evidence.
 End with batch verdict and 3 audit actions. Markdown bullets.
 `;
 

@@ -3,12 +3,8 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Bot, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
-import ClaimFlagCard from './ClaimFlagCard';
 import { fetchAllowanceSheets } from '../utils/allowanceParser';
-import {
-  verifyAllowanceClaims,
-  buildVerificationPayloadForAI,
-} from '../utils/claimVerifier';
+import { verifyAllowanceClaims, buildVerificationPayloadForAI } from '../utils/claimVerifier';
 import { verifyClaimsWithAI } from '../utils/deepseekAgent';
 
 const AllowanceAuditPage = () => {
@@ -26,7 +22,7 @@ const AllowanceAuditPage = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiReport, setAiReport] = useState('');
-  const [filterStatus, setFilterStatus] = useState('flag');
+  const [filterStatus, setFilterStatus] = useState('all');
   const [syncError, setSyncError] = useState('');
 
   const handleAllowanceSync = async () => {
@@ -37,7 +33,7 @@ const AllowanceAuditPage = () => {
     try {
       const result = await fetchAllowanceSheets(allowanceSpreadsheetUrl.trim());
       setAllowanceClaims(result.claims);
-      setAllowanceSheetSummary(result.sheetSummary);
+      setAllowanceSheetSummary(result.sheetSummary || []);
     } catch (err) {
       console.error(err);
       setSyncError(err.message || 'Sync failed');
@@ -75,6 +71,9 @@ const AllowanceAuditPage = () => {
     }
   };
 
+  const colorDot = (c) =>
+    c === 'green' ? '#3fb950' : c === 'orange' ? '#d29922' : c === 'red' ? '#f85149' : '#8b949e';
+
   return (
     <div className="dashboard-container" style={{ padding: '1.5rem', maxWidth: 1400, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: '1.5rem' }}>
@@ -91,11 +90,11 @@ const AllowanceAuditPage = () => {
         >
           <ArrowLeft size={16} /> Full Dashboard
         </Link>
-        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Allowance Audit</h1>
+        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Auditor Allowance Audit</h1>
       </div>
 
       <SheetLinkUpload
-        title="Allowance sheet"
+        title="Upload auditor allowance sheet"
         url={allowanceSpreadsheetUrl}
         onUrlChange={(v) => {
           setAllowanceSpreadsheetUrl(v);
@@ -105,11 +104,40 @@ const AllowanceAuditPage = () => {
         isLoading={isFetching}
         loadedCount={allowanceSheetSummary.filter((s) => s.status === 'loaded').length}
         totalSheets={allowanceSheetSummary.length}
-        syncLabel="Sync"
+        syncLabel="Fetch all pages"
+        loadingLabel="Fetching all pages…"
       />
 
       {syncError && (
         <p style={{ color: '#f85149', fontSize: '0.85rem', marginBottom: '1rem' }}>{syncError}</p>
+      )}
+
+      {allowanceSheetSummary.length > 0 && (
+        <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
+          <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Fetched Spreadsheet Pages</h3>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+              <thead>
+                <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
+                  <th style={{ padding: 8 }}>Page</th>
+                  <th style={{ padding: 8 }}>Layout</th>
+                  <th style={{ padding: 8 }}>Rows</th>
+                  <th style={{ padding: 8 }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {allowanceSheetSummary.map((s) => (
+                  <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
+                    <td style={{ padding: 8 }}>{s.sheetName}</td>
+                    <td style={{ padding: 8 }}>{s.layout || '—'}</td>
+                    <td style={{ padding: 8 }}>{s.recordCount || 0}</td>
+                    <td style={{ padding: 8 }}>{s.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {verification && (
@@ -126,6 +154,10 @@ const AllowanceAuditPage = () => {
               { label: 'Checked', value: verification.summary.total },
               { label: 'Passed', value: verification.summary.passed, color: 'var(--accent-success)' },
               { label: 'Flagged', value: verification.summary.flagged, color: 'var(--accent-danger)' },
+              { label: 'Green Flag', value: verification.summary.green, color: '#3fb950' },
+              { label: 'Orange Flag', value: verification.summary.orange, color: '#d29922' },
+              { label: 'Red Flag', value: verification.summary.red, color: '#f85149' },
+              { label: 'Reject Cases', value: verification.summary.reject, color: '#f85149' },
               {
                 label: 'Pass rate',
                 value: `${verification.summary.passRate}%`,
@@ -142,7 +174,7 @@ const AllowanceAuditPage = () => {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-            {['flag', 'pass', 'all'].map((f) => (
+            {['all', 'flag', 'pass'].map((f) => (
               <button
                 key={f}
                 type="button"
@@ -182,17 +214,62 @@ const AllowanceAuditPage = () => {
               }}
             >
               {isAiRunning ? <Loader2 size={16} className="spin" /> : <Bot size={16} />}
-              AI review
+              AI full analysis
             </button>
           </div>
 
-          {filteredResults.length === 0 ? (
-            <div className="glass-card" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              No rows in this filter.
-            </div>
-          ) : (
-            filteredResults.map((row) => <ClaimFlagCard key={row.id} result={row} />)
-          )}
+          <div className="glass-card" style={{ padding: '1rem' }}>
+            <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Claim Review</h3>
+            {filteredResults.length === 0 ? (
+              <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-secondary)' }}>
+                No rows in this filter.
+              </div>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                  <thead>
+                    <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
+                      <th style={{ padding: 8 }}>Auditor</th>
+                      <th style={{ padding: 8 }}>Date</th>
+                      <th style={{ padding: 8 }}>Attendance Flag</th>
+                      <th style={{ padding: 8 }}>Claim</th>
+                      <th style={{ padding: 8 }}>Expected Petrol</th>
+                      <th style={{ padding: 8 }}>Evidence</th>
+                      <th style={{ padding: 8 }}>Decision</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredResults.map((row) => (
+                      <tr key={row.id} style={{ borderTop: '1px solid var(--border-main)' }}>
+                        <td style={{ padding: 8 }}>{row.auditor}</td>
+                        <td style={{ padding: 8 }}>{row.claim.date}</td>
+                        <td style={{ padding: 8 }}>
+                          <span style={{ color: colorDot(row.attendanceColor), fontWeight: 700 }}>
+                            {row.comparison.attendanceFlag.label}
+                          </span>
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          {row.claim.fromTown || '—'} → {row.claim.toTown || '—'} | {row.claim.kms || 0} km | ₹
+                          {row.claim.totalAmount || 0}
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          {row.comparison.petrolCheck.expected} ({row.claim.roundTrip ? 'round ×8' : 'one-way ×4'})
+                        </td>
+                        <td style={{ padding: 8 }}>
+                          <div>Bus/Train: {row.claim.busBillImage ? 'Yes' : 'No'}</div>
+                          <div>Petrol: {row.claim.petrolBillImage ? 'Yes' : 'No'}</div>
+                          <div>Map: {row.claim.travelMapImage ? 'Yes' : 'No'}</div>
+                        </td>
+                        <td style={{ padding: 8, color: row.shouldReject ? '#f85149' : row.status === 'flag' ? '#d29922' : '#3fb950' }}>
+                          {row.shouldReject ? 'Reject' : row.status === 'flag' ? 'Review' : 'Approve'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
 
           {aiReport && (
             <div
