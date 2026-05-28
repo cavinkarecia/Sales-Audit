@@ -31,7 +31,7 @@ export const downloadSpreadsheetXlsx = async (urlOrId) => {
       throw new Error(
         detail?.includes('Invalid')
           ? `Spreadsheet ID rejected: ${detail}`
-          : 'Could not open sheet (HTTP 400). Use a valid Google Sheets link (edit/share or published). If private, set sharing to "Anyone with the link can view".',
+          : 'Could not open sheet (HTTP 400). Use the standard Google Sheet link format: https://docs.google.com/spreadsheets/d/<id>/edit?gid=0#gid=0',
       );
     }
     if (response.status === 403 || response.status === 401) {

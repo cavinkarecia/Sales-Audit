@@ -23,6 +23,8 @@ const loadJson = (key, fallback) => {
 const AuditDataContext = createContext(null);
 
 export const AuditDataProvider = ({ children }) => {
+  const DEFAULT_ALLOWANCE_URL =
+    'https://docs.google.com/spreadsheets/d/1txSfkx3ITPJe_K0g8vJrZDVy1RbL2aD0SG1XYWe70MY/edit?gid=0#gid=0';
   const [attendanceRecords, setAttendanceRecords] = useState(() =>
     loadJson(STORAGE_KEYS.attendance, []),
   );
@@ -40,7 +42,7 @@ export const AuditDataProvider = ({ children }) => {
     () => localStorage.getItem(STORAGE_KEYS.pjpUrl) || '',
   );
   const [allowanceSpreadsheetUrl, setAllowanceSpreadsheetUrl] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || '',
+    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || DEFAULT_ALLOWANCE_URL,
   );
 
   useEffect(() => {
