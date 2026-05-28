@@ -296,6 +296,18 @@ const findRowByLabel = (matrix, re) => {
   return null;
 };
 
+const findCellByContains = (matrix, needle) => {
+  const target = String(needle || '').toLowerCase();
+  for (let r = 0; r < matrix.length; r++) {
+    const row = matrix[r] || [];
+    for (let c = 0; c < row.length; c++) {
+      const s = String(row[c] || '').toLowerCase();
+      if (s.includes(target)) return { r, c, row };
+    }
+  }
+  return null;
+};
+
 const nextNonEmptyInRow = (row, startCol) => {
   for (let c = startCol + 1; c < row.length; c++) {
     const v = String(row[c] ?? '').trim();
@@ -307,16 +319,33 @@ const nextNonEmptyInRow = (row, startCol) => {
 const parseVoucherFormSheet = (matrix, sheetName) => {
   if (!matrix?.length) return [];
 
-  const requestedBy = findRowByLabel(matrix, /^requested by$/i);
-  const totalRow = findRowByLabel(matrix, /^total$/i);
-  const fuelRow = findRowByLabel(matrix, /fuel expenses/i);
-  const ticketRow = findRowByLabel(matrix, /(tickets|local conveyance|bus|train)/i);
-  const travelKmsRow = findRowByLabel(matrix, /^travel$/i);
+  const requestedBy =
+    findCellByContains(matrix, 'requested by') || findRowByLabel(matrix, /^requested by$/i);
+  const totalRow = findCellByContains(matrix, 'total') || findRowByLabel(matrix, /^total$/i);
+  const fuelRow = findCellByContains(matrix, 'fuel expenses') || findRowByLabel(matrix, /fuel expenses/i);
+  const ticketRow =
+    findCellByContains(matrix, 'tickets') ||
+    findCellByContains(matrix, 'local conv') ||
+    findCellByContains(matrix, 'bus') ||
+    findCellByContains(matrix, 'train') ||
+    findRowByLabel(matrix, /(tickets|local conveyance|bus|train)/i);
+  const travelKmsRow =
+    findCellByContains(matrix, 'travel') || findRowByLabel(matrix, /^travel$/i);
+  const voucherDateCell = findCellByContains(matrix, 'voucher date');
 
-  const employeeName = requestedBy
+  let voucherDate = null;
+  if (voucherDateCell) {
+    const right = nextNonEmptyInRow(voucherDateCell.row, voucherDateCell.c);
+    voucherDate = parseExcelDate(right);
+  }
+  if (!voucherDate) {
+    voucherDate = parseDateFromMatrix(matrix);
+  }
+
+  const employeeNameRaw = requestedBy
     ? String(nextNonEmptyInRow(requestedBy.row, requestedBy.c) || '').trim()
     : '';
-  const voucherDate = parseDateFromMatrix(matrix);
+  const employeeName = employeeNameRaw || (sheetName || '').trim();
   const petrolAmount = fuelRow ? parseNumberFromRow(fuelRow.row) : 0;
   const busAmount = ticketRow ? parseNumberFromRow(ticketRow.row) : 0;
   const totalAmount = totalRow ? parseNumberFromRow(totalRow.row) : petrolAmount + busAmount;
