@@ -23,26 +23,44 @@ const AllowanceAuditPage = () => {
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [aiReport, setAiReport] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const [syncError, setSyncError] = useState('');
+  const [syncError, setSyncError] = useState(null);
 
   const handleAllowanceSync = async () => {
     if (!allowanceSpreadsheetUrl.trim()) return;
     setIsFetching(true);
     setAiReport('');
-    setSyncError('');
+    setSyncError(null);
     try {
       const result = await fetchAllowanceSheets(allowanceSpreadsheetUrl.trim());
       setAllowanceClaims(result.claims);
       setAllowanceSheetSummary(result.sheetSummary || []);
+      setSyncError(result.syncError || null);
     } catch (err) {
       console.error(err);
-      setSyncError(err.message || 'Sync failed');
+      setSyncError(err.message || 'Sync failed — check the link and sharing (Anyone with link → Viewer).');
       setAllowanceClaims([]);
       setAllowanceSheetSummary([]);
     } finally {
       setIsFetching(false);
     }
   };
+
+  const statusLabel = (status) => {
+    if (status === 'loaded') return 'Loaded';
+    if (status === 'parse-failed') return 'Parse failed';
+    if (status === 'empty') return 'Empty';
+    if (status === 'headers-not-recognised') return 'Unrecognised layout';
+    return status || '—';
+  };
+
+  const statusColor = (status) => {
+    if (status === 'loaded') return '#3fb950';
+    if (status === 'empty') return '#8b949e';
+    return '#f85149';
+  };
+
+  const missingPrerequisites =
+    allowanceClaims.length > 0 && (!attendanceRecords.length || !pjpRecords.length);
 
   const verification = useMemo(() => {
     if (!allowanceClaims.length) return null;
@@ -98,7 +116,7 @@ const AllowanceAuditPage = () => {
         url={allowanceSpreadsheetUrl}
         onUrlChange={(v) => {
           setAllowanceSpreadsheetUrl(v);
-          setSyncError('');
+          setSyncError(null);
         }}
         onSync={handleAllowanceSync}
         isLoading={isFetching}
@@ -109,7 +127,64 @@ const AllowanceAuditPage = () => {
       />
 
       {syncError && (
-        <p style={{ color: '#f85149', fontSize: '0.85rem', marginBottom: '1rem' }}>{syncError}</p>
+        <div
+          className="glass-card"
+          style={{
+            padding: '1rem 1.25rem',
+            marginBottom: '1rem',
+            borderLeft: `4px solid ${
+              typeof syncError === 'object' && syncError.partial ? '#d29922' : '#f85149'
+            }`,
+          }}
+        >
+          <h3 style={{ margin: '0 0 8px', fontSize: '0.95rem', color: '#f0f6fc' }}>
+            {typeof syncError === 'string' ? 'Sync failed' : syncError.title}
+          </h3>
+          <p style={{ margin: '0 0 10px', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+            {typeof syncError === 'string' ? syncError : syncError.message}
+          </p>
+          {typeof syncError === 'object' && syncError.failedTabs?.length > 0 && (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', color: 'var(--text-secondary)' }}>
+                    <th style={{ padding: '6px 8px' }}>Tab</th>
+                    <th style={{ padding: '6px 8px' }}>Layout</th>
+                    <th style={{ padding: '6px 8px' }}>Issue</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {syncError.failedTabs.map((tab) => (
+                    <tr key={tab.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
+                      <td style={{ padding: '6px 8px' }}>{tab.sheetName}</td>
+                      <td style={{ padding: '6px 8px' }}>{tab.layout || '—'}</td>
+                      <td style={{ padding: '6px 8px', color: '#f85149' }}>{tab.reason || tab.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {missingPrerequisites && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '0.85rem 1.25rem',
+            marginBottom: '1rem',
+            borderLeft: '4px solid #d29922',
+            fontSize: '0.85rem',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          {!attendanceRecords.length && !pjpRecords.length
+            ? 'Load attendance and PJP on Full Dashboard first — allowance checks need both for footprint comparison.'
+            : !attendanceRecords.length
+              ? 'Load attendance on Full Dashboard first — flags (green/orange/red) need present/absent data.'
+              : 'Load PJP on Full Dashboard first — route and footprint checks need PJP data.'}
+        </div>
       )}
 
       {allowanceSheetSummary.length > 0 && (
@@ -123,6 +198,7 @@ const AllowanceAuditPage = () => {
                   <th style={{ padding: 8 }}>Layout</th>
                   <th style={{ padding: 8 }}>Rows</th>
                   <th style={{ padding: 8 }}>Status</th>
+                  <th style={{ padding: 8 }}>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -131,7 +207,10 @@ const AllowanceAuditPage = () => {
                     <td style={{ padding: 8 }}>{s.sheetName}</td>
                     <td style={{ padding: 8 }}>{s.layout || '—'}</td>
                     <td style={{ padding: 8 }}>{s.recordCount || 0}</td>
-                    <td style={{ padding: 8 }}>{s.status}</td>
+                    <td style={{ padding: 8, color: statusColor(s.status), fontWeight: 600 }}>
+                      {statusLabel(s.status)}
+                    </td>
+                    <td style={{ padding: 8, color: 'var(--text-secondary)' }}>{s.reason || '—'}</td>
                   </tr>
                 ))}
               </tbody>

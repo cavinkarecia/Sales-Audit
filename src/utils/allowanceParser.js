@@ -316,6 +316,64 @@ const nextNonEmptyInRow = (row, startCol) => {
   return '';
 };
 
+/** Date in column A below the voucher header (e.g. A20 = 01/04/26). */
+const parseVoucherDateFromColumnA = (matrix) => {
+  for (let r = 10; r < matrix.length; r++) {
+    const cell = matrix[r]?.[0];
+    const s = String(cell ?? '').trim();
+    if (!s) continue;
+    const d = parseExcelDate(cell);
+    if (d) return d;
+    if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(s)) {
+      const d2 = parseExcelDate(s);
+      if (d2) return d2;
+    }
+  }
+  return null;
+};
+
+const looksLikeVoucherForm = (matrix) =>
+  Boolean(
+    findCellByContains(matrix, 'requested by') ||
+      findCellByContains(matrix, 'fuel expenses') ||
+      findCellByContains(matrix, 'expenses claim voucher'),
+  );
+
+const diagnoseVoucherForm = (matrix, sheetName) => {
+  if (!matrix?.length) return 'Sheet is empty';
+  if (!looksLikeVoucherForm(matrix)) {
+    return 'Not a voucher claim form — expected labels like Requested By, Fuel Expenses, Tickets + Local Conveyance, Total';
+  }
+
+  const requestedBy =
+    findCellByContains(matrix, 'requested by') || findRowByLabel(matrix, /^requested by$/i);
+  const totalRow = findCellByContains(matrix, 'total') || findRowByLabel(matrix, /^total$/i);
+  const fuelRow = findCellByContains(matrix, 'fuel expenses') || findRowByLabel(matrix, /fuel expenses/i);
+  const ticketRow =
+    findCellByContains(matrix, 'tickets') ||
+    findCellByContains(matrix, 'local conv') ||
+    findRowByLabel(matrix, /(tickets|local conveyance)/i);
+
+  const employeeNameRaw = requestedBy
+    ? String(nextNonEmptyInRow(requestedBy.row, requestedBy.c) || '').trim()
+    : '';
+  const employeeName = employeeNameRaw || (sheetName || '').trim();
+  const voucherDate =
+    parseVoucherDateFromColumnA(matrix) || parseDateFromMatrix(matrix);
+  const petrolAmount = fuelRow ? parseNumberFromRow(fuelRow.row) : 0;
+  const busAmount = ticketRow ? parseNumberFromRow(ticketRow.row) : 0;
+  const totalAmount = totalRow ? parseNumberFromRow(totalRow.row) : 0;
+
+  const issues = [];
+  if (!employeeName) issues.push('missing auditor (Requested By or tab name)');
+  if (!voucherDate) issues.push('missing claim date (column A, e.g. 01/04/26)');
+  if (!petrolAmount && !busAmount && !totalAmount) {
+    issues.push('missing amounts (Fuel Expenses / Tickets / Total rows are empty)');
+  }
+  if (issues.length === 0) return 'Voucher form found but row could not be built — check date and amount cells';
+  return issues.join('; ');
+};
+
 const parseVoucherFormSheet = (matrix, sheetName) => {
   if (!matrix?.length) return [];
 
@@ -326,9 +384,7 @@ const parseVoucherFormSheet = (matrix, sheetName) => {
   const ticketRow =
     findCellByContains(matrix, 'tickets') ||
     findCellByContains(matrix, 'local conv') ||
-    findCellByContains(matrix, 'bus') ||
-    findCellByContains(matrix, 'train') ||
-    findRowByLabel(matrix, /(tickets|local conveyance|bus|train)/i);
+    findRowByLabel(matrix, /(tickets|local conveyance)/i);
   const travelKmsRow =
     findCellByContains(matrix, 'travel') || findRowByLabel(matrix, /^travel$/i);
   const voucherDateCell = findCellByContains(matrix, 'voucher date');
@@ -337,6 +393,9 @@ const parseVoucherFormSheet = (matrix, sheetName) => {
   if (voucherDateCell) {
     const right = nextNonEmptyInRow(voucherDateCell.row, voucherDateCell.c);
     voucherDate = parseExcelDate(right);
+  }
+  if (!voucherDate) {
+    voucherDate = parseVoucherDateFromColumnA(matrix);
   }
   if (!voucherDate) {
     voucherDate = parseDateFromMatrix(matrix);
@@ -423,10 +482,10 @@ export const fetchAllowanceSheets = async (url) => {
         sheetSummary.push({
           sheetName,
           recordCount: 0,
-          status: 'headers-not-recognised',
-          reason: `No Date + Auditor/Name columns (header row ${headerRow + 1}). Found: ${headers.slice(0, 10).join(', ')}`,
+          status: 'parse-failed',
+          reason: diagnoseVoucherForm(matrix, sheetName),
           headers,
-          layout,
+          layout: looksLikeVoucherForm(matrix) ? 'voucher-form' : layout,
         });
         return;
       }
@@ -448,25 +507,48 @@ export const fetchAllowanceSheets = async (url) => {
     sheetSummary.push({
       sheetName,
       recordCount: finalParsed.length,
-      status: finalParsed.length > 0 ? 'loaded' : 'no-valid-rows',
+      status: finalParsed.length > 0 ? 'loaded' : 'parse-failed',
       reason:
         finalParsed.length > 0
           ? layout === 'consolidated'
-            ? 'Consolidated allowance log (all auditors in rows — compared to footprint, not PJP tabs)'
+            ? 'Consolidated allowance log (all auditors in rows)'
             : voucherParsed.length > 0
               ? 'Parsed voucher-style claim form'
-            : ''
-          : 'Headers found but no rows with date, auditor name, and amount/route.',
+              : ''
+          : diagnoseVoucherForm(matrix, sheetName),
       headers,
       layout: voucherParsed.length > 0 ? 'voucher-form' : layout,
     });
     claims.push(...finalParsed);
   });
 
+  const loadedCount = sheetSummary.filter((s) => s.status === 'loaded').length;
+  const failedTabs = sheetSummary.filter((s) => s.status !== 'loaded');
+
+  let syncError = null;
   if (claims.length === 0 && workbook.SheetNames.length > 0) {
-    throw new Error(
-      `Fetched ${workbook.SheetNames.length} sheet(s) but no allowance rows parsed. Need columns like Date, Auditor/Name, From/To, Kms, Petrol/Bus. Share sheet as Anyone with link can view.`,
-    );
+    if (workbook.SheetNames.length === 1) {
+      syncError = {
+        title: 'Only 1 tab downloaded',
+        message:
+          'Google returned a single tab. This workbook should have one tab per auditor (e.g. Erapogu bajari). Use the edit link and set Share → Anyone with the link → Viewer.',
+        failedTabs,
+      };
+    } else {
+      syncError = {
+        title: 'No claims parsed from any auditor tab',
+        message:
+          'Tabs were fetched but none matched the voucher layout (Requested By, Fuel Expenses, Tickets + Local Conveyance, date in column A, Total). See per-tab reasons below.',
+        failedTabs,
+      };
+    }
+  } else if (failedTabs.length > 0) {
+    syncError = {
+      title: `Partial sync — ${loadedCount} of ${workbook.SheetNames.length} tabs loaded`,
+      message: `${failedTabs.length} tab(s) could not be parsed. Loaded claims will still be checked against attendance and PJP.`,
+      failedTabs,
+      partial: true,
+    };
   }
 
   return {
@@ -474,5 +556,7 @@ export const fetchAllowanceSheets = async (url) => {
     sheetSummary,
     totalRecords: claims.length,
     totalSheets: workbook.SheetNames.length,
+    loadedSheets: loadedCount,
+    syncError,
   };
 };
