@@ -21,7 +21,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
-    build: '2026-05-28-pubhtml-csv-fallback-v1',
+    build: '2026-05-29-multi-tab-csv-fallback-v2',
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
@@ -37,29 +37,121 @@ const sanitizeSpreadsheetId = (raw) => {
   return cleaned;
 };
 
+const countXlsxSheets = (buf) => {
+  try {
+    const wb = XLSX.read(buf, { type: 'buffer' });
+    return wb.SheetNames?.length || 0;
+  } catch {
+    return 0;
+  }
+};
+
+const parseHtmlTabs = (html) => {
+  const tabs = [];
+  const add = (gid, name) => {
+    if (gid && /^\d+$/.test(String(gid))) {
+      tabs.push({ gid: String(gid), name: String(name || '').trim() });
+    }
+  };
+
+  let m;
+  const gidLinkRe = /[?&]gid=(\d+)[^"'>\s]*["'][^>]*>([^<]+)</gi;
+  while ((m = gidLinkRe.exec(html)) !== null) add(m[1], m[2]);
+
+  const sheetMetaRe = /data-sheet-id="(\d+)"[^>]*data-sheet-name="([^"]+)"/gi;
+  while ((m = sheetMetaRe.exec(html)) !== null) add(m[1], m[2]);
+
+  const ariaRe = /aria-label="([^"]+)"[^>]*data-gid="(\d+)"/gi;
+  while ((m = ariaRe.exec(html)) !== null) add(m[2], m[1]);
+
+  const unique = new Map();
+  tabs.forEach((t) => {
+    if (!unique.has(t.gid)) unique.set(t.gid, t.name || `gid-${t.gid}`);
+  });
+  return Array.from(unique.entries()).map(([gid, name]) => ({ gid, name }));
+};
+
+const fetchTabsAsXlsx = async (id, tabs, csvBasePath) => {
+  const workbook = XLSX.utils.book_new();
+  let loaded = 0;
+  for (let i = 0; i < tabs.length; i++) {
+    const t = tabs[i];
+    const csvUrl = `${csvBasePath}${t.gid}&single=true&output=csv`;
+    const csvResp = await fetch(csvUrl, { redirect: 'follow' });
+    if (!csvResp.ok) continue;
+    const csv = await csvResp.text();
+    if (!csv || csv.trim().length === 0) continue;
+    const parsed = XLSX.read(csv, { type: 'string' });
+    const first = parsed.SheetNames[0];
+    if (!first) continue;
+    XLSX.utils.book_append_sheet(workbook, parsed.Sheets[first], sanitizeSheetName(t.name, i));
+    loaded++;
+  }
+  if (loaded === 0) return null;
+  return XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+};
+
+const fetchStandardMultiTabAsXlsx = async (id) => {
+  const htmlUrls = [
+    `https://docs.google.com/spreadsheets/d/${id}/htmlview`,
+    `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing`,
+  ];
+  let tabs = [];
+  for (const htmlUrl of htmlUrls) {
+    const htmlResp = await fetch(htmlUrl, { redirect: 'follow' });
+    if (!htmlResp.ok) continue;
+    const html = await htmlResp.text();
+    tabs = parseHtmlTabs(html);
+    if (tabs.length > 1) break;
+  }
+  if (!tabs.length) tabs = [{ gid: '0', name: 'Sheet1' }];
+  const csvBase = `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=`;
+  return fetchTabsAsXlsx(id, tabs, csvBase);
+};
+
 const fetchSheetXlsx = async (id) => {
   const isPublishedId = id.startsWith('2PACX-');
-  const urls = isPublishedId
-    ? [
-        `https://docs.google.com/spreadsheets/d/e/${id}/pub?output=xlsx`,
-        `https://docs.google.com/spreadsheets/d/e/${id}/pub?single=true&output=xlsx`,
-      ]
-    : [
-        `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`,
-        `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx&gid=0`,
-      ];
-  let lastStatus = 0;
-  let lastBody = '';
-  for (const upstream of urls) {
-    const r = await fetch(upstream, { redirect: 'follow' });
-    lastStatus = r.status;
-    if (r.ok) {
-      const buf = Buffer.from(await r.arrayBuffer());
-      if (buf.length > 100) return { ok: true, buf };
+  if (isPublishedId) {
+    const urls = [
+      `https://docs.google.com/spreadsheets/d/e/${id}/pub?output=xlsx`,
+      `https://docs.google.com/spreadsheets/d/e/${id}/pub?single=true&output=xlsx`,
+    ];
+    let lastStatus = 0;
+    let lastBody = '';
+    for (const upstream of urls) {
+      const r = await fetch(upstream, { redirect: 'follow' });
+      lastStatus = r.status;
+      if (r.ok) {
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (buf.length > 100) return { ok: true, buf, sheetCount: countXlsxSheets(buf) };
+      }
+      lastBody = await r.text().catch(() => '');
     }
-    lastBody = await r.text().catch(() => '');
+    return { ok: false, status: lastStatus, body: lastBody.slice(0, 200) };
   }
-  return { ok: false, status: lastStatus, body: lastBody.slice(0, 200) };
+
+  const fullUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
+  const r = await fetch(fullUrl, { redirect: 'follow' });
+  if (r.ok) {
+    const buf = Buffer.from(await r.arrayBuffer());
+    if (buf.length > 100) {
+      const sheetCount = countXlsxSheets(buf);
+      if (sheetCount > 1) return { ok: true, buf, sheetCount };
+      const multi = await fetchStandardMultiTabAsXlsx(id);
+      if (multi && countXlsxSheets(multi) > sheetCount) {
+        return { ok: true, buf: Buffer.from(multi), sheetCount: countXlsxSheets(multi) };
+      }
+      return { ok: true, buf, sheetCount };
+    }
+  }
+
+  const multi = await fetchStandardMultiTabAsXlsx(id);
+  if (multi) {
+    return { ok: true, buf: Buffer.from(multi), sheetCount: countXlsxSheets(multi) };
+  }
+
+  const lastBody = await r.text().catch(() => '');
+  return { ok: false, status: r.status, body: lastBody.slice(0, 200) };
 };
 
 const sanitizeSheetName = (name, index) => {

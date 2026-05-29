@@ -284,6 +284,28 @@ const parseNumberFromRow = (row) => {
   return 0;
 };
 
+const parseNumberAfterLabel = (hit) => {
+  if (!hit?.row) return 0;
+  for (let i = hit.c + 1; i < hit.row.length; i++) {
+    const n = parseMoney(hit.row[i]);
+    if (n > 0) return n;
+  }
+  return parseNumberFromRow(hit.row);
+};
+
+const findVoucherTotalRow = (matrix) => {
+  for (let r = 0; r < matrix.length; r++) {
+    const row = matrix[r] || [];
+    for (let c = 0; c < Math.min(3, row.length); c++) {
+      const s = String(row[c] || '').trim().toLowerCase();
+      if (s === 'total') return { r, c, row };
+    }
+  }
+  return findCellByContains(matrix, 'fuel expenses')
+    ? findRowByLabel(matrix, /^grand total$/i)
+    : null;
+};
+
 const findRowByLabel = (matrix, re) => {
   for (let r = 0; r < matrix.length; r++) {
     const row = matrix[r] || [];
@@ -347,12 +369,13 @@ const diagnoseVoucherForm = (matrix, sheetName) => {
 
   const requestedBy =
     findCellByContains(matrix, 'requested by') || findRowByLabel(matrix, /^requested by$/i);
-  const totalRow = findCellByContains(matrix, 'total') || findRowByLabel(matrix, /^total$/i);
+  const totalRow = findVoucherTotalRow(matrix);
   const fuelRow = findCellByContains(matrix, 'fuel expenses') || findRowByLabel(matrix, /fuel expenses/i);
   const ticketRow =
+    findCellByContains(matrix, 'tickets + local') ||
     findCellByContains(matrix, 'tickets') ||
     findCellByContains(matrix, 'local conv') ||
-    findRowByLabel(matrix, /(tickets|local conveyance)/i);
+    findRowByLabel(matrix, /(tickets \+ local|tickets|local conveyance)/i);
 
   const employeeNameRaw = requestedBy
     ? String(nextNonEmptyInRow(requestedBy.row, requestedBy.c) || '').trim()
@@ -360,9 +383,9 @@ const diagnoseVoucherForm = (matrix, sheetName) => {
   const employeeName = employeeNameRaw || (sheetName || '').trim();
   const voucherDate =
     parseVoucherDateFromColumnA(matrix) || parseDateFromMatrix(matrix);
-  const petrolAmount = fuelRow ? parseNumberFromRow(fuelRow.row) : 0;
-  const busAmount = ticketRow ? parseNumberFromRow(ticketRow.row) : 0;
-  const totalAmount = totalRow ? parseNumberFromRow(totalRow.row) : 0;
+  const petrolAmount = fuelRow ? parseNumberAfterLabel(fuelRow) : 0;
+  const busAmount = ticketRow ? parseNumberAfterLabel(ticketRow) : 0;
+  const totalAmount = totalRow ? parseNumberAfterLabel(totalRow) : 0;
 
   const issues = [];
   if (!employeeName) issues.push('missing auditor (Requested By or tab name)');
@@ -379,14 +402,15 @@ const parseVoucherFormSheet = (matrix, sheetName) => {
 
   const requestedBy =
     findCellByContains(matrix, 'requested by') || findRowByLabel(matrix, /^requested by$/i);
-  const totalRow = findCellByContains(matrix, 'total') || findRowByLabel(matrix, /^total$/i);
+  const totalRow = findVoucherTotalRow(matrix);
   const fuelRow = findCellByContains(matrix, 'fuel expenses') || findRowByLabel(matrix, /fuel expenses/i);
   const ticketRow =
+    findCellByContains(matrix, 'tickets + local') ||
     findCellByContains(matrix, 'tickets') ||
     findCellByContains(matrix, 'local conv') ||
-    findRowByLabel(matrix, /(tickets|local conveyance)/i);
+    findRowByLabel(matrix, /(tickets \+ local|tickets|local conveyance)/i);
   const travelKmsRow =
-    findCellByContains(matrix, 'travel') || findRowByLabel(matrix, /^travel$/i);
+    findRowByLabel(matrix, /^travel$/i) || findCellByContains(matrix, 'local convience');
   const voucherDateCell = findCellByContains(matrix, 'voucher date');
 
   let voucherDate = null;
@@ -405,10 +429,10 @@ const parseVoucherFormSheet = (matrix, sheetName) => {
     ? String(nextNonEmptyInRow(requestedBy.row, requestedBy.c) || '').trim()
     : '';
   const employeeName = employeeNameRaw || (sheetName || '').trim();
-  const petrolAmount = fuelRow ? parseNumberFromRow(fuelRow.row) : 0;
-  const busAmount = ticketRow ? parseNumberFromRow(ticketRow.row) : 0;
-  const totalAmount = totalRow ? parseNumberFromRow(totalRow.row) : petrolAmount + busAmount;
-  const kms = travelKmsRow ? parseNumberFromRow(travelKmsRow.row) : 0;
+  const petrolAmount = fuelRow ? parseNumberAfterLabel(fuelRow) : 0;
+  const busAmount = ticketRow ? parseNumberAfterLabel(ticketRow) : 0;
+  const totalAmount = totalRow ? parseNumberAfterLabel(totalRow) : petrolAmount + busAmount;
+  const kms = travelKmsRow ? parseNumberAfterLabel(travelKmsRow) : 0;
 
   if (!employeeName || !voucherDate || (!petrolAmount && !busAmount && !totalAmount)) {
     return [];

@@ -165,6 +165,29 @@ const AllowanceAuditPage = () => {
               </table>
             </div>
           )}
+          {(typeof syncError === 'string' ||
+            (typeof syncError === 'object' && !syncError.partial)) && (
+            <ul
+              style={{
+                margin: '10px 0 0',
+                paddingLeft: 18,
+                color: 'var(--text-secondary)',
+                fontSize: '0.8rem',
+                lineHeight: 1.6,
+              }}
+            >
+              <li>
+                Use the browser address bar URL:{' '}
+                <code>docs.google.com/spreadsheets/d/…/edit</code>
+              </li>
+              <li>Sharing: Anyone with the link → Viewer</li>
+              <li>
+                Your sheet uses a voucher form per auditor tab (Requested By, Fuel Expenses, Tickets +
+                Local Conveyance, date in column A) — not Date/Name/From/To columns
+              </li>
+              <li>Hard-refresh the page (Ctrl+Shift+R) if you still see the old column error</li>
+            </ul>
+          )}
         </div>
       )}
 
