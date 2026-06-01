@@ -8,6 +8,17 @@ function App() {
     <div className="app-root">
       <nav className="app-nav">
         <span className="app-brand">Sales Audit 2.0</span>
+        <span
+          style={{
+            marginLeft: 'auto',
+            fontSize: '0.65rem',
+            color: 'var(--text-secondary)',
+            opacity: 0.7,
+          }}
+          title="Deploy build — if you still see Allowance Audit, hard-refresh (Ctrl+Shift+R)"
+        >
+          build: no-allowance-v4
+        </span>
       </nav>
       <Routes>
         <Route

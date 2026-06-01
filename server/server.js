@@ -21,7 +21,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
-    build: '2026-05-29-single-dashboard-v3',
+    build: '2026-06-01-no-allowance-v4',
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
@@ -287,13 +287,20 @@ app.post('/api/ai/chat', async (req, res) => {
 });
 
 const distDir = path.resolve(__dirname, '..', 'dist');
+
+/** Block old Allowance route even if a cached SPA bundle is still loaded. */
+app.get(/^\/allowance(\/.*)?$/i, (_req, res) => {
+  res.redirect(301, '/');
+});
+
 app.use(
   express.static(distDir, {
     index: false,
-    maxAge: '1d',
+    maxAge: 0,
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith('index.html')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      if (filePath.endsWith('.js') || filePath.endsWith('.css')) {
+        res.setHeader('Pragma', 'no-cache');
       }
     },
   }),
