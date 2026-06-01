@@ -44,6 +44,5 @@ Open http://localhost:5175 (production build served by Express).
 
 | URL | Page |
 |-----|------|
-| `/` | Uploads — Attendance file + PJP sheet |
-| `/dashboard` | Full analytics dashboard (maps, KPIs, travel) |
-| `/allowance` | Allowance claims + AI audit |
+| `/` | Full dashboard — attendance upload, PJP sync, maps, KPIs, travel AI |
+| `/dashboard` | Redirects to `/` |

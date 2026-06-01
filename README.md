@@ -8,9 +8,8 @@
 
 | Route | Description |
 |-------|-------------|
-| `/` | **1.** Attendance Excel upload (latest row per auditor/day) · **2.** PJP Google Sheet (all auditor tabs) |
-| `/dashboard` | Full field intelligence dashboard (KPIs, maps, travel analytics, AI insights) |
-| `/allowance` | **3.** Allowance sheet + claim verification (₹4/km, ₹8/km round trip) + AI audit |
+| `/` | Attendance Excel upload (latest row per auditor/day) · PJP Google Sheet (all auditor tabs) · KPIs, maps, travel analytics, AI insights |
+| `/dashboard` | Redirects to `/` |
 
 ### Attendance rules
 

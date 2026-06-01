@@ -1,14 +1,18 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 
 const STORAGE_KEYS = {
   attendance: 'sales_audit_report_data',
   pjp: 'sales_audit_pjp_v2',
   pjpSummary: 'sales_audit_pjp_summary_v2',
-  allowance: 'sales_audit_allowance_v3',
-  allowanceSummary: 'sales_audit_allowance_summary_v3',
   pjpUrl: 'sales_audit_pjp_url',
-  allowanceUrl: 'sales_audit_allowance_url_v3',
-  allowanceLegacy: ['sales_audit_allowance_v2', 'sales_audit_allowance_summary_v2', 'sales_audit_allowance_url'],
+  allowanceLegacy: [
+    'sales_audit_allowance_v3',
+    'sales_audit_allowance_summary_v3',
+    'sales_audit_allowance_url_v3',
+    'sales_audit_allowance_v2',
+    'sales_audit_allowance_summary_v2',
+    'sales_audit_allowance_url',
+  ],
 };
 
 const loadJson = (key, fallback) => {
@@ -23,8 +27,6 @@ const loadJson = (key, fallback) => {
 const AuditDataContext = createContext(null);
 
 export const AuditDataProvider = ({ children }) => {
-  const DEFAULT_ALLOWANCE_URL =
-    'https://docs.google.com/spreadsheets/d/1txSfkx3ITPJe_K0g8vJrZDVy1RbL2aD0SG1XYWe70MY/edit?gid=0#gid=0';
   const [attendanceRecords, setAttendanceRecords] = useState(() =>
     loadJson(STORAGE_KEYS.attendance, []),
   );
@@ -32,30 +34,11 @@ export const AuditDataProvider = ({ children }) => {
   const [pjpSheetSummary, setPjpSheetSummary] = useState(() =>
     loadJson(STORAGE_KEYS.pjpSummary, []),
   );
-  const [allowanceClaims, setAllowanceClaims] = useState(() =>
-    loadJson(STORAGE_KEYS.allowance, []),
-  );
-  const [allowanceSheetSummary, setAllowanceSheetSummary] = useState(() =>
-    loadJson(STORAGE_KEYS.allowanceSummary, []),
-  );
   const [pjpSpreadsheetUrl, setPjpSpreadsheetUrl] = useState(
     () => localStorage.getItem(STORAGE_KEYS.pjpUrl) || '',
   );
-  const [allowanceSpreadsheetUrl, setAllowanceSpreadsheetUrl] = useState(
-    () => localStorage.getItem(STORAGE_KEYS.allowanceUrl) || DEFAULT_ALLOWANCE_URL,
-  );
 
   useEffect(() => {
-    STORAGE_KEYS.allowanceLegacy.forEach((key) => localStorage.removeItem(key));
-  }, []);
-
-  const clearAllowanceData = useCallback(() => {
-    setAllowanceClaims([]);
-    setAllowanceSheetSummary([]);
-    setAllowanceSpreadsheetUrl('');
-    localStorage.removeItem(STORAGE_KEYS.allowance);
-    localStorage.removeItem(STORAGE_KEYS.allowanceSummary);
-    localStorage.removeItem(STORAGE_KEYS.allowanceUrl);
     STORAGE_KEYS.allowanceLegacy.forEach((key) => localStorage.removeItem(key));
   }, []);
 
@@ -72,20 +55,8 @@ export const AuditDataProvider = ({ children }) => {
   }, [pjpSheetSummary]);
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.allowance, JSON.stringify(allowanceClaims));
-  }, [allowanceClaims]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.allowanceSummary, JSON.stringify(allowanceSheetSummary));
-  }, [allowanceSheetSummary]);
-
-  useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.pjpUrl, pjpSpreadsheetUrl);
   }, [pjpSpreadsheetUrl]);
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEYS.allowanceUrl, allowanceSpreadsheetUrl);
-  }, [allowanceSpreadsheetUrl]);
 
   const value = useMemo(
     () => ({
@@ -95,28 +66,12 @@ export const AuditDataProvider = ({ children }) => {
       setPjpRecords,
       pjpSheetSummary,
       setPjpSheetSummary,
-      allowanceClaims,
-      setAllowanceClaims,
-      allowanceSheetSummary,
-      setAllowanceSheetSummary,
       pjpSpreadsheetUrl,
       setPjpSpreadsheetUrl,
-      allowanceSpreadsheetUrl,
-      setAllowanceSpreadsheetUrl,
-      clearAllowanceData,
       hasAttendance: attendanceRecords.length > 0,
       hasPjp: pjpRecords.length > 0,
-      hasAllowance: allowanceClaims.length > 0,
     }),
-    [
-      attendanceRecords,
-      pjpRecords,
-      pjpSheetSummary,
-      allowanceClaims,
-      allowanceSheetSummary,
-      pjpSpreadsheetUrl,
-      allowanceSpreadsheetUrl,
-    ],
+    [attendanceRecords, pjpRecords, pjpSheetSummary, pjpSpreadsheetUrl],
   );
 
   return <AuditDataContext.Provider value={value}>{children}</AuditDataContext.Provider>;
