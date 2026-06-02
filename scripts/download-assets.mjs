@@ -20,7 +20,6 @@ const files = [
   'src/utils/geoUtils.js',
   'src/utils/travelMapUtils.js',
   'src/components/LeafletTravelMap.jsx',
-  'src/components/AttendanceDashboard.jsx',
   'src/components/ExcelUpload.jsx',
   'src/components/IndiaLiveMap.jsx',
   'src/components/IndiaMap.jsx',

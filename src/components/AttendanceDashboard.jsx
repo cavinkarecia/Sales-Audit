@@ -779,8 +779,6 @@ const AttendanceDashboard = () => {
               )}
             </div>
           </div>
-
-          </div>
       </div>
 
       {/* Field Force Status Table */}

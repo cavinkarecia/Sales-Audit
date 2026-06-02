@@ -17,7 +17,7 @@ function App() {
           }}
           title="Deploy build — if you still see Allowance Audit, hard-refresh (Ctrl+Shift+R)"
         >
-          build: vite5-v6
+          build: jsx-fix-v7
         </span>
       </nav>
       <Routes>
