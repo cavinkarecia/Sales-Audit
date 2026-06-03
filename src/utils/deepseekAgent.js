@@ -64,3 +64,20 @@ export const analyzeAllAuditorsTravel = async (groupedRecords, auditorsMaster) =
     'You are a regional Field Force Operations Supervisor.',
   );
 };
+
+export const analyzeExpenseWithAI = async (payload) => {
+  const prompt = `
+Audit India FMCG field expense vouchers (HEPL layout).
+Rules:
+- Requested By = auditor name; Employee No = staff id
+- Date-wise: travel + local conveyance should equal grand total; compare to Tickets+Local header
+- Bus/train: manual entry must match ticket evidence in sheet
+- Petrol: ₹4/km one-way, ₹8/km round trip; same from+to stop with ₹8/km is WRONG
+- Petrol is lower priority than bus/train
+Payload:
+${JSON.stringify(payload, null, 2)}
+For each flagged auditor: structured bullets (date, issue, amount, approve/review/reject). End with batch summary.
+`;
+
+  return callAi(prompt, 'You are a strict travel and expense audit agent for voucher-style Google Sheets.');
+};

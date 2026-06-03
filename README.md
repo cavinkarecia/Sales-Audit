@@ -9,6 +9,7 @@
 | Route | Description |
 |-------|-------------|
 | `/` | Attendance Excel upload (latest row per auditor/day) · PJP Google Sheet (all auditor tabs) · KPIs, maps, travel analytics, AI insights |
+| `/expense-check-2` | Expense Claim Voucher audit — all auditor tabs, date-wise bus/train, petrol ₹4/₹8 km |
 | `/dashboard` | Redirects to `/` |
 
 ### Attendance rules

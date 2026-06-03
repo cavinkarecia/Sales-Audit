@@ -1,6 +1,9 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { Map, Receipt } from 'lucide-react';
+import { NavLink } from 'react-router-dom';
 import AttendanceDashboard from './components/AttendanceDashboard';
+import ExpenseCheck2Page from './components/ExpenseCheck2Page';
 import './App.css';
 
 function App() {
@@ -8,6 +11,15 @@ function App() {
     <div className="app-root">
       <nav className="app-nav">
         <span className="app-brand">Sales Audit 2.0</span>
+        <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+          <Map size={16} /> Full Dashboard
+        </NavLink>
+        <NavLink
+          to="/expense-check-2"
+          className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+        >
+          <Receipt size={16} /> Expense Check 2
+        </NavLink>
         <span
           style={{
             marginLeft: 'auto',
@@ -15,9 +27,8 @@ function App() {
             color: 'var(--text-secondary)',
             opacity: 0.7,
           }}
-          title="Deploy build — if you still see Allowance Audit, hard-refresh (Ctrl+Shift+R)"
         >
-          build: jsx-fix-v7
+          build: expense-check-2-v1
         </span>
       </nav>
       <Routes>
@@ -29,6 +40,8 @@ function App() {
             </div>
           }
         />
+        <Route path="/expense-check-2" element={<ExpenseCheck2Page />} />
+        <Route path="/allowance" element={<Navigate to="/expense-check-2" replace />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </div>

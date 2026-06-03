@@ -21,7 +21,7 @@ app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
-    build: '2026-06-01-jsx-fix-v7',
+    build: '2026-06-03-expense-check-2-v1',
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
@@ -288,9 +288,9 @@ app.post('/api/ai/chat', async (req, res) => {
 
 const distDir = path.resolve(__dirname, '..', 'dist');
 
-/** Block old Allowance route even if a cached SPA bundle is still loaded. */
+/** Legacy allowance URL → Expense Check 2 */
 app.get(/^\/allowance(\/.*)?$/i, (_req, res) => {
-  res.redirect(301, '/');
+  res.redirect(301, '/expense-check-2');
 });
 
 app.use(
