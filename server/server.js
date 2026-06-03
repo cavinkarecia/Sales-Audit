@@ -3,10 +3,12 @@ import compression from 'compression';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
+import fs from 'node:fs';
 import XLSX from 'xlsx';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const distDir = path.resolve(__dirname, '..', 'dist');
 
 const PORT = Number(process.env.PORT) || 5175;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -17,11 +19,22 @@ const app = express();
 app.use(compression());
 app.use(express.json({ limit: '5mb' }));
 
+const readBuildId = () => {
+  try {
+    const meta = JSON.parse(
+      fs.readFileSync(path.join(distDir, 'build-meta.json'), 'utf8'),
+    );
+    return meta.build || 'unknown';
+  } catch {
+    return '2026-06-03-expense-check-2-v2-fallback';
+  }
+};
+
 app.get('/api/health', (_req, res) => {
   res.json({
     status: 'ok',
     service: 'sales-audit-2.0',
-    build: '2026-06-03-expense-check-2-v1',
+    build: readBuildId(),
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
@@ -285,8 +298,6 @@ app.post('/api/ai/chat', async (req, res) => {
     res.status(502).json({ error: String(err?.message || err) });
   }
 });
-
-const distDir = path.resolve(__dirname, '..', 'dist');
 
 /** Legacy allowance URL → Expense Check 2 */
 app.get(/^\/allowance(\/.*)?$/i, (_req, res) => {

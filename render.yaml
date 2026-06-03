@@ -3,7 +3,7 @@ services:
     name: sales-audit-2-0
     runtime: node
     plan: free
-    buildCommand: npm install --legacy-peer-deps && node scripts/download-assets.mjs && npm run build
+    buildCommand: npm install --legacy-peer-deps && npm run build
     startCommand: node server/server.js
     autoDeploy: true
     envVars:
