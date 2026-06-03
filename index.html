@@ -1555,7 +1555,7 @@ function $(id) { return document.getElementById(id); }
 // =================================================================
 const USE_BACKEND = location.protocol === 'http:' || location.protocol === 'https:';
 const SESSION_STORAGE_KEY = 'sentinel_session_id';
-const SENTINEL_BUILD = '2026.06.3';
+const SENTINEL_BUILD = '2026.06.4';
 const API_KEY_STORAGE = 'sentinel_anthropic_api_key';
 /** Anthropic model for bill OCR & verification */
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
@@ -1660,16 +1660,9 @@ async function loadStateFromBackend() {
 async function bootstrapBackend() {
   if (!USE_BACKEND) return;
   try {
-    const cfg = await (await apiFetch('/api/config')).json();
-    BACKEND_AUTH_REQUIRED = !!cfg.authRequired;
-    updateApiKeyChip();
-
-    const authed = await checkBackendAuth();
-    if (!authed && BACKEND_AUTH_REQUIRED) {
-      showLoginGate(true);
-      return;
-    }
+    BACKEND_AUTH_REQUIRED = false;
     showLoginGate(false);
+    updateApiKeyChip();
     await loadStateFromBackend();
   } catch (err) {
     console.warn('Backend bootstrap:', err);

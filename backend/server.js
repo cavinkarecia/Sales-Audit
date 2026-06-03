@@ -48,11 +48,9 @@ app.use(
   })
 );
 
-function authRequired(req, res, next) {
-  const password = process.env.APP_PASSWORD;
-  if (!password) return next();
-  if (req.session?.authenticated) return next();
-  return res.status(401).json({ error: 'Login required' });
+function authRequired(_req, _res, next) {
+  // Dashboard password disabled — open access without APP_PASSWORD login
+  return next();
 }
 
 function getSessionId(req) {
@@ -130,22 +128,18 @@ function buildStatePayload(workspace, filteredDate) {
 // --- Public / auth routes ---
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'sentinel-backend', build: '2026.06.3-main2' });
+  res.json({ ok: true, service: 'sentinel-backend', build: '2026.06.4-main2' });
 });
 
 app.get('/api/config', (_req, res) => {
   res.json({
-    authRequired: !!process.env.APP_PASSWORD,
+    authRequired: false,
     aiKeySource: 'browser',
   });
 });
 
-app.get('/api/auth/status', (req, res) => {
-  const password = process.env.APP_PASSWORD;
-  if (!password) {
-    return res.json({ authenticated: true, authRequired: false });
-  }
-  res.json({ authenticated: !!req.session?.authenticated, authRequired: true });
+app.get('/api/auth/status', (_req, res) => {
+  res.json({ authenticated: true, authRequired: false });
 });
 
 app.post('/api/auth/login', (req, res) => {
