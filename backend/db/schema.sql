@@ -53,3 +53,20 @@ CREATE INDEX IF NOT EXISTS idx_registry_location_time ON expense_claim_registry(
   WHERE location_key IS NOT NULL AND location_key <> '';
 CREATE INDEX IF NOT EXISTS idx_registry_bill_hash ON expense_claim_registry(bill_hash)
   WHERE bill_hash IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS bulk_pdf_jobs (
+  id TEXT PRIMARY KEY,
+  session_id TEXT NOT NULL REFERENCES workspace_sessions(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'queued',
+  message TEXT,
+  error TEXT,
+  file_name TEXT,
+  detected INTEGER,
+  result_count INTEGER,
+  partial BOOLEAN NOT NULL DEFAULT FALSE,
+  warning TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_bulk_pdf_jobs_session ON bulk_pdf_jobs(session_id);

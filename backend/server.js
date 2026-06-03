@@ -14,15 +14,18 @@ const { parseAttendanceBuffer, parsePjpBuffer, pickDefaultDate } = require('./li
 const { dateKey } = require('./lib/utils');
 const { rosterAiReview } = require('./lib/claims');
 const { processClaim } = require('./lib/claim-processor');
-const { extractBillsFromBulkPdf, buildClaimFromExtractedBill, slimClaimForClient } = require('./lib/bulk-pdf');
+const { extractBillsFromBulkPdf, buildClaimFromExtractedBill } = require('./lib/bulk-pdf');
+const {
+  createBulkPdfJob,
+  updateBulkPdfJob,
+  getBulkPdfJob,
+  serializeBulkPdfJob,
+} = require('./lib/bulk-jobs');
 const { loadExpenseRegistry, deleteRegistryEntry } = require('./lib/expense-validation');
 
 const PORT = process.env.PORT || 3000;
 const ROOT_DIR = path.join(__dirname, '..');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
-
-const bulkPdfJobs = new Map();
-const BULK_JOB_TTL_MS = 60 * 60 * 1000;
 
 function isPdfUpload(file) {
   if (!file) return false;
@@ -31,35 +34,12 @@ function isPdfUpload(file) {
   return /\.pdf$/i.test(String(file.originalname || ''));
 }
 
-function createBulkPdfJob() {
-  const jobId = crypto.randomUUID();
-  bulkPdfJobs.set(jobId, {
-    jobId,
-    status: 'queued',
-    message: 'Upload received — starting…',
-    createdAt: Date.now(),
-  });
-  return jobId;
-}
-
-function updateBulkPdfJob(jobId, patch) {
-  const job = bulkPdfJobs.get(jobId);
-  if (!job) return null;
-  Object.assign(job, patch, { updatedAt: Date.now() });
-  return job;
-}
-
-function pruneBulkPdfJobs() {
-  const cutoff = Date.now() - BULK_JOB_TTL_MS;
-  for (const [id, job] of bulkPdfJobs.entries()) {
-    if ((job.updatedAt || job.createdAt) < cutoff) bulkPdfJobs.delete(id);
-  }
-}
-
 async function runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName }) {
-  pruneBulkPdfJobs();
   try {
-    updateBulkPdfJob(jobId, { status: 'scanning', message: 'AI scanning PDF for bills…' });
+    await updateBulkPdfJob(jobId, {
+      status: 'scanning',
+      message: 'AI scanning PDF for bills…',
+    });
 
     const workspace = await loadWorkspace(sessionId);
     const pdfBase64 = fileBuffer.toString('base64');
@@ -68,25 +48,26 @@ async function runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName })
 
     const { bills: rows, partial } = await extractBillsFromBulkPdf(pdfBase64, apiKey);
     if (!rows.length) {
-      updateBulkPdfJob(jobId, {
+      await updateBulkPdfJob(jobId, {
         status: 'failed',
         error: 'No bills detected in this PDF.',
+        message: 'No bills detected in this PDF.',
       });
       return;
     }
 
-    updateBulkPdfJob(jobId, {
+    await updateBulkPdfJob(jobId, {
       status: 'creating',
       message: `Creating ${rows.length} expenses…`,
       detected: rows.length,
     });
 
-    const created = [];
+    let createdCount = 0;
     for (let i = 0; i < rows.length; i += 1) {
       const claim = buildClaimFromExtractedBill(rows[i], pdfMeta, i);
       const workspaceForClaim = {
         ...workspace,
-        claims: [...created, ...workspace.claims],
+        claims: workspace.claims,
       };
       await processClaim(claim, workspaceForClaim, sessionId, { apiKey, skipAi: true });
       await ensureSession(sessionId);
@@ -95,24 +76,25 @@ async function runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName })
          VALUES ($1, $2, $3::jsonb, NOW(), NOW())`,
         [claim.id, sessionId, JSON.stringify(claim)]
       );
-      created.push(slimClaimForClient(claim));
+      workspace.claims.unshift(claim);
+      createdCount += 1;
     }
 
-    updateBulkPdfJob(jobId, {
+    await updateBulkPdfJob(jobId, {
       status: 'done',
-      message: `Created ${created.length} expenses.`,
-      count: created.length,
-      claims: created,
+      message: `Created ${createdCount} expenses.`,
+      resultCount: createdCount,
       partial,
       warning: partial
         ? 'Some bills may be missing — AI output was truncated. Split large PDFs if needed.'
-        : undefined,
+        : null,
     });
   } catch (err) {
     console.error('Bulk PDF job failed:', err);
-    updateBulkPdfJob(jobId, {
+    await updateBulkPdfJob(jobId, {
       status: 'failed',
       error: err.message || 'Bulk PDF processing failed',
+      message: 'Bulk PDF processing failed.',
     });
   }
 }
@@ -224,7 +206,7 @@ function buildStatePayload(workspace, filteredDate) {
 // --- Public / auth routes ---
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'sentinel-backend', build: '2026.06.6-main2' });
+  res.json({ ok: true, service: 'sentinel-backend', build: '2026.06.7-main2' });
 });
 
 app.get('/api/config', (_req, res) => {
@@ -397,17 +379,19 @@ app.post('/api/claims/bulk-pdf', authRequired, upload.single('pdf'), async (req,
       return res.status(400).json({ error: 'Upload a PDF file.' });
     }
 
-    const jobId = createBulkPdfJob();
+    await ensureSession(sessionId);
+    const jobId = await createBulkPdfJob(sessionId, req.file.originalname);
     const fileBuffer = Buffer.from(req.file.buffer);
     const fileName = req.file.originalname;
 
     res.status(202).json({ jobId, status: 'queued', message: 'Bulk PDF upload started.' });
 
-    runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName }).catch((err) => {
+    runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName }).catch(async (err) => {
       console.error(err);
-      updateBulkPdfJob(jobId, {
+      await updateBulkPdfJob(jobId, {
         status: 'failed',
         error: err.message || 'Bulk PDF processing failed',
+        message: 'Bulk PDF processing failed.',
       });
     });
   } catch (err) {
@@ -416,10 +400,19 @@ app.post('/api/claims/bulk-pdf', authRequired, upload.single('pdf'), async (req,
   }
 });
 
-app.get('/api/claims/bulk-pdf/:jobId', authRequired, (req, res) => {
-  const job = bulkPdfJobs.get(req.params.jobId);
-  if (!job) return res.status(404).json({ error: 'Bulk upload job not found or expired.' });
-  res.json(job);
+app.get('/api/claims/bulk-pdf/:jobId', authRequired, async (req, res) => {
+  try {
+    const sessionId = getSessionId(req);
+    if (!sessionId) return res.status(400).json({ error: 'Missing X-Session-Id header' });
+    const job = await getBulkPdfJob(req.params.jobId);
+    if (!job || job.session_id !== sessionId) {
+      return res.status(404).json({ error: 'Bulk upload job not found or expired.' });
+    }
+    res.json(serializeBulkPdfJob(job));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message || 'Could not read bulk upload status' });
+  }
 });
 
 app.post('/api/claims', authRequired, async (req, res) => {

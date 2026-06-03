@@ -1560,7 +1560,7 @@ function $(id) { return document.getElementById(id); }
 // =================================================================
 const USE_BACKEND = location.protocol === 'http:' || location.protocol === 'https:';
 const SESSION_STORAGE_KEY = 'sentinel_session_id';
-const SENTINEL_BUILD = '2026.06.6';
+const SENTINEL_BUILD = '2026.06.7';
 const API_KEY_STORAGE = 'sentinel_anthropic_api_key';
 /** Anthropic model for bill OCR & verification */
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
@@ -3858,19 +3858,36 @@ $('bulk-pdf-input').addEventListener('change', (e) => {
   }
 });
 
+async function reloadClaimsFromBackend() {
+  const resp = await apiFetch('/api/claims');
+  const raw = await resp.text();
+  let data = {};
+  try { data = raw ? JSON.parse(raw) : {}; } catch { /* ignore */ }
+  if (!resp.ok) throw new Error(data.error || `Could not reload claims (HTTP ${resp.status})`);
+  STATE.claims = (data.claims || []).map(c => ({
+    ...c,
+    submittedAt: c.submittedAt ? new Date(c.submittedAt) : new Date(),
+  }));
+}
+
 async function pollBulkPdfJob(jobId) {
   const deadline = Date.now() + 8 * 60 * 1000;
+  await new Promise((resolve) => setTimeout(resolve, 1500));
   while (Date.now() < deadline) {
     const resp = await apiFetch(`/api/claims/bulk-pdf/${encodeURIComponent(jobId)}`);
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(data.error || 'Could not check bulk upload status');
+    const raw = await resp.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch {
+      throw new Error(`Could not check bulk upload status (HTTP ${resp.status})`);
+    }
+    if (!resp.ok) throw new Error(data.error || `Could not check bulk upload status (HTTP ${resp.status})`);
 
     if (data.message) $('bulk-progress-text').textContent = data.message;
 
     if (data.status === 'done') return data;
     if (data.status === 'failed') throw new Error(data.error || 'Bulk upload failed');
 
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 2500));
   }
   throw new Error('Bulk upload timed out after 8 minutes. Try a smaller PDF or split by auditor.');
 }
@@ -3911,20 +3928,19 @@ $('bulk-claim-process').addEventListener('click', async () => {
     $('bulk-progress-text').textContent = startData.message || 'AI scanning PDF for bills…';
     const data = await pollBulkPdfJob(startData.jobId);
 
-    if (!data.count || !Array.isArray(data.claims)) {
-      throw new Error('Upload finished but no expenses were returned.');
-    }
-
-    for (const c of data.claims) STATE.claims.unshift(c);
+    const uploadedName = pendingBulkPdfFile.name;
+    await reloadClaimsFromBackend();
     renderClaimsList();
     renderExpenseValidationStats();
-    const passN = data.claims.filter(c => claimPassFail(c) === 'pass').length;
-    const failN = data.claims.filter(c => claimPassFail(c) === 'fail').length;
+    const newClaims = STATE.claims.filter(c => c.bulkImport && c.billFileName === uploadedName);
+    const passN = newClaims.filter(c => claimPassFail(c) === 'pass').length;
+    const failN = newClaims.filter(c => claimPassFail(c) === 'fail').length;
+    const count = data.count || newClaims.length;
     const partialNote = data.partial && data.warning
       ? `<div style="margin-top:8px;font-size:12px;color:var(--amber)">${escapeHtml(data.warning)}</div>`
       : '';
     $('bulk-result').classList.remove('hidden');
-    $('bulk-result').innerHTML = `<div style="padding:12px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25)">Created <strong>${data.count}</strong> expenses · <span style="color:var(--green)">${passN} Pass</span> · <span style="color:var(--red)">${failN} Fail</span>${partialNote}<div style="margin-top:8px;font-size:11px;color:var(--text-dim)">Scroll down to Expense Claims to review them.</div></div>`;
+    $('bulk-result').innerHTML = `<div style="padding:12px;border-radius:8px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.25)">Created <strong>${count}</strong> expenses · <span style="color:var(--green)">${passN} Pass</span> · <span style="color:var(--red)">${failN} Fail</span>${partialNote}<div style="margin-top:8px;font-size:11px;color:var(--text-dim)">Scroll down to Expense Claims to review them.</div></div>`;
     $('bulk-progress-text').textContent = 'Done.';
     pendingBulkPdfFile = null;
     $('bulk-claim-process').disabled = true;
