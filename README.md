@@ -1,8 +1,23 @@
-# Sales Audit 2.0
+# Sales Audit
+
+This repository has **two apps** on different branches:
+
+| Branch | App | Live URL | Render service |
+|--------|-----|----------|----------------|
+| **`main2`** | **Sentinel** (current) — Data Overview, Expense management, bulk PDF, AI bills | https://sales-audit-2-0-2.onrender.com | `sales-audit-2.0-2` |
+| **`master`** | Legacy React attendance dashboard | https://sales-audit-2-0.onrender.com | `sales-audit-2-0` |
+
+**Latest work (password removed, file uploads, bulk PDF, API key persistence) is on branch `main2`.**
+
+To deploy Sentinel: connect Render to this repo, branch **`main2`**, root directory **`backend`**. See `DEPLOY-RENDER.md` on that branch.
+
+---
+
+# Sales Audit 2.0 (branch `master`)
 
 **Live app:** https://sales-audit-2-0.onrender.com
 
-> After you push the latest code (see [DEPLOY.md](./DEPLOY.md)), Render rebuilds in ~3–5 minutes.
+> After you push the latest code (see [DEPLOY.md](./DEPLOY.md)), Render builds in ~3–5 minutes.
 
 ## Features
 
