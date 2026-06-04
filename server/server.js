@@ -143,18 +143,17 @@ const fetchSheetXlsx = async (id) => {
     return { ok: false, status: lastStatus, body: lastBody.slice(0, 200) };
   }
 
+  const tabList = await listWorkbookTabs(id);
   const fullUrl = `https://docs.google.com/spreadsheets/d/${id}/export?format=xlsx`;
   const r = await fetch(fullUrl, { redirect: 'follow' });
   if (r.ok) {
     const buf = Buffer.from(await r.arrayBuffer());
     if (buf.length > 100) {
       const sheetCount = countXlsxSheets(buf);
-      if (sheetCount > 1) return { ok: true, buf, sheetCount };
-      const multi = await fetchStandardMultiTabAsXlsx(id);
-      if (multi && countXlsxSheets(multi) > sheetCount) {
-        return { ok: true, buf: Buffer.from(multi), sheetCount: countXlsxSheets(multi) };
+      const needMulti = tabList.length > 1 && sheetCount < tabList.length;
+      if (!needMulti && sheetCount > 0) {
+        return { ok: true, buf, sheetCount: Math.max(sheetCount, tabList.length) };
       }
-      return { ok: true, buf, sheetCount };
     }
   }
 
@@ -222,6 +221,178 @@ const fetchPublishedAsXlsx = async (id) => {
   const out = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   return { ok: true, buf: Buffer.from(out) };
 };
+
+const listWorkbookTabs = async (id) => {
+  const htmlUrls = [
+    `https://docs.google.com/spreadsheets/d/${id}/htmlview`,
+    `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing`,
+  ];
+  for (const htmlUrl of htmlUrls) {
+    const htmlResp = await fetch(htmlUrl, { redirect: 'follow' });
+    if (!htmlResp.ok) continue;
+    const html = await htmlResp.text();
+    const tabs = parseHtmlTabs(html);
+    if (tabs.length) return tabs;
+  }
+  return [{ gid: '0', name: 'Sheet1' }];
+};
+
+const extractImagesFromHtml = (html) => {
+  const urls = new Set();
+  const patterns = [
+    /<img[^>]+src=["']([^"']+)["']/gi,
+    /src=["'](https:\/\/[^"']+googleusercontent[^"']+)["']/gi,
+    /src=["'](https:\/\/[^"']+ggpht[^"']+)["']/gi,
+  ];
+  for (const re of patterns) {
+    let m;
+    while ((m = re.exec(html)) !== null) {
+      const u = m[1];
+      if (!/favicon|logo|icon|s\d{2,}-p-k-no/i.test(u)) urls.add(u);
+    }
+  }
+  return [...urls];
+};
+
+app.get('/api/sheet/tabs', async (req, res) => {
+  const id = sanitizeSpreadsheetId(req.query.id);
+  if (!id) return res.status(400).json({ error: 'Invalid spreadsheet id' });
+  try {
+    const tabs = await listWorkbookTabs(id);
+    res.json({ tabs, count: tabs.length });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+app.get('/api/sheet/tab-images', async (req, res) => {
+  const id = sanitizeSpreadsheetId(req.query.id);
+  const gid = String(req.query.gid || '0');
+  if (!id) return res.status(400).json({ error: 'Invalid spreadsheet id' });
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${id}/htmlview?gid=${gid}`;
+    const htmlResp = await fetch(url, { redirect: 'follow' });
+    if (!htmlResp.ok) {
+      return res.json({ images: [], embeddedCount: 0, note: 'Could not open tab HTML view' });
+    }
+    const html = await htmlResp.text();
+    const images = extractImagesFromHtml(html);
+    res.json({ images, embeddedCount: images.length, gid });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+const parseTicketJsonFromAi = (text) => {
+  const tickets = [];
+  try {
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const arr = JSON.parse(jsonMatch[0]);
+      arr.forEach((t) => {
+        const amount = Number(t.amount || t.fare || t.total || 0);
+        if (amount > 0) {
+          tickets.push({
+            type: t.type || 'ticket',
+            amount,
+            date: t.date || '',
+            from: t.from || '',
+            to: t.to || '',
+            note: t.note || '',
+          });
+        }
+      });
+      return tickets;
+    }
+  } catch {
+    /* fall through */
+  }
+  const amountMatches = text.match(/₹?\s*(\d+(?:\.\d+)?)/g) || [];
+  amountMatches.forEach((m) => {
+    const amount = parseFloat(m.replace(/[^\d.]/g, ''));
+    if (amount > 10 && amount < 50000) {
+      tickets.push({ type: 'ticket', amount, date: '', from: '', to: '', note: 'extracted from text' });
+    }
+  });
+  return tickets;
+};
+
+app.post('/api/ai/analyze-bill-images', async (req, res) => {
+  if (!DEEPSEEK_API_KEY) {
+    return res.status(503).json({ error: 'Set DEEPSEEK_API_KEY on Render for image analysis.' });
+  }
+  const { imageUrls = [], context = {} } = req.body || {};
+  if (!imageUrls.length) {
+    return res.json({ tickets: [], totalFromTickets: 0, raw: 'No images' });
+  }
+
+  const allTickets = [];
+  const batches = [];
+  for (let i = 0; i < imageUrls.length; i += 2) {
+    batches.push(imageUrls.slice(i, i + 2));
+  }
+
+  try {
+    for (const batch of batches) {
+      const content = [
+        {
+          type: 'text',
+          text: `Analyze bus/train ticket images for auditor ${context.auditorName || 'unknown'}.
+Extract each ticket: type (bus|train), amount in INR (number only), date (DD/MM/YY), from, to.
+Return ONLY a JSON array like [{"type":"bus","amount":330,"date":"01/04/26","from":"Kurnool","to":"Wanaparthi"}].
+If not a ticket, skip it.`,
+        },
+        ...batch.map((url) => ({
+          type: 'image_url',
+          image_url: { url },
+        })),
+      ];
+
+      const response = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: process.env.DEEPSEEK_VISION_MODEL || 'deepseek-chat',
+          messages: [
+            {
+              role: 'system',
+              content: 'You read Indian bus and train tickets. Return strict JSON only.',
+            },
+            { role: 'user', content },
+          ],
+          temperature: 0.1,
+          max_tokens: 1500,
+        }),
+      });
+
+      if (!response.ok) {
+        const errText = await response.text();
+        return res.status(response.status).json({
+          error: `Vision API failed: ${errText.slice(0, 300)}`,
+          tickets: allTickets,
+          totalFromTickets: allTickets.reduce((s, t) => s + t.amount, 0),
+        });
+      }
+
+      const result = await response.json();
+      const raw = result.choices?.[0]?.message?.content || '';
+      allTickets.push(...parseTicketJsonFromAi(raw));
+    }
+
+    const totalFromTickets = allTickets.reduce((s, t) => s + (t.amount || 0), 0);
+    res.json({
+      tickets: allTickets,
+      totalFromTickets,
+      imageCount: imageUrls.length,
+      raw: `Analyzed ${imageUrls.length} image(s), found ${allTickets.length} ticket amount(s)`,
+    });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
 
 app.get('/api/sheet', async (req, res) => {
   const id = sanitizeSpreadsheetId(req.query.id);

@@ -4,6 +4,7 @@ import { ArrowLeft, Bot, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
 import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
+import { enrichAllVouchersWithImages } from '../utils/expenseImageAnalysis';
 import {
   verifyAllExpenseVouchers,
   buildExpenseAIPayload,
@@ -30,22 +31,35 @@ const ExpenseCheck2Page = () => {
   const [filter, setFilter] = useState('all');
   const [aiReport, setAiReport] = useState('');
   const [isAiRunning, setIsAiRunning] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('');
 
   const handleSync = async () => {
     if (!expenseSpreadsheetUrl.trim()) return;
     setIsFetching(true);
     setSyncError(null);
     setAiReport('');
+    setSyncStatus('Listing all tabs in workbook…');
     try {
       const result = await fetchAllExpenseVouchers(expenseSpreadsheetUrl.trim());
-      setExpenseVouchers(result.vouchers);
+      setSyncStatus(
+        `Downloaded ${result.totalSheets} tab(s) — ${result.totalTabsInWorkbook} in link. Analyzing bill images per auditor…`,
+      );
+      const enriched = await enrichAllVouchersWithImages(
+        result.vouchers,
+        result.tabs,
+        result.spreadsheetId,
+        result.matricesBySheet,
+      );
+      setExpenseVouchers(enriched);
       setExpenseSheetSummary(result.sheetSummary || []);
       setSyncError(result.syncError || null);
+      setSyncStatus(`Done — ${enriched.length} auditor(s) checked with image analysis.`);
     } catch (err) {
       console.error(err);
       setSyncError(err.message || 'Sync failed');
       setExpenseVouchers([]);
       setExpenseSheetSummary([]);
+      setSyncStatus('');
     } finally {
       setIsFetching(false);
     }
@@ -96,7 +110,7 @@ const ExpenseCheck2Page = () => {
 
       <SheetLinkUpload
         title="Upload expense claim workbook"
-        description="Paste the Google Sheet link — we fetch every auditor tab (one voucher per person). Share: Anyone with link → Viewer."
+        description="Paste one Google Sheet link — we fetch ALL auditor tabs in that workbook (not only the open tab). Then we read bus/train ticket images and verify totals."
         url={expenseSpreadsheetUrl}
         onUrlChange={(v) => {
           setExpenseSpreadsheetUrl(v);
@@ -109,6 +123,12 @@ const ExpenseCheck2Page = () => {
         syncLabel="Fetch all auditor sheets"
         loadingLabel="Fetching all tabs…"
       />
+
+      {syncStatus && (
+        <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', marginBottom: '1rem' }}>
+          {syncStatus}
+        </p>
+      )}
 
       {syncError && (
         <div
@@ -281,32 +301,90 @@ const ExpenseCheck2Page = () => {
                   </span>
                 </div>
 
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                    gap: 8,
-                    marginTop: 12,
-                    fontSize: '0.78rem',
-                  }}
-                >
-                  <div>Fuel: ₹{result.voucher.fuelTotal}</div>
-                  <div>Tickets+Local: ₹{result.voucher.ticketsTotal}</div>
-                  <div>Stay: ₹{result.voucher.accommodationTotal}</div>
-                  <div>Date-wise bus/train sum: ₹{result.voucher.dateWiseBusTrainSum}</div>
-                </div>
+                {result.voucher.totals && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: 12,
+                      background: 'rgba(88,166,255,0.06)',
+                      borderRadius: 8,
+                      fontSize: '0.8rem',
+                    }}
+                  >
+                    <h4 style={{ margin: '0 0 8px', fontSize: '0.85rem' }}>Total reconciliation</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Declared (sheet)</span>
+                        <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.declaredTotal}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Manual date-wise</span>
+                        <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.manualDateWiseSum}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>From ticket images (AI)</span>
+                        <div style={{ fontWeight: 700, color: '#3fb950' }}>
+                          ₹{result.voucher.totals.fromTicketImages || '—'}
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Correct total</span>
+                        <div style={{ fontWeight: 800, color: '#58a6ff' }}>
+                          ₹{result.voucher.totals.correctTotal}
+                        </div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Fuel (secondary)</span>
+                        <div>₹{result.voucher.totals.fuelHeader}</div>
+                      </div>
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Stay</span>
+                        <div>₹{result.voucher.totals.accommodation}</div>
+                      </div>
+                    </div>
+                    {result.voucher.imageAnalysis?.note && (
+                      <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
+                        {result.voucher.imageAnalysis.note}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {result.voucher.imageUrls?.length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <h4 style={{ fontSize: '0.8rem' }}>Bill images ({result.voucher.imageUrls.length})</h4>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
+                      {result.voucher.imageUrls.slice(0, 4).map((src) => (
+                        <a key={src} href={src} target="_blank" rel="noreferrer">
+                          <img
+                            src={src}
+                            alt="Bill"
+                            style={{
+                              width: 120,
+                              height: 80,
+                              objectFit: 'cover',
+                              borderRadius: 6,
+                              border: '1px solid var(--border-main)',
+                            }}
+                          />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {result.dateResults.length > 0 && (
                   <div style={{ marginTop: 12 }}>
-                    <h4 style={{ fontSize: '0.8rem', margin: '0 0 8px' }}>Date-wise checks</h4>
+                    <h4 style={{ fontSize: '0.8rem', margin: '0 0 8px' }}>Date-wise detail</h4>
                     <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
                           <th style={{ padding: 6 }}>Date</th>
                           <th style={{ padding: 6 }}>Travel</th>
                           <th style={{ padding: 6 }}>Local</th>
-                          <th style={{ padding: 6 }}>Grand total</th>
-                          <th style={{ padding: 6 }}>Status</th>
+                          <th style={{ padding: 6 }}>Manual total</th>
+                          <th style={{ padding: 6 }}>From tickets</th>
+                          <th style={{ padding: 6 }}>Match</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -316,8 +394,9 @@ const ExpenseCheck2Page = () => {
                             <td style={{ padding: 6 }}>₹{d.travel}</td>
                             <td style={{ padding: 6 }}>₹{d.localConveyance}</td>
                             <td style={{ padding: 6 }}>₹{d.grandTotal}</td>
-                            <td style={{ padding: 6, color: severityColor(d.status === 'ok' ? 'green' : d.status === 'review' ? 'orange' : 'red') }}>
-                              {d.status}
+                            <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
+                            <td style={{ padding: 6, color: d.manualMatchesImages === true ? '#3fb950' : d.manualMatchesImages === false ? '#f85149' : '#8b949e' }}>
+                              {d.manualMatchesImages === true ? 'OK' : d.manualMatchesImages === false ? 'Mismatch' : '—'}
                             </td>
                           </tr>
                         ))}

@@ -171,6 +171,42 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
     );
   }
 
+  if (voucher.totals) {
+    const t = voucher.totals;
+    if (Math.abs(t.difference) > 10) {
+      flags.push(
+        flag(
+          t.difference > 0 ? 'orange' : 'red',
+          'CORRECT_TOTAL_MISMATCH',
+          `Declared ₹${t.declaredTotal} vs correct total ₹${t.correctTotal} (diff ₹${Math.round(t.difference)})`,
+          t,
+        ),
+      );
+    }
+    if (t.fromTicketImages > 0 && Math.abs(t.fromTicketImages - t.manualDateWiseSum) > 10) {
+      flags.push(
+        flag(
+          'orange',
+          'MANUAL_VS_TICKET_IMAGE',
+          `Manual date-wise ₹${t.manualDateWiseSum} vs bus/train from ticket images ₹${t.fromTicketImages}`,
+          t,
+        ),
+      );
+    }
+  }
+
+  voucher.dateBlocks?.forEach((block) => {
+    if (block.manualMatchesImages === false) {
+      flags.push(
+        flag(
+          'red',
+          'TICKET_IMAGE_MISMATCH',
+          `${block.date}: Manual ₹${block.grandTotal} ≠ ticket image total ₹${block.ticketAmountFromImages}`,
+        ),
+      );
+    }
+  });
+
   const redCount = flags.filter((f) => f.severity === 'red').length;
   const orangeCount = flags.filter((f) => f.severity === 'orange').length;
 

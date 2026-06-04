@@ -3,6 +3,7 @@ dist
 .env
 *.log
 scratch
+.tools
 build_output.txt
 .DS_Store
 .mingit

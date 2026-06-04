@@ -1,6 +1,7 @@
 import * as XLSX from 'xlsx';
 import { parseExcelDate } from './sheetFetcher.js';
 import { downloadSpreadsheetXlsx } from './sheetDownload.js';
+import { fetchSpreadsheetTabs } from './sheetTabsApi.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -73,7 +74,6 @@ const looksLikeVoucher = (matrix) =>
       findCell(matrix, 'expenses claim voucher'),
   );
 
-/** Rows under a date: travel, local convience, grand total (per screenshot layout). */
 const parseDateWiseBlocks = (matrix) => {
   const blocks = [];
   for (let r = 0; r < matrix.length; r++) {
@@ -83,9 +83,8 @@ const parseDateWiseBlocks = (matrix) => {
     let travel = 0;
     let localConveyance = 0;
     let grandTotal = 0;
-    let hasBusTrainHint = false;
 
-    for (let rr = r + 1; rr < Math.min(r + 25, matrix.length); rr++) {
+    for (let rr = r + 1; rr < Math.min(r + 30, matrix.length); rr++) {
       if (isDateInColA(matrix, rr)) break;
       const row = matrix[rr] || [];
       const label = norm(row[0] || row[1]);
@@ -97,12 +96,9 @@ const parseDateWiseBlocks = (matrix) => {
       if (label.includes('localconv') || label.includes('localconveyance')) {
         localConveyance = amountAfterLabel({ r: rr, c: 0, row });
       }
-      if (label.includes('grandtotal') || label === 'total') {
+      if (label.includes('grandtotal')) {
         const g = amountAfterLabel({ r: rr, c: 0, row });
         if (g > 0) grandTotal = g;
-      }
-      if (label.includes('bus') || label.includes('train') || label.includes('ticket')) {
-        hasBusTrainHint = true;
       }
     }
 
@@ -118,8 +114,7 @@ const parseDateWiseBlocks = (matrix) => {
         localConveyance,
         grandTotal,
         computedSum: travel + localConveyance,
-        hasBusTrainHint,
-        billImagesLikely: hasBusTrainHint,
+        hasBusTrainHint: true,
       });
     }
   }
@@ -168,34 +163,41 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const dateWiseBusTrainSum = dateBlocks.reduce((s, b) => s + b.grandTotal, 0);
   const mapLegs = parseMapLegs(matrix);
 
-  const headerBusTrain = ticketsTotal;
-  const expectedFromDates = dateWiseBusTrainSum;
-
   return {
     sheetName,
     auditorName,
     employeeNo,
     fuelTotal,
-    ticketsTotal: headerBusTrain,
+    ticketsTotal,
     accommodationTotal,
     declaredTotal,
     dateBlocks,
     dateWiseBusTrainSum,
     mapLegs,
-    petrolNote: fuelTotal > 0 ? 'Petrol claimed — verified separately (lower priority)' : '',
   };
 };
 
+/**
+ * One link → entire workbook: list all tabs, download all sheets, parse every auditor voucher.
+ */
 export const fetchAllExpenseVouchers = async (url) => {
-  const { buffer } = await downloadSpreadsheetXlsx(url);
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+  const { id, buffer } = await downloadSpreadsheetXlsx(url);
+  let tabs = [];
+  try {
+    tabs = await fetchSpreadsheetTabs(id);
+  } catch (e) {
+    console.warn('Tab list unavailable:', e.message);
+  }
 
+  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+  const matricesBySheet = {};
   const vouchers = [];
   const sheetSummary = [];
 
   workbook.SheetNames.forEach((sheetName) => {
     const ws = workbook.Sheets[sheetName];
     const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    matricesBySheet[sheetName] = matrix;
     const parsed = parseVoucherSheet(matrix, sheetName);
 
     if (parsed) {
@@ -206,38 +208,49 @@ export const fetchAllExpenseVouchers = async (url) => {
         employeeNo: parsed.employeeNo,
         status: 'loaded',
         dateRows: parsed.dateBlocks.length,
-        reason: `Voucher parsed — ${parsed.dateBlocks.length} date block(s)`,
+        reason: `Voucher parsed — ${parsed.dateBlocks.length} date row(s)`,
       });
     } else {
       sheetSummary.push({
         sheetName,
         status: 'skipped',
         reason: looksLikeVoucher(matrix)
-          ? 'Voucher form found but missing Requested By / amounts / date rows'
-          : 'Not a voucher tab (expected Requested By, Fuel Expenses, date in column A)',
+          ? 'Voucher layout found but missing Requested By, amounts, or date rows'
+          : 'Index/summary tab (not an auditor voucher)',
       });
     }
   });
 
+  const tabCount = tabs.length || workbook.SheetNames.length;
   let syncError = null;
+
   if (vouchers.length === 0 && workbook.SheetNames.length > 0) {
     syncError = {
-      title:
-        workbook.SheetNames.length === 1
-          ? 'Only 1 tab downloaded'
-          : 'No auditor vouchers parsed',
+      title: 'No auditor vouchers parsed',
       message:
         workbook.SheetNames.length === 1
-          ? 'Share the full workbook (Anyone with link → Viewer) so every auditor tab is fetched.'
-          : 'Tabs were fetched but none matched the Expenses Claim Voucher layout.',
+          ? 'Only 1 tab returned. Share workbook as Anyone with link → Viewer so ALL auditor tabs download.'
+          : 'Tabs downloaded but none matched the Expenses Claim Voucher form.',
+      failedTabs: sheetSummary,
+    };
+  } else if (tabCount > 1 && workbook.SheetNames.length < tabCount) {
+    syncError = {
+      title: `Partial download — ${workbook.SheetNames.length} of ${tabCount} tabs`,
+      message:
+        'Some auditor tabs may be missing. Re-share the link as Viewer and sync again.',
       failedTabs: sheetSummary.filter((s) => s.status !== 'loaded'),
+      partial: true,
     };
   }
 
   return {
     vouchers,
     sheetSummary,
+    matricesBySheet,
+    tabs,
+    spreadsheetId: id,
     totalSheets: workbook.SheetNames.length,
+    totalTabsInWorkbook: tabCount,
     totalAuditors: vouchers.length,
     syncError,
   };
