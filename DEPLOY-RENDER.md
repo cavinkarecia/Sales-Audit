@@ -43,7 +43,9 @@ After the blueprint is created, open the **sentinel** web service → **Environm
 
 `DATABASE_URL` and `SESSION_SECRET` are filled in automatically by the blueprint.
 
-`APP_PASSWORD` is optional (login is disabled by default). If set, it is ignored on the current build.
+`APP_PASSWORD` — **leave unset** on Render for open access. If you still see `Login: enabled` in logs, delete `APP_PASSWORD` and redeploy.
+
+`NODE_OPTIONS` is set in `render.yaml` to `--max-old-space-size=384` so the Node process stays within Render’s ~512MB RAM limit.
 
 Click **Save Changes**. Render will redeploy the service.
 

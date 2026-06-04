@@ -14,7 +14,11 @@ const { parseAttendanceBuffer, parsePjpBuffer, buildPlanIndexes, pickDefaultDate
 const { dateKey } = require('./lib/utils');
 const { rosterAiReview } = require('./lib/claims');
 const { processClaim } = require('./lib/claim-processor');
-const { extractBillsFromBulkPdf, buildClaimFromExtractedBill } = require('./lib/bulk-pdf');
+const {
+  extractBillsFromBulkPdfBuffer,
+  buildClaimFromExtractedBill,
+  MAX_PDF_BYTES,
+} = require('./lib/bulk-pdf');
 const {
   createBulkPdfJob,
   updateBulkPdfJob,
@@ -34,6 +38,17 @@ function isPdfUpload(file) {
   return /\.pdf$/i.test(String(file.originalname || ''));
 }
 
+function slimClaimPayload(payload) {
+  if (!payload || typeof payload !== 'object') return payload;
+  return {
+    id: payload.id,
+    auditorCode: payload.auditorCode,
+    date: payload.date,
+    subcategory: payload.subcategory,
+    amount: payload.amount,
+  };
+}
+
 async function runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName }) {
   try {
     await updateBulkPdfJob(jobId, {
@@ -41,12 +56,11 @@ async function runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName })
       message: 'AI scanning PDF for bills…',
     });
 
-    const workspace = await loadWorkspace(sessionId);
-    const pdfBase64 = fileBuffer.toString('base64');
+    const workspace = await loadWorkspaceLite(sessionId);
     const pdfHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
     const pdfMeta = { fileName, pdfHash };
 
-    const { bills: rows, partial } = await extractBillsFromBulkPdf(pdfBase64, apiKey);
+    const { bills: rows, partial } = await extractBillsFromBulkPdfBuffer(fileBuffer, apiKey);
     if (!rows.length) {
       await updateBulkPdfJob(jobId, {
         status: 'failed',
@@ -63,20 +77,22 @@ async function runBulkPdfJob(jobId, { sessionId, apiKey, fileBuffer, fileName })
     });
 
     let createdCount = 0;
+    const existingClaims = workspace.claims;
     for (let i = 0; i < rows.length; i += 1) {
       const claim = buildClaimFromExtractedBill(rows[i], pdfMeta, i);
-      const workspaceForClaim = {
-        ...workspace,
-        claims: workspace.claims,
-      };
-      await processClaim(claim, workspaceForClaim, sessionId, { apiKey, skipAi: true });
+      await processClaim(
+        claim,
+        { ...workspace, claims: existingClaims },
+        sessionId,
+        { apiKey, skipAi: true }
+      );
       await ensureSession(sessionId);
       await getPool().query(
         `INSERT INTO claims (id, session_id, payload, created_at, updated_at)
          VALUES ($1, $2, $3::jsonb, NOW(), NOW())`,
         [claim.id, sessionId, JSON.stringify(claim)]
       );
-      workspace.claims.unshift(claim);
+      existingClaims.unshift(slimClaimPayload(claim));
       createdCount += 1;
     }
 
@@ -181,6 +197,44 @@ async function loadWorkspace(sessionId) {
   };
 }
 
+/** Attendance/PJP + slim claims only — used by bulk PDF to avoid loading full claim payloads. */
+async function loadWorkspaceLite(sessionId) {
+  await ensureSession(sessionId);
+  const pool = getPool();
+
+  const att = await pool.query(
+    'SELECT filename, rows FROM attendance_snapshots WHERE session_id = $1',
+    [sessionId]
+  );
+  const pjp = await pool.query(
+    'SELECT filename, plan_rows, meta FROM pjp_snapshots WHERE session_id = $1',
+    [sessionId]
+  );
+  const claimsRes = await pool.query(
+    'SELECT payload FROM claims WHERE session_id = $1 ORDER BY created_at DESC',
+    [sessionId]
+  );
+
+  const rawRows = att.rows[0]?.rows || [];
+  const planRows = pjp.rows[0]?.plan_rows || [];
+  const meta = pjp.rows[0]?.meta || {};
+  const indexes = buildPlanIndexes(planRows);
+
+  return {
+    attendanceFileName: att.rows[0]?.filename || null,
+    pjpFileName: pjp.rows[0]?.filename || null,
+    rawRows,
+    planRows,
+    pjpMonth: meta.pjpMonth || null,
+    pjpMinDate: meta.pjpMinDate || null,
+    pjpMaxDate: meta.pjpMaxDate || null,
+    pjpEmpCodes: meta.pjpEmpCodes || [],
+    planByEmpDate: indexes.planByEmpDate,
+    planByNameDate: indexes.planByNameDate,
+    claims: claimsRes.rows.map((r) => slimClaimPayload(r.payload)),
+  };
+}
+
 function buildStatePayload(workspace, filteredDate) {
   const uniqueAuditors = [...new Set(workspace.rawRows.map((r) => r.auditor).filter(Boolean))].sort();
   let defaultDate = filteredDate || pickDefaultDate(workspace.rawRows, workspace.pjpMinDate, workspace.pjpMaxDate);
@@ -197,8 +251,6 @@ function buildStatePayload(workspace, filteredDate) {
     pjpMinDate: workspace.pjpMinDate,
     pjpMaxDate: workspace.pjpMaxDate,
     pjpEmpCodes: workspace.pjpEmpCodes,
-    planByEmpDate: workspace.planByEmpDate,
-    planByNameDate: workspace.planByNameDate,
     filteredDate: defaultDate,
     claims: workspace.claims,
     aiKeySource: process.env.ANTHROPIC_API_KEY ? 'server' : 'browser',
@@ -210,7 +262,7 @@ function buildStatePayload(workspace, filteredDate) {
 // --- Public / auth routes ---
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'sentinel-backend', build: '2026.06.8-main2' });
+  res.json({ ok: true, service: 'sentinel-backend', build: '2026.06.9-main2' });
 });
 
 app.get('/api/config', (_req, res) => {
@@ -292,6 +344,18 @@ app.delete('/api/state', authRequired, async (req, res) => {
   }
 });
 
+async function getPjpMeta(sessionId) {
+  const res = await getPool().query('SELECT meta FROM pjp_snapshots WHERE session_id = $1', [sessionId]);
+  return res.rows[0]?.meta || {};
+}
+
+async function getAttendanceRowsForSession(sessionId) {
+  const res = await getPool().query('SELECT rows FROM attendance_snapshots WHERE session_id = $1', [
+    sessionId,
+  ]);
+  return res.rows[0]?.rows || [];
+}
+
 // --- Uploads ---
 
 app.post('/api/upload/attendance', authRequired, upload.single('file'), async (req, res) => {
@@ -309,9 +373,16 @@ app.post('/api/upload/attendance', authRequired, upload.single('file'), async (r
       [sessionId, req.file.originalname, JSON.stringify(rawRows)]
     );
 
-    const workspace = await loadWorkspace(sessionId);
-    const filteredDate = pickDefaultDate(rawRows, workspace.pjpMinDate, workspace.pjpMaxDate);
-    res.json({ ...buildStatePayload({ ...workspace, rawRows, attendanceFileName: req.file.originalname }, filteredDate), sessionId });
+    const pjpMeta = await getPjpMeta(sessionId);
+    const filteredDate = pickDefaultDate(rawRows, pjpMeta.pjpMinDate, pjpMeta.pjpMaxDate);
+    res.json({
+      ok: true,
+      reload: true,
+      sessionId,
+      attendanceFileName: req.file.originalname,
+      rowCount: rawRows.length,
+      filteredDate,
+    });
   } catch (err) {
     console.error(err);
     res.status(400).json({ error: err.message || 'Could not parse attendance file' });
@@ -340,21 +411,16 @@ app.post('/api/upload/pjp', authRequired, upload.single('file'), async (req, res
       [sessionId, req.file.originalname, JSON.stringify(parsed.planRows), JSON.stringify(meta)]
     );
 
-    const indexes = buildPlanIndexes(parsed.planRows);
-    const workspace = await loadWorkspace(sessionId);
-    const filteredDate = pickDefaultDate(workspace.rawRows, parsed.pjpMinDate, parsed.pjpMaxDate);
+    const attRows = await getAttendanceRowsForSession(sessionId);
+    const filteredDate = pickDefaultDate(attRows, parsed.pjpMinDate, parsed.pjpMaxDate);
     res.json({
-      ...buildStatePayload(
-        {
-          ...workspace,
-          planRows: parsed.planRows,
-          pjpFileName: req.file.originalname,
-          ...meta,
-          ...indexes,
-        },
-        filteredDate
-      ),
+      ok: true,
+      reload: true,
       sessionId,
+      pjpFileName: req.file.originalname,
+      planRowCount: parsed.planRows.length,
+      ...meta,
+      filteredDate,
     });
   } catch (err) {
     console.error(err);
@@ -389,10 +455,16 @@ app.post('/api/claims/bulk-pdf', authRequired, upload.single('pdf'), async (req,
     if (!isPdfUpload(req.file)) {
       return res.status(400).json({ error: 'Upload a PDF file.' });
     }
+    if (req.file.buffer.length > MAX_PDF_BYTES) {
+      const mb = (req.file.buffer.length / (1024 * 1024)).toFixed(1);
+      return res.status(400).json({
+        error: `PDF is too large (${mb} MB). Maximum is ${MAX_PDF_BYTES / (1024 * 1024)} MB — split into smaller files.`,
+      });
+    }
 
     await ensureSession(sessionId);
     const jobId = await createBulkPdfJob(sessionId, req.file.originalname);
-    const fileBuffer = Buffer.from(req.file.buffer);
+    const fileBuffer = req.file.buffer;
     const fileName = req.file.originalname;
 
     res.status(202).json({ jobId, status: 'queued', message: 'Bulk PDF upload started.' });
@@ -505,11 +577,16 @@ app.delete('/api/claims/:id', authRequired, async (req, res) => {
   }
 });
 
-app.get('/api/expense/stats', authRequired, async (_req, res) => {
+app.get('/api/expense/stats', authRequired, async (req, res) => {
   try {
+    const sessionId = getSessionId(req);
+    if (!sessionId) return res.status(400).json({ error: 'Missing X-Session-Id header' });
     const pool = getPool();
     const registry = await loadExpenseRegistry(pool);
-    const { rows: claimRows } = await pool.query('SELECT payload FROM claims');
+    const { rows: claimRows } = await pool.query(
+      'SELECT payload FROM claims WHERE session_id = $1',
+      [sessionId]
+    );
     const claims = claimRows.map((r) => r.payload);
     const flagged = claims.filter((c) =>
       ['suspicious', 'collusion', 'review'].includes(c.verdict)
@@ -580,7 +657,7 @@ async function start() {
   app.listen(PORT, () => {
     console.log(`Sentinel server running on port ${PORT}`);
     console.log('AI: uses API key from browser (AI Key chip) — no ANTHROPIC_API_KEY needed on Render');
-    console.log(`Login: ${process.env.APP_PASSWORD ? 'enabled' : 'disabled (set APP_PASSWORD for production)'}`);
+    console.log(`Login: ${process.env.APP_PASSWORD ? 'enabled (remove APP_PASSWORD on Render for open access)' : 'disabled'}`);
   });
 }
 

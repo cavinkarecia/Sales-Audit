@@ -34,6 +34,18 @@ function normalizeIsoDate(raw) {
   return '';
 }
 
+const MAX_PDF_BYTES = 12 * 1024 * 1024;
+
+async function extractBillsFromBulkPdfBuffer(buffer, apiKey) {
+  if (!buffer || !buffer.length) throw new Error('Empty PDF upload.');
+  if (buffer.length > MAX_PDF_BYTES) {
+    const mb = (buffer.length / (1024 * 1024)).toFixed(1);
+    throw new Error(`PDF is too large (${mb} MB). Maximum is ${MAX_PDF_BYTES / (1024 * 1024)} MB — split into smaller files.`);
+  }
+  const pdfBase64 = buffer.toString('base64');
+  return extractBillsFromBulkPdf(pdfBase64, apiKey);
+}
+
 async function extractBillsFromBulkPdf(pdfBase64, apiKey) {
   const roster = AUDITOR_MASTER.map((a) => `${a.empCode}: ${a.name}`).join('\n');
 
@@ -133,7 +145,9 @@ function slimClaimForClient(claim) {
 }
 
 module.exports = {
+  MAX_PDF_BYTES,
   extractBillsFromBulkPdf,
+  extractBillsFromBulkPdfBuffer,
   buildClaimFromExtractedBill,
   slimClaimForClient,
 };

@@ -1560,7 +1560,7 @@ function $(id) { return document.getElementById(id); }
 // =================================================================
 const USE_BACKEND = location.protocol === 'http:' || location.protocol === 'https:';
 const SESSION_STORAGE_KEY = 'sentinel_session_id';
-const SENTINEL_BUILD = '2026.06.8';
+const SENTINEL_BUILD = '2026.06.9';
 const API_KEY_STORAGE = 'sentinel_anthropic_api_key';
 /** Anthropic model for bill OCR & verification */
 const ANTHROPIC_MODEL = 'claude-sonnet-4-6';
@@ -1623,6 +1623,18 @@ async function ensureBackendSession() {
   return data.sessionId;
 }
 
+function rebuildPlanIndexesFromRows(planRows) {
+  const planByEmpDate = {};
+  const planByNameDate = {};
+  for (const plan of planRows || []) {
+    const dk = plan.dateKey || (plan.date ? dateKey(new Date(plan.date)) : null);
+    if (!dk) continue;
+    if (plan.empCode) planByEmpDate[`${plan.empCode}|${dk}`] = plan;
+    if (plan.empName) planByNameDate[`${normalizeName(plan.empName)}|${dk}`] = plan;
+  }
+  return { planByEmpDate, planByNameDate };
+}
+
 function applyStateFromServer(data) {
   if (data.sessionId) localStorage.setItem(SESSION_STORAGE_KEY, data.sessionId);
   STATE.rawRows = (data.rawRows || []).map(r => ({ ...r, date: r.date ? new Date(r.date) : null }));
@@ -1634,8 +1646,9 @@ function applyStateFromServer(data) {
   STATE.pjpMinDate = data.pjpMinDate ? new Date(data.pjpMinDate) : null;
   STATE.pjpMaxDate = data.pjpMaxDate ? new Date(data.pjpMaxDate) : null;
   STATE.pjpEmpCodes = new Set(data.pjpEmpCodes || []);
-  STATE.planByEmpDate = data.planByEmpDate || {};
-  STATE.planByNameDate = data.planByNameDate || {};
+  const planIdx = rebuildPlanIndexesFromRows(STATE.planRows);
+  STATE.planByEmpDate = planIdx.planByEmpDate;
+  STATE.planByNameDate = planIdx.planByNameDate;
   STATE.filteredDate = data.filteredDate || null;
   STATE.claims = (data.claims || []).map(c => ({
     ...c,
@@ -2252,14 +2265,22 @@ async function handleFile(file, kind) {
         alert(msg);
         return;
       }
-      applyStateFromServer(data);
-      updateFileChips();
-      updateDualSummary();
-      if (STATE.attendanceFileName) $('upload-zone-attendance')?.classList.add('loaded');
-      if (STATE.pjpFileName) $('upload-zone-pjp')?.classList.add('loaded');
-      if (STATE.rawRows.length) {
-        showLoadedState();
-        refreshDashboard();
+      if (data.reload) {
+        await loadStateFromBackend();
+        if (data.filteredDate) {
+          STATE.filteredDate = data.filteredDate;
+          $('date-filter').value = data.filteredDate;
+        }
+      } else {
+        applyStateFromServer(data);
+        updateFileChips();
+        updateDualSummary();
+        if (STATE.attendanceFileName) $('upload-zone-attendance')?.classList.add('loaded');
+        if (STATE.pjpFileName) $('upload-zone-pjp')?.classList.add('loaded');
+        if (STATE.rawRows.length) {
+          showLoadedState();
+          refreshDashboard();
+        }
       }
     } catch (err) {
       console.error(err);
