@@ -3,7 +3,7 @@ import { extractSpreadsheetId } from './spreadsheetUrl.js';
 /**
  * Download spreadsheet XLSX via backend proxy with clear errors.
  */
-export const downloadSpreadsheetXlsx = async (urlOrId) => {
+export const downloadSpreadsheetXlsx = async (urlOrId, { allTabs = true } = {}) => {
   const id = extractSpreadsheetId(urlOrId);
   if (!id) {
     throw new Error(
@@ -11,7 +11,9 @@ export const downloadSpreadsheetXlsx = async (urlOrId) => {
     );
   }
 
-  const response = await fetch(`/api/sheet?id=${encodeURIComponent(id)}`);
+  const qs = new URLSearchParams({ id });
+  if (allTabs) qs.set('allTabs', '1');
+  const response = await fetch(`/api/sheet?${qs.toString()}`);
   const contentType = response.headers.get('content-type') || '';
 
   if (!response.ok) {

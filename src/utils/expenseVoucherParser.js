@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { parseExcelDate } from './sheetFetcher.js';
+import { extractSpreadsheetId } from './spreadsheetUrl.js';
 import { downloadSpreadsheetXlsx } from './sheetDownload.js';
 import { fetchSpreadsheetTabs } from './sheetTabsApi.js';
 
@@ -180,16 +181,63 @@ export const parseVoucherSheet = (matrix, sheetName) => {
 /**
  * One link → entire workbook: list all tabs, download all sheets, parse every auditor voucher.
  */
+const fetchTabMatrix = async (spreadsheetId, gid) => {
+  const res = await fetch(
+    `/api/sheet/tab-csv?id=${encodeURIComponent(spreadsheetId)}&gid=${encodeURIComponent(gid)}`,
+  );
+  if (!res.ok) return null;
+  const csv = await res.text();
+  if (!csv?.trim()) return null;
+  const parsed = XLSX.read(csv, { type: 'string' });
+  const first = parsed.SheetNames[0];
+  if (!first) return null;
+  return XLSX.utils.sheet_to_json(parsed.Sheets[first], {
+    header: 1,
+    raw: true,
+    defval: '',
+  });
+};
+
+/**
+ * One link (any tab/gid) → entire workbook: list all tabs, download every auditor sheet.
+ */
 export const fetchAllExpenseVouchers = async (url) => {
-  const { id, buffer } = await downloadSpreadsheetXlsx(url);
+  const spreadsheetId = extractSpreadsheetId(url);
+  if (!spreadsheetId) {
+    throw new Error('Invalid Google Sheets URL — paste the full spreadsheet link.');
+  }
+
   let tabs = [];
   try {
-    tabs = await fetchSpreadsheetTabs(id);
+    tabs = await fetchSpreadsheetTabs(spreadsheetId);
   } catch (e) {
     console.warn('Tab list unavailable:', e.message);
   }
 
-  const workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+  const { id, buffer } = await downloadSpreadsheetXlsx(url, { allTabs: true });
+
+  let workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+
+  // If workbook export missed tabs, fetch each tab by gid from the tab list.
+  if (tabs.length > 1 && workbook.SheetNames.length < tabs.length) {
+    const merged = XLSX.utils.book_new();
+    let loaded = 0;
+    for (let i = 0; i < tabs.length; i++) {
+      const tab = tabs[i];
+      const matrix = await fetchTabMatrix(spreadsheetId, tab.gid);
+      if (!matrix?.length) continue;
+      const ws = XLSX.utils.aoa_to_sheet(matrix);
+      const safeName = String(tab.name || `Sheet${i + 1}`)
+        .replace(/[\\/?*[\]:]/g, ' ')
+        .trim()
+        .slice(0, 31);
+      XLSX.utils.book_append_sheet(merged, ws, safeName || `Sheet${i + 1}`);
+      loaded++;
+    }
+    if (loaded > workbook.SheetNames.length) {
+      workbook = merged;
+    }
+  }
   const matricesBySheet = {};
   const vouchers = [];
   const sheetSummary = [];
@@ -221,7 +269,7 @@ export const fetchAllExpenseVouchers = async (url) => {
     }
   });
 
-  const tabCount = tabs.length || workbook.SheetNames.length;
+  const tabCountInLink = tabs.length || workbook.SheetNames.length;
   let syncError = null;
 
   if (vouchers.length === 0 && workbook.SheetNames.length > 0) {
@@ -233,11 +281,11 @@ export const fetchAllExpenseVouchers = async (url) => {
           : 'Tabs downloaded but none matched the Expenses Claim Voucher form.',
       failedTabs: sheetSummary,
     };
-  } else if (tabCount > 1 && workbook.SheetNames.length < tabCount) {
+  } else if (tabCountInLink > 1 && workbook.SheetNames.length < tabCountInLink) {
     syncError = {
-      title: `Partial download — ${workbook.SheetNames.length} of ${tabCount} tabs`,
+      title: `Partial download — ${workbook.SheetNames.length} of ${tabCountInLink} tabs`,
       message:
-        'Some auditor tabs may be missing. Re-share the link as Viewer and sync again.',
+        'Could not download every auditor tab. Share the whole workbook: Anyone with the link → Viewer (not Restricted), then sync again.',
       failedTabs: sheetSummary.filter((s) => s.status !== 'loaded'),
       partial: true,
     };
@@ -248,9 +296,9 @@ export const fetchAllExpenseVouchers = async (url) => {
     sheetSummary,
     matricesBySheet,
     tabs,
-    spreadsheetId: id,
+    spreadsheetId,
     totalSheets: workbook.SheetNames.length,
-    totalTabsInWorkbook: tabCount,
+    totalTabsInWorkbook: tabCountInLink,
     totalAuditors: vouchers.length,
     syncError,
   };

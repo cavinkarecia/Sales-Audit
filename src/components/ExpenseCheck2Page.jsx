@@ -42,7 +42,7 @@ const ExpenseCheck2Page = () => {
     try {
       const result = await fetchAllExpenseVouchers(expenseSpreadsheetUrl.trim());
       setSyncStatus(
-        `Downloaded ${result.totalSheets} tab(s) — ${result.totalTabsInWorkbook} in link. Analyzing bill images per auditor…`,
+        `Downloaded ${result.totalSheets} auditor tab(s) from ${result.totalTabsInWorkbook} tab(s) in workbook. Analyzing bill images…`,
       );
       const enriched = await enrichAllVouchersWithImages(
         result.vouchers,
