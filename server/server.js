@@ -350,6 +350,14 @@ const fetchPublishedAsXlsx = async (id) => {
   return { ok: true, buf: Buffer.from(out) };
 };
 
+const parseGidsFromHtmlview = (html) => {
+  const gids = [...new Set([...html.matchAll(/[?&#]gid=(\d+)/g)].map((m) => m[1]))];
+  return gids.map((gid, i) => ({
+    gid,
+    name: gid === '0' ? 'Sheet1' : `Tab-${i + 1}`,
+  }));
+};
+
 const listWorkbookTabs = async (id) => {
   const htmlUrls = [
     `https://docs.google.com/spreadsheets/d/${id}/edit?usp=sharing`,
@@ -381,6 +389,30 @@ const listWorkbookTabs = async (id) => {
   }
 
   const merged = mergeTabLists(...collected);
+
+  // htmlview lists every tab gid even when tab names are not in the HTML
+  if (merged.length <= 1) {
+    for (const htmlUrl of [
+      `https://docs.google.com/spreadsheets/d/${id}/htmlview`,
+      `https://docs.google.com/spreadsheets/d/${id}/htmlview?gid=0`,
+    ]) {
+      try {
+        const htmlResp = await fetch(htmlUrl, {
+          redirect: 'follow',
+          headers: SHEET_FETCH_HEADERS,
+        });
+        if (!htmlResp.ok) continue;
+        const html = await htmlResp.text();
+        const fromGids = parseGidsFromHtmlview(html);
+        if (fromGids.length > merged.length) {
+          return mergeTabLists(merged, fromGids);
+        }
+      } catch {
+        /* try next */
+      }
+    }
+  }
+
   if (merged.length) return merged;
   return [{ gid: '0', name: 'Sheet1' }];
 };
