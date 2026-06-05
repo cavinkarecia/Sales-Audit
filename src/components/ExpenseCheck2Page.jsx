@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Bot, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
@@ -32,28 +32,44 @@ const ExpenseCheck2Page = () => {
   const [aiReport, setAiReport] = useState('');
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
+  const [liveBuild, setLiveBuild] = useState('');
+
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => r.json())
+      .then((h) => setLiveBuild(h.build || ''))
+      .catch(() => {});
+  }, []);
 
   const handleSync = async () => {
     if (!expenseSpreadsheetUrl.trim()) return;
     setIsFetching(true);
     setSyncError(null);
     setAiReport('');
-    setSyncStatus('Listing all tabs in workbook…');
+    setExpenseVouchers([]);
+    setExpenseSheetSummary([]);
+    setSyncStatus('Server: listing all tabs and downloading every auditor sheet…');
     try {
       const result = await fetchAllExpenseVouchers(expenseSpreadsheetUrl.trim());
+      setExpenseSheetSummary(result.sheetSummary || []);
+      setSyncError(result.syncError || null);
       setSyncStatus(
-        `Downloaded ${result.totalSheets} auditor tab(s) from ${result.totalTabsInWorkbook} tab(s) in workbook. Analyzing bill images…`,
+        `Parsed ${result.totalAuditors} auditor(s) from ${result.totalTabsInWorkbook} tabs. Analyzing bill images (0/${result.vouchers.length})…`,
       );
       const enriched = await enrichAllVouchersWithImages(
         result.vouchers,
         result.tabs,
         result.spreadsheetId,
         result.matricesBySheet,
+        (n, total, name) => {
+          setSyncStatus(`Analyzing bill images (${n}/${total}): ${name}…`);
+        },
       );
       setExpenseVouchers(enriched);
-      setExpenseSheetSummary(result.sheetSummary || []);
-      setSyncError(result.syncError || null);
-      setSyncStatus(`Done — ${enriched.length} auditor(s) checked with image analysis.`);
+      localStorage.setItem('sales_audit_expense_v3_build', result.build || liveBuild || '');
+      setSyncStatus(
+        `Done — ${enriched.length} auditor(s) from ${result.totalTabsInWorkbook} tabs. Build: ${result.build || liveBuild || 'live'}`,
+      );
     } catch (err) {
       console.error(err);
       setSyncError(err.message || 'Sync failed');
@@ -106,7 +122,19 @@ const ExpenseCheck2Page = () => {
           <ArrowLeft size={16} /> Full Dashboard
         </Link>
         <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Expense Check 2</h1>
+        {liveBuild && (
+          <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+            Server build: {liveBuild}
+          </span>
+        )}
       </div>
+
+      {expenseVouchers.length > 0 && (
+        <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem' }}>
+          Showing {expenseVouchers.length} auditor(s). If this looks wrong, click <strong>Fetch all auditor sheets</strong> again
+          (old results are not reused after sync).
+        </p>
+      )}
 
       <SheetLinkUpload
         title="Upload expense claim workbook"

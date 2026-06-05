@@ -135,10 +135,18 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
   };
 };
 
-export const enrichAllVouchersWithImages = async (vouchers, tabs, spreadsheetId, matricesBySheet) => {
+export const enrichAllVouchersWithImages = async (
+  vouchers,
+  tabs,
+  spreadsheetId,
+  matricesBySheet,
+  onProgress,
+) => {
   const out = [];
-  for (const v of vouchers) {
+  for (let i = 0; i < vouchers.length; i++) {
+    const v = vouchers[i];
     const matrix = matricesBySheet[v.sheetName] || [];
+    onProgress?.(i + 1, vouchers.length, v.auditorName);
     out.push(await enrichVoucherWithImages(v, tabs, spreadsheetId, matrix));
   }
   return out;

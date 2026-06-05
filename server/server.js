@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import fs from 'node:fs';
 import XLSX from 'xlsx';
+import { syncExpenseWorkbook } from './expenseSync.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -388,28 +389,23 @@ const listWorkbookTabs = async (id) => {
     /* feed optional */
   }
 
-  const merged = mergeTabLists(...collected);
+  let merged = mergeTabLists(...collected);
 
-  // htmlview lists every tab gid even when tab names are not in the HTML
-  if (merged.length <= 1) {
-    for (const htmlUrl of [
-      `https://docs.google.com/spreadsheets/d/${id}/htmlview`,
-      `https://docs.google.com/spreadsheets/d/${id}/htmlview?gid=0`,
-    ]) {
-      try {
-        const htmlResp = await fetch(htmlUrl, {
-          redirect: 'follow',
-          headers: SHEET_FETCH_HEADERS,
-        });
-        if (!htmlResp.ok) continue;
-        const html = await htmlResp.text();
-        const fromGids = parseGidsFromHtmlview(html);
-        if (fromGids.length > merged.length) {
-          return mergeTabLists(merged, fromGids);
-        }
-      } catch {
-        /* try next */
-      }
+  // Always merge htmlview gids — workbook may have 30+ auditor tabs
+  for (const htmlUrl of [
+    `https://docs.google.com/spreadsheets/d/${id}/htmlview`,
+    `https://docs.google.com/spreadsheets/d/${id}/htmlview?gid=0`,
+  ]) {
+    try {
+      const htmlResp = await fetch(htmlUrl, {
+        redirect: 'follow',
+        headers: SHEET_FETCH_HEADERS,
+      });
+      if (!htmlResp.ok) continue;
+      const html = await htmlResp.text();
+      merged = mergeTabLists(merged, parseGidsFromHtmlview(html));
+    } catch {
+      /* try next */
     }
   }
 
@@ -569,6 +565,17 @@ If not a ticket, skip it.`,
       imageCount: imageUrls.length,
       raw: `Analyzed ${imageUrls.length} image(s), found ${allTickets.length} ticket amount(s)`,
     });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+app.post('/api/expense/sync', async (req, res) => {
+  const url = String(req.body?.url || req.body?.id || '').trim();
+  if (!url) return res.status(400).json({ error: 'Missing spreadsheet url' });
+  try {
+    const result = await syncExpenseWorkbook(url, listWorkbookTabs);
+    res.json({ ...result, build: readBuildId() });
   } catch (err) {
     res.status(502).json({ error: String(err?.message || err) });
   }

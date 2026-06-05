@@ -1,8 +1,6 @@
 import * as XLSX from 'xlsx';
 import { parseExcelDate } from './sheetFetcher.js';
 import { extractSpreadsheetId } from './spreadsheetUrl.js';
-import { downloadSpreadsheetXlsx } from './sheetDownload.js';
-import { fetchSpreadsheetTabs } from './sheetTabsApi.js';
 
 const pad = (n) => String(n).padStart(2, '0');
 
@@ -316,140 +314,25 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   };
 };
 
-const fetchTabMatrix = async (spreadsheetId, gid) => {
-  const res = await fetch(
-    `/api/sheet/tab-csv?id=${encodeURIComponent(spreadsheetId)}&gid=${encodeURIComponent(gid)}`,
-  );
-  if (!res.ok) return null;
-  const csv = await res.text();
-  if (!csv?.trim()) return null;
-  const parsed = XLSX.read(csv, { type: 'string' });
-  const first = parsed.SheetNames[0];
-  if (!first) return null;
-  return XLSX.utils.sheet_to_json(parsed.Sheets[first], {
-    header: 1,
-    raw: false,
-    defval: '',
-  });
-};
-
-const buildWorkbookFromTabs = async (spreadsheetId, tabs) => {
-  const merged = XLSX.utils.book_new();
-  let loaded = 0;
-  for (let i = 0; i < tabs.length; i++) {
-    const tab = tabs[i];
-    const matrix = await fetchTabMatrix(spreadsheetId, tab.gid);
-    if (!matrix?.length) continue;
-    const ws = XLSX.utils.aoa_to_sheet(matrix);
-    const safeName = String(tab.name || `Sheet${i + 1}`)
-      .replace(/[\\/?*[\]:]/g, ' ')
-      .trim()
-      .slice(0, 31);
-    XLSX.utils.book_append_sheet(merged, ws, safeName || `Sheet${i + 1}`);
-    loaded++;
-  }
-  return loaded > 0 ? merged : null;
-};
-
-/**
- * One link (any tab/gid) → entire workbook: list all tabs, download every auditor sheet.
- */
+/** Server sync (preferred) — downloads all tabs on Render, not in the browser. */
 export const fetchAllExpenseVouchers = async (url) => {
   const spreadsheetId = extractSpreadsheetId(url);
   if (!spreadsheetId) {
     throw new Error('Invalid Google Sheets URL — paste the full spreadsheet link.');
   }
 
-  let tabs = [];
-  try {
-    tabs = await fetchSpreadsheetTabs(spreadsheetId);
-  } catch (e) {
-    console.warn('Tab list unavailable:', e.message);
-  }
-
-  let workbook = null;
-
-  // Prefer per-tab CSV when we know multiple tabs — most reliable for full workbook.
-  if (tabs.length > 1) {
-    workbook = await buildWorkbookFromTabs(spreadsheetId, tabs);
-  }
-
-  if (!workbook) {
-    const { buffer } = await downloadSpreadsheetXlsx(url, { allTabs: true });
-    workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
-    if (tabs.length > 1 && workbook.SheetNames.length < tabs.length) {
-      const merged = await buildWorkbookFromTabs(spreadsheetId, tabs);
-      if (merged && merged.SheetNames.length > workbook.SheetNames.length) {
-        workbook = merged;
-      }
-    }
-  }
-
-  const matricesBySheet = {};
-  const vouchers = [];
-  const sheetSummary = [];
-
-  workbook.SheetNames.forEach((sheetName) => {
-    const ws = workbook.Sheets[sheetName];
-    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
-    matricesBySheet[sheetName] = matrix;
-    const parsed = parseVoucherSheet(matrix, sheetName);
-
-    if (parsed) {
-      vouchers.push(parsed);
-      sheetSummary.push({
-        sheetName,
-        auditorName: parsed.auditorName,
-        employeeNo: parsed.employeeNo,
-        status: 'loaded',
-        dateRows: parsed.dateBlocks.length,
-        declaredTotal: parsed.declaredTotal,
-        reason: `${parsed.dateBlocks.length} date row(s) · mode ${parsed.voucherMode}`,
-      });
-    } else {
-      sheetSummary.push({
-        sheetName,
-        status: 'skipped',
-        reason: looksLikeVoucher(matrix)
-          ? 'Voucher layout found but missing Requested By, amounts, or date rows'
-          : 'Index/summary tab (not an auditor voucher)',
-      });
-    }
+  const res = await fetch('/api/expense/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: url.trim() }),
   });
 
-  const tabCountInLink = tabs.length || workbook.SheetNames.length;
-  let syncError = null;
-
-  if (vouchers.length === 0 && workbook.SheetNames.length > 0) {
-    syncError = {
-      title: 'No auditor vouchers parsed',
-      message:
-        workbook.SheetNames.length === 1
-          ? 'Only 1 tab returned. Share workbook as Anyone with link → Viewer so ALL auditor tabs download.'
-          : 'Tabs downloaded but none matched the Expenses Claim Voucher form.',
-      failedTabs: sheetSummary,
-    };
-  } else if (tabCountInLink > 1 && workbook.SheetNames.length < tabCountInLink) {
-    syncError = {
-      title: `Partial download — ${workbook.SheetNames.length} of ${tabCountInLink} tabs`,
-      message:
-        'Could not download every auditor tab. Share the whole workbook: Anyone with the link → Viewer (not Restricted), then sync again.',
-      failedTabs: sheetSummary.filter((s) => s.status !== 'loaded'),
-      partial: true,
-    };
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `Sync failed (HTTP ${res.status})`);
   }
 
-  return {
-    vouchers,
-    sheetSummary,
-    matricesBySheet,
-    tabs,
-    spreadsheetId,
-    totalSheets: workbook.SheetNames.length,
-    totalTabsInWorkbook: tabCountInLink,
-    totalAuditors: vouchers.length,
-    syncError,
-  };
+  return res.json();
 };
 
 export const DEFAULT_EXPENSE_SHEET_URL =
