@@ -318,8 +318,18 @@ const ExpenseCheck2Page = () => {
                         <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.declaredTotal}</div>
                       </div>
                       <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Manual date-wise</span>
-                        <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.manualDateWiseSum}</div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Date-wise travel+local</span>
+                        <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.manualTicketsSum ?? result.voucher.totals.manualDateWiseSum}</div>
+                      </div>
+                      {result.voucher.totals.manualPetrolSum > 0 && (
+                        <div>
+                          <span style={{ color: 'var(--text-secondary)' }}>Date-wise petrol</span>
+                          <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.manualPetrolSum}</div>
+                        </div>
+                      )}
+                      <div>
+                        <span style={{ color: 'var(--text-secondary)' }}>Header Tickets+Local</span>
+                        <div>₹{result.voucher.totals.headerTicketsLocal}</div>
                       </div>
                       <div>
                         <span style={{ color: 'var(--text-secondary)' }}>From ticket images (AI)</span>
@@ -382,7 +392,8 @@ const ExpenseCheck2Page = () => {
                           <th style={{ padding: 6 }}>Date</th>
                           <th style={{ padding: 6 }}>Travel</th>
                           <th style={{ padding: 6 }}>Local</th>
-                          <th style={{ padding: 6 }}>Manual total</th>
+                          <th style={{ padding: 6 }}>Stay</th>
+                          <th style={{ padding: 6 }}>Grand total</th>
                           <th style={{ padding: 6 }}>From tickets</th>
                           <th style={{ padding: 6 }}>Match</th>
                         </tr>
@@ -391,8 +402,9 @@ const ExpenseCheck2Page = () => {
                         {result.dateResults.map((d) => (
                           <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
                             <td style={{ padding: 6 }}>{d.date}</td>
-                            <td style={{ padding: 6 }}>₹{d.travel}</td>
+                            <td style={{ padding: 6 }}>₹{d.travel || d.petrolTravel || 0}</td>
                             <td style={{ padding: 6 }}>₹{d.localConveyance}</td>
+                            <td style={{ padding: 6 }}>₹{d.accommodation || '—'}</td>
                             <td style={{ padding: 6 }}>₹{d.grandTotal}</td>
                             <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
                             <td style={{ padding: 6, color: d.manualMatchesImages === true ? '#3fb950' : d.manualMatchesImages === false ? '#f85149' : '#8b949e' }}>

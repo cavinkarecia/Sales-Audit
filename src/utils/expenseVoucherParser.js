@@ -26,9 +26,19 @@ const findCell = (matrix, needle) => {
   return null;
 };
 
-const findLabelInRow = (matrix, re) => {
-  for (let r = 0; r < matrix.length; r++) {
-    for (let c = 0; c < Math.min(4, (matrix[r] || []).length); c++) {
+const findCellInHeader = (matrix, needle, maxRow = 18) => {
+  const t = norm(needle);
+  for (let r = 0; r < Math.min(maxRow, matrix.length); r++) {
+    for (let c = 0; c < (matrix[r] || []).length; c++) {
+      if (norm(matrix[r][c]).includes(t)) return { r, c, row: matrix[r] };
+    }
+  }
+  return null;
+};
+
+const findLabelInHeader = (matrix, re, maxRow = 18) => {
+  for (let r = 0; r < Math.min(maxRow, matrix.length); r++) {
+    for (let c = 0; c < Math.min(6, (matrix[r] || []).length); c++) {
       if (re.test(String(matrix[r][c] || '').trim())) return { r, c, row: matrix[r] };
     }
   }
@@ -44,8 +54,11 @@ const valueAfterLabel = (hit) => {
   return '';
 };
 
+/** Amount in column D (index 3) or first positive number after label. */
 const amountAfterLabel = (hit) => {
   if (!hit?.row) return 0;
+  const direct = parseMoney(hit.row[3]);
+  if (direct > 0) return direct;
   for (let i = hit.c + 1; i < hit.row.length; i++) {
     const n = parseMoney(hit.row[i]);
     if (n > 0) return n;
@@ -57,16 +70,83 @@ const amountAfterLabel = (hit) => {
   return 0;
 };
 
-const parseDateCell = (cell) => {
+const parseAmountFromCell = (cell) => {
   const s = String(cell ?? '').trim();
+  if (!s) return 0;
+  const eqMatch = s.match(/=\s*([\d,]+(?:\.\d+)?)\s*$/);
+  if (eqMatch) return parseMoney(eqMatch[1]);
+  const nums = [...s.matchAll(/[\d,]+(?:\.\d+)?/g)].map((m) => parseMoney(m[0])).filter((n) => n > 0);
+  if (!nums.length) return parseMoney(s);
+  return nums[nums.length - 1];
+};
+
+const findAmountInRow = (row, labelTest) => {
+  for (let c = 0; c < (row || []).length; c++) {
+    const label = norm(row[c]);
+    if (!label || !labelTest(label)) continue;
+    for (let j = c + 1; j < row.length; j++) {
+      const amt = parseAmountFromCell(row[j]);
+      if (amt > 0) return amt;
+    }
+  }
+  return 0;
+};
+
+const parseExcelSerialDate = (serial) => {
+  const n = Number(serial);
+  if (!Number.isFinite(n) || n < 40000 || n > 55000) return null;
+  const days = Math.floor(n);
+  const utc = new Date(Date.UTC(1899, 11, days));
+  const y = utc.getUTCFullYear();
+  if (y < 2020 || y > 2035) return null;
+  return new Date(y, utc.getUTCMonth(), utc.getUTCDate());
+};
+
+const parseDateCell = (cell) => {
+  if (cell === null || cell === undefined || cell === '') return null;
+  const s = String(cell).trim();
   if (!s) return null;
+
+  if (typeof cell === 'number' || (/^\d{5}(\.\d+)?$/.test(s) && !s.includes('/'))) {
+    const serial = parseExcelSerialDate(cell);
+    if (serial) return serial;
+  }
+
   const d = parseExcelDate(cell);
-  if (d) return d;
-  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(s)) return parseExcelDate(s);
+  if (d && !Number.isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    if (y >= 2020 && y <= 2035) return d;
+  }
+
+  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(s)) {
+    const parts = s.split(/[/-]/);
+    const p0 = parseInt(parts[0], 10);
+    const p1 = parseInt(parts[1], 10);
+    let year = parseInt(parts[2], 10);
+    if (year < 100) year += 2000;
+    // HEPL vouchers use DD/MM/YY (India)
+    if (p0 >= 1 && p0 <= 31 && p1 >= 1 && p1 <= 12) {
+      return new Date(year, p1 - 1, p0);
+    }
+    const parsed = parseExcelDate(s);
+    if (parsed) return parsed;
+  }
+
   return null;
 };
 
 const isDateInColA = (matrix, r) => parseDateCell(matrix[r]?.[0]);
+
+const isTravelLabel = (n) =>
+  n === 'travel' || (n.startsWith('travel') && !n.includes('rs') && !n.includes('km'));
+
+const isLocalLabel = (n) => n.includes('localconv');
+const isAccLabel = (n) => n.includes('accom');
+const isGrandLabel = (n) => n.includes('grandtotal');
+const isDayTotalLabel = (n) => n === 'total';
+const isPetrolTravelLabel = (n) => n.includes('travelrs');
+const isKmLabel = (n) => n.includes('kmtraveled') || n.includes('kmtravel');
+const isFoodLabel = (n) => n === 'food';
 
 const looksLikeVoucher = (matrix) =>
   Boolean(
@@ -83,39 +163,76 @@ const parseDateWiseBlocks = (matrix) => {
 
     let travel = 0;
     let localConveyance = 0;
+    let accommodation = 0;
     let grandTotal = 0;
+    let petrolTravel = 0;
+    let kmTraveled = 0;
+    let food = 0;
+    let dayTotal = 0;
 
-    for (let rr = r + 1; rr < Math.min(r + 30, matrix.length); rr++) {
+    for (let rr = r + 1; rr < matrix.length; rr++) {
       if (isDateInColA(matrix, rr)) break;
       const row = matrix[rr] || [];
-      const label = norm(row[0] || row[1]);
-      if (!label) continue;
+      if (!row.some((c) => String(c ?? '').trim())) continue;
 
-      if (label === 'travel' || label.startsWith('travel')) {
-        travel = amountAfterLabel({ r: rr, c: 0, row });
-      }
-      if (label.includes('localconv') || label.includes('localconveyance')) {
-        localConveyance = amountAfterLabel({ r: rr, c: 0, row });
-      }
-      if (label.includes('grandtotal')) {
-        const g = amountAfterLabel({ r: rr, c: 0, row });
-        if (g > 0) grandTotal = g;
+      const t = findAmountInRow(row, isTravelLabel);
+      if (t > 0) travel = t;
+
+      const l = findAmountInRow(row, isLocalLabel);
+      if (l > 0) localConveyance = l;
+
+      const a = findAmountInRow(row, isAccLabel);
+      if (a > 0) accommodation = a;
+
+      const g = findAmountInRow(row, isGrandLabel);
+      if (g > 0) grandTotal = g;
+
+      const p = findAmountInRow(row, isPetrolTravelLabel);
+      if (p > 0) petrolTravel = p;
+
+      const dt = findAmountInRow(row, (n) => isDayTotalLabel(n) && !n.includes('thousand'));
+      if (dt > 0) dayTotal = dt;
+
+      const f = findAmountInRow(row, isFoodLabel);
+      if (f > 0) food = f;
+
+      for (let c = 0; c < row.length; c++) {
+        if (isKmLabel(norm(row[c]))) {
+          const kmCell = String(row[c + 1] ?? row[c] ?? '');
+          const kmMatch = kmCell.match(/(\d+(?:\.\d+)?)/);
+          if (kmMatch) kmTraveled = parseFloat(kmMatch[1]);
+        }
       }
     }
 
-    if (!grandTotal && (travel || localConveyance)) {
-      grandTotal = travel + localConveyance;
+    const isPetrolDay = petrolTravel > 0 || (dayTotal > 0 && travel === 0 && localConveyance === 0);
+    const ticketsSubtotal = travel + localConveyance;
+    const petrolDayAmount = petrolTravel || dayTotal;
+
+    if (!grandTotal) {
+      if (isPetrolDay) grandTotal = petrolDayAmount + accommodation + food;
+      else grandTotal = ticketsSubtotal + accommodation;
     }
 
-    if (travel || localConveyance || grandTotal) {
+    const ticketComparable = isPetrolDay ? petrolDayAmount : ticketsSubtotal;
+
+    if (ticketComparable > 0 || accommodation > 0 || grandTotal > 0) {
       blocks.push({
         date: toDateStr(date),
         dateKey: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
         travel,
         localConveyance,
+        accommodation,
+        food,
+        petrolTravel: petrolDayAmount,
+        kmTraveled,
         grandTotal,
-        computedSum: travel + localConveyance,
-        hasBusTrainHint: true,
+        dayTotal,
+        ticketsSubtotal,
+        ticketComparable,
+        computedSum: ticketsSubtotal + accommodation,
+        isPetrolDay,
+        hasBusTrainHint: !isPetrolDay && (travel > 0 || localConveyance > 0),
       });
     }
   }
@@ -143,13 +260,14 @@ const parseMapLegs = (matrix) => {
 export const parseVoucherSheet = (matrix, sheetName) => {
   if (!matrix?.length || !looksLikeVoucher(matrix)) return null;
 
-  const requestedBy = findCell(matrix, 'requested by');
-  const employeeNoHit = findCell(matrix, 'employee no');
-  const fuelRow = findCell(matrix, 'fuel expenses');
+  const requestedBy = findCellInHeader(matrix, 'requested by');
+  const employeeNoHit = findCellInHeader(matrix, 'employee no');
+  const fuelRow = findCellInHeader(matrix, 'fuel expenses');
   const ticketRow =
-    findCell(matrix, 'tickets') || findCell(matrix, 'local conv');
-  const accommodationRow = findCell(matrix, 'accommodation');
-  const totalRow = findLabelInRow(matrix, /^total$/i);
+    findCellInHeader(matrix, 'tickets') || findCellInHeader(matrix, 'local conv');
+  const accommodationRow =
+    findCellInHeader(matrix, 'accomdation') || findCellInHeader(matrix, 'accommodation');
+  const totalRow = findLabelInHeader(matrix, /^total$/i);
 
   const auditorName =
     (requestedBy ? valueAfterLabel(requestedBy) : '') || (sheetName || '').trim();
@@ -161,7 +279,22 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const declaredTotal = totalRow ? amountAfterLabel(totalRow) : 0;
 
   const dateBlocks = parseDateWiseBlocks(matrix);
-  const dateWiseBusTrainSum = dateBlocks.reduce((s, b) => s + b.grandTotal, 0);
+  const petrolDays = dateBlocks.filter((b) => b.isPetrolDay);
+  const busDays = dateBlocks.filter((b) => !b.isPetrolDay);
+
+  const dateWiseTicketsSum = busDays.reduce((s, b) => s + b.ticketComparable, 0);
+  const dateWisePetrolSum = petrolDays.reduce((s, b) => s + b.ticketComparable, 0);
+  const dateWiseAccommodationSum = dateBlocks.reduce((s, b) => s + b.accommodation, 0);
+  const dateWiseGrandSum = dateBlocks.reduce((s, b) => s + b.grandTotal, 0);
+  const dateWiseBusTrainSum = dateBlocks.reduce((s, b) => s + b.ticketsSubtotal, 0);
+
+  const voucherMode =
+    petrolDays.length && busDays.length
+      ? 'mixed'
+      : petrolDays.length
+        ? 'petrol'
+        : 'bus_train';
+
   const mapLegs = parseMapLegs(matrix);
 
   return {
@@ -174,13 +307,15 @@ export const parseVoucherSheet = (matrix, sheetName) => {
     declaredTotal,
     dateBlocks,
     dateWiseBusTrainSum,
+    dateWiseTicketsSum,
+    dateWisePetrolSum,
+    dateWiseAccommodationSum,
+    dateWiseGrandSum,
+    voucherMode,
     mapLegs,
   };
 };
 
-/**
- * One link → entire workbook: list all tabs, download all sheets, parse every auditor voucher.
- */
 const fetchTabMatrix = async (spreadsheetId, gid) => {
   const res = await fetch(
     `/api/sheet/tab-csv?id=${encodeURIComponent(spreadsheetId)}&gid=${encodeURIComponent(gid)}`,
@@ -193,9 +328,27 @@ const fetchTabMatrix = async (spreadsheetId, gid) => {
   if (!first) return null;
   return XLSX.utils.sheet_to_json(parsed.Sheets[first], {
     header: 1,
-    raw: true,
+    raw: false,
     defval: '',
   });
+};
+
+const buildWorkbookFromTabs = async (spreadsheetId, tabs) => {
+  const merged = XLSX.utils.book_new();
+  let loaded = 0;
+  for (let i = 0; i < tabs.length; i++) {
+    const tab = tabs[i];
+    const matrix = await fetchTabMatrix(spreadsheetId, tab.gid);
+    if (!matrix?.length) continue;
+    const ws = XLSX.utils.aoa_to_sheet(matrix);
+    const safeName = String(tab.name || `Sheet${i + 1}`)
+      .replace(/[\\/?*[\]:]/g, ' ')
+      .trim()
+      .slice(0, 31);
+    XLSX.utils.book_append_sheet(merged, ws, safeName || `Sheet${i + 1}`);
+    loaded++;
+  }
+  return loaded > 0 ? merged : null;
 };
 
 /**
@@ -214,37 +367,31 @@ export const fetchAllExpenseVouchers = async (url) => {
     console.warn('Tab list unavailable:', e.message);
   }
 
-  const { id, buffer } = await downloadSpreadsheetXlsx(url, { allTabs: true });
+  let workbook = null;
 
-  let workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+  // Prefer per-tab CSV when we know multiple tabs — most reliable for full workbook.
+  if (tabs.length > 1) {
+    workbook = await buildWorkbookFromTabs(spreadsheetId, tabs);
+  }
 
-  // If workbook export missed tabs, fetch each tab by gid from the tab list.
-  if (tabs.length > 1 && workbook.SheetNames.length < tabs.length) {
-    const merged = XLSX.utils.book_new();
-    let loaded = 0;
-    for (let i = 0; i < tabs.length; i++) {
-      const tab = tabs[i];
-      const matrix = await fetchTabMatrix(spreadsheetId, tab.gid);
-      if (!matrix?.length) continue;
-      const ws = XLSX.utils.aoa_to_sheet(matrix);
-      const safeName = String(tab.name || `Sheet${i + 1}`)
-        .replace(/[\\/?*[\]:]/g, ' ')
-        .trim()
-        .slice(0, 31);
-      XLSX.utils.book_append_sheet(merged, ws, safeName || `Sheet${i + 1}`);
-      loaded++;
-    }
-    if (loaded > workbook.SheetNames.length) {
-      workbook = merged;
+  if (!workbook) {
+    const { buffer } = await downloadSpreadsheetXlsx(url, { allTabs: true });
+    workbook = XLSX.read(new Uint8Array(buffer), { type: 'array' });
+    if (tabs.length > 1 && workbook.SheetNames.length < tabs.length) {
+      const merged = await buildWorkbookFromTabs(spreadsheetId, tabs);
+      if (merged && merged.SheetNames.length > workbook.SheetNames.length) {
+        workbook = merged;
+      }
     }
   }
+
   const matricesBySheet = {};
   const vouchers = [];
   const sheetSummary = [];
 
   workbook.SheetNames.forEach((sheetName) => {
     const ws = workbook.Sheets[sheetName];
-    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+    const matrix = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
     matricesBySheet[sheetName] = matrix;
     const parsed = parseVoucherSheet(matrix, sheetName);
 
@@ -256,7 +403,8 @@ export const fetchAllExpenseVouchers = async (url) => {
         employeeNo: parsed.employeeNo,
         status: 'loaded',
         dateRows: parsed.dateBlocks.length,
-        reason: `Voucher parsed — ${parsed.dateBlocks.length} date row(s)`,
+        declaredTotal: parsed.declaredTotal,
+        reason: `${parsed.dateBlocks.length} date row(s) · mode ${parsed.voucherMode}`,
       });
     } else {
       sheetSummary.push({

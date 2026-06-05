@@ -5,7 +5,6 @@ const parseMoney = (val) => {
   return Number.isNaN(n) ? 0 : n;
 };
 
-/** IMAGE() formula and direct image URLs in cells. */
 export const extractImageUrlsFromMatrix = (matrix) => {
   const urls = new Set();
   for (const row of matrix || []) {
@@ -26,7 +25,7 @@ export const analyzeBillImages = async (imageUrls, context = {}) => {
   const res = await fetch('/api/ai/analyze-bill-images', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageUrls: imageUrls.slice(0, 8), context }),
+    body: JSON.stringify({ imageUrls: imageUrls.slice(0, 12), context }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -37,21 +36,30 @@ export const analyzeBillImages = async (imageUrls, context = {}) => {
 
 const normDate = (d) => String(d || '').replace(/[^0-9]/g, '');
 
+const datesMatch = (a, b) => {
+  const na = normDate(a);
+  const nb = normDate(b);
+  if (!na || !nb) return false;
+  return na === nb || na.slice(-6) === nb.slice(-6) || na.includes(nb.slice(-4)) || nb.includes(na.slice(-4));
+};
+
 export const attachTicketAnalysisToDates = (dateBlocks, tickets) => {
   return dateBlocks.map((block) => {
-    const blockKey = normDate(block.date);
-    const matched = tickets.filter((t) => {
-      const tk = normDate(t.date);
-      return tk && blockKey && (tk.includes(blockKey.slice(-6)) || blockKey.includes(tk.slice(-6)));
-    });
+    const matched = tickets.filter((t) => datesMatch(t.date, block.date));
     const ticketSum = matched.reduce((s, t) => s + (t.amount || 0), 0);
-    const allTickets = tickets.length ? tickets : [];
+    const compareAmount = block.isPetrolDay ? block.petrolTravel : block.travel;
+    const compareSubtotal = block.ticketComparable || block.travel + block.localConveyance;
+
     return {
       ...block,
       ticketsFromImages: matched,
       ticketAmountFromImages: ticketSum,
       manualMatchesImages:
-        ticketSum > 0 ? Math.abs(ticketSum - block.grandTotal) <= 5 : null,
+        ticketSum > 0
+          ? Math.abs(ticketSum - compareAmount) <= 5 ||
+            Math.abs(ticketSum - compareSubtotal) <= 5
+          : null,
+      imageCompareTarget: block.isPetrolDay ? compareAmount : compareSubtotal,
     };
   });
 };
@@ -69,6 +77,7 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
         auditorName: voucher.auditorName,
         employeeNo: voucher.employeeNo,
         sheetName: voucher.sheetName,
+        voucherMode: voucher.voucherMode,
       });
     } catch (e) {
       analysis.note = e.message;
@@ -82,17 +91,21 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
     analysis.tickets || [],
   );
 
-  const manualBusTrain = voucher.dateWiseBusTrainSum;
+  const manualTickets = voucher.dateWiseTicketsSum || 0;
+  const manualPetrol = voucher.dateWisePetrolSum || 0;
+  const manualTravelTotal = manualTickets + manualPetrol;
   const fromTickets = analysis.totalFromTickets || 0;
-  const correctBusTrain = fromTickets > 0 ? fromTickets : manualBusTrain;
 
-  const petrolExpected = voucher.mapLegs.reduce((s, leg) => {
-    const rate = leg.roundTrip ? 8 : 4;
-    return s + (leg.kms || 0) * rate;
-  }, 0);
+  const busTrainCorrect = fromTickets > 0 ? fromTickets : manualTravelTotal;
+  const stayAmount = Math.max(
+    voucher.accommodationTotal,
+    voucher.dateWiseAccommodationSum || 0,
+  );
+  const fuelAmount = Math.max(voucher.fuelTotal, manualPetrol);
 
-  const correctTotal =
-    correctBusTrain + voucher.accommodationTotal + (voucher.fuelTotal > 0 ? voucher.fuelTotal : 0);
+  const correctTotal = busTrainCorrect + stayAmount + fuelAmount;
+
+  const headerParts = voucher.fuelTotal + voucher.ticketsTotal + voucher.accommodationTotal;
 
   return {
     ...voucher,
@@ -102,12 +115,20 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
     dateBlocks: dateBlocksWithTickets,
     totals: {
       declaredTotal: voucher.declaredTotal,
-      manualDateWiseSum: manualBusTrain,
+      headerParts,
+      manualDateWiseSum: manualTravelTotal,
+      manualTicketsSum: manualTickets,
+      manualPetrolSum: manualPetrol,
+      dateWiseAccommodationSum: voucher.dateWiseAccommodationSum,
+      dateWiseGrandSum: voucher.dateWiseGrandSum,
       headerTicketsLocal: voucher.ticketsTotal,
       fromTicketImages: fromTickets,
       fuelHeader: voucher.fuelTotal,
-      accommodation: voucher.accommodationTotal,
-      petrolExpectedFromMap: petrolExpected,
+      accommodation: stayAmount,
+      petrolExpectedFromMap: voucher.mapLegs.reduce((s, leg) => {
+        const rate = leg.roundTrip ? 8 : 4;
+        return s + (leg.kms || 0) * rate;
+      }, 0),
       correctTotal,
       difference: voucher.declaredTotal - correctTotal,
     },
