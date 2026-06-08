@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Bot, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bot, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
 import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
@@ -13,6 +13,24 @@ import { analyzeExpenseWithAI } from '../utils/deepseekAgent';
 
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
+
+const sumDateResults = (rows) =>
+  rows.reduce(
+    (acc, d) => {
+      const travel = d.travel || d.petrolTravel || 0;
+      const local = d.localConveyance || 0;
+      const travelLocal = d.ticketComparable ?? d.ticketsSubtotal ?? travel + local;
+      return {
+        travel: acc.travel + travel,
+        local: acc.local + local,
+        stay: acc.stay + (d.accommodation || 0),
+        grand: acc.grand + (d.grandTotal || 0),
+        fromTickets: acc.fromTickets + (d.ticketAmountFromImages || 0),
+        travelLocal: acc.travelLocal + travelLocal,
+      };
+    },
+    { travel: 0, local: 0, stay: 0, grand: 0, fromTickets: 0, travelLocal: 0 },
+  );
 
 const ExpenseCheck2Page = () => {
   const {
@@ -33,6 +51,16 @@ const ExpenseCheck2Page = () => {
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
   const [liveBuild, setLiveBuild] = useState('');
+  const [openDateDetail, setOpenDateDetail] = useState(() => new Set());
+
+  const toggleDateDetail = (id) => {
+    setOpenDateDetail((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetch('/api/health')
@@ -413,35 +441,159 @@ const ExpenseCheck2Page = () => {
 
                 {result.dateResults.length > 0 && (
                   <div style={{ marginTop: 12 }}>
-                    <h4 style={{ fontSize: '0.8rem', margin: '0 0 8px' }}>Date-wise detail</h4>
-                    <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                          <th style={{ padding: 6 }}>Date</th>
-                          <th style={{ padding: 6 }}>Travel</th>
-                          <th style={{ padding: 6 }}>Local</th>
-                          <th style={{ padding: 6 }}>Stay</th>
-                          <th style={{ padding: 6 }}>Grand total</th>
-                          <th style={{ padding: 6 }}>From tickets</th>
-                          <th style={{ padding: 6 }}>Match</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {result.dateResults.map((d) => (
-                          <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
-                            <td style={{ padding: 6 }}>{d.date}</td>
-                            <td style={{ padding: 6 }}>₹{d.travel || d.petrolTravel || 0}</td>
-                            <td style={{ padding: 6 }}>₹{d.localConveyance}</td>
-                            <td style={{ padding: 6 }}>₹{d.accommodation || '—'}</td>
-                            <td style={{ padding: 6 }}>₹{d.grandTotal}</td>
-                            <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
-                            <td style={{ padding: 6, color: d.manualMatchesImages === true ? '#3fb950' : d.manualMatchesImages === false ? '#f85149' : '#8b949e' }}>
-                              {d.manualMatchesImages === true ? 'OK' : d.manualMatchesImages === false ? 'Mismatch' : '—'}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                    <button
+                      type="button"
+                      onClick={() => toggleDateDetail(result.id)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        padding: '8px 14px',
+                        borderRadius: 8,
+                        border: '1px solid var(--border-main)',
+                        background: openDateDetail.has(result.id)
+                          ? 'rgba(88,166,255,0.12)'
+                          : 'transparent',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        width: '100%',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <span>
+                        Date-wise detail ({result.dateResults.length} days)
+                      </span>
+                      {openDateDetail.has(result.id) ? (
+                        <ChevronUp size={16} />
+                      ) : (
+                        <ChevronDown size={16} />
+                      )}
+                    </button>
+
+                    {openDateDetail.has(result.id) && (() => {
+                      const dt = sumDateResults(result.dateResults);
+                      const headerTravelLocal =
+                        result.voucher.totals?.manualTicketsSum ??
+                        result.voucher.totals?.manualDateWiseSum ??
+                        result.voucher.dateWiseTicketsSum ??
+                        0;
+                      const headerPetrol = result.voucher.totals?.manualPetrolSum ?? 0;
+                      const headerStay =
+                        result.voucher.totals?.accommodation ??
+                        result.voucher.dateWiseAccommodationSum ??
+                        0;
+                      const travelLocalOk =
+                        headerPetrol > 0
+                          ? Math.abs(dt.travelLocal - headerPetrol) <= 10
+                          : Math.abs(dt.travelLocal - headerTravelLocal) <= 10;
+                      const stayOk = Math.abs(dt.stay - headerStay) <= 10;
+
+                      return (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 10,
+                            borderRadius: 8,
+                            border: '1px solid var(--border-main)',
+                            overflowX: 'auto',
+                          }}
+                        >
+                          <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                                <th style={{ padding: 6 }}>Date</th>
+                                <th style={{ padding: 6 }}>Travel</th>
+                                <th style={{ padding: 6 }}>Local</th>
+                                <th style={{ padding: 6 }}>Stay</th>
+                                <th style={{ padding: 6 }}>Grand total</th>
+                                <th style={{ padding: 6 }}>From tickets</th>
+                                <th style={{ padding: 6 }}>Match</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {result.dateResults.map((d) => (
+                                <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
+                                  <td style={{ padding: 6 }}>{d.date}</td>
+                                  <td style={{ padding: 6 }}>₹{d.travel || d.petrolTravel || 0}</td>
+                                  <td style={{ padding: 6 }}>₹{d.localConveyance}</td>
+                                  <td style={{ padding: 6 }}>₹{d.accommodation || '—'}</td>
+                                  <td style={{ padding: 6 }}>₹{d.grandTotal}</td>
+                                  <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
+                                  <td
+                                    style={{
+                                      padding: 6,
+                                      color:
+                                        d.manualMatchesImages === true
+                                          ? '#3fb950'
+                                          : d.manualMatchesImages === false
+                                            ? '#f85149'
+                                            : '#8b949e',
+                                    }}
+                                  >
+                                    {d.manualMatchesImages === true
+                                      ? 'OK'
+                                      : d.manualMatchesImages === false
+                                        ? 'Mismatch'
+                                        : '—'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                            <tfoot>
+                              <tr
+                                style={{
+                                  borderTop: '2px solid var(--accent-primary)',
+                                  fontWeight: 700,
+                                  background: 'rgba(88,166,255,0.08)',
+                                }}
+                              >
+                                <td style={{ padding: 8 }}>TOTAL</td>
+                                <td style={{ padding: 8 }}>₹{dt.travel}</td>
+                                <td style={{ padding: 8 }}>₹{dt.local}</td>
+                                <td style={{ padding: 8 }}>₹{dt.stay}</td>
+                                <td style={{ padding: 8 }}>₹{dt.grand}</td>
+                                <td style={{ padding: 8 }}>
+                                  ₹{dt.fromTickets > 0 ? dt.fromTickets : '—'}
+                                </td>
+                                <td style={{ padding: 8 }}>—</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                          <div
+                            style={{
+                              marginTop: 10,
+                              padding: '8px 10px',
+                              borderRadius: 6,
+                              background: 'rgba(88,166,255,0.06)',
+                              fontSize: '0.75rem',
+                              display: 'flex',
+                              flexWrap: 'wrap',
+                              gap: 12,
+                            }}
+                          >
+                            <span>
+                              Travel + Local total:{' '}
+                              <strong style={{ color: travelLocalOk ? '#3fb950' : '#f85149' }}>
+                                ₹{dt.travelLocal}
+                              </strong>
+                              {' '}(header ₹{headerPetrol > 0 ? headerPetrol : headerTravelLocal})
+                            </span>
+                            <span>
+                              Stay total:{' '}
+                              <strong style={{ color: stayOk ? '#3fb950' : '#f85149' }}>
+                                ₹{dt.stay}
+                              </strong>
+                              {' '}(header ₹{headerStay})
+                            </span>
+                            <span>
+                              Grand total (all dates): <strong>₹{dt.grand}</strong>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
