@@ -19,6 +19,14 @@ const PETROL_RATE = 4;
 const petrolDayAmount = (d) => d.petrolTravel || 0;
 const petrolCalcFromKm = (d) => (d.kmTraveled > 0 ? Math.round(d.kmTraveled * PETROL_RATE) : 0);
 
+const splitLabel = (d) => {
+  if (d.splitType === 'petrol' || (d.isPetrolDay && petrolDayAmount(d) > 0)) return 'Petrol';
+  if (d.splitType === 'bus_train' || d.hasBusTrainHint) return 'Bus/Train';
+  if (d.splitType === 'mixed') return 'Mixed';
+  if (d.splitType === 'stay') return 'Stay';
+  return '—';
+};
+
 const formatPetrolCell = (d) => {
   const amount = petrolDayAmount(d);
   const calc = petrolCalcFromKm(d);
@@ -26,7 +34,7 @@ const formatPetrolCell = (d) => {
   if (d.kmTraveled > 0) {
     return `₹${amount || calc} (${d.kmTraveled} km × ₹${PETROL_RATE})`;
   }
-  return amount ? `₹${amount}` : `₹${calc}`;
+  return `₹${amount || calc}`;
 };
 
 const sumDateResults = (rows) =>
@@ -124,7 +132,7 @@ const ExpenseCheck2Page = () => {
         },
       );
       setExpenseVouchers(enriched);
-      localStorage.setItem('sales_audit_expense_v3_build', result.build || liveBuild || '');
+      localStorage.setItem('sales_audit_expense_v4_build', result.build || liveBuild || '');
       setSyncStatus(
         `Done — ${enriched.length} auditor(s) from ${result.totalTabsInWorkbook} tabs. Build: ${result.build || liveBuild || 'live'}`,
       );
@@ -549,6 +557,7 @@ const ExpenseCheck2Page = () => {
                             <thead>
                               <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
                                 <th style={{ padding: 6 }}>Date</th>
+                                <th style={{ padding: 6 }}>Split</th>
                                 <th style={{ padding: 6 }}>Travel</th>
                                 <th style={{ padding: 6 }}>Local</th>
                                 <th style={{ padding: 6 }}>Petrol (₹4/km)</th>
@@ -562,24 +571,50 @@ const ExpenseCheck2Page = () => {
                               {result.dateResults.map((d) => (
                                 <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
                                   <td style={{ padding: 6 }}>{d.date}</td>
+                                  <td
+                                    style={{
+                                      padding: 6,
+                                      color: splitLabel(d) === 'Petrol' ? '#58a6ff' : 'inherit',
+                                      fontWeight: splitLabel(d) === 'Petrol' ? 600 : 400,
+                                    }}
+                                  >
+                                    {splitLabel(d)}
+                                  </td>
                                   <td style={{ padding: 6 }}>₹{d.travel || '—'}</td>
                                   <td style={{ padding: 6 }}>₹{d.localConveyance || '—'}</td>
                                   <td
                                     style={{
                                       padding: 6,
                                       fontSize: '0.72rem',
+                                      fontWeight: petrolDayAmount(d) > 0 ? 700 : 400,
                                       color:
-                                        d.isPetrolDay &&
-                                        d.kmTraveled > 0 &&
-                                        Math.abs(petrolDayAmount(d) - petrolCalcFromKm(d)) > 10
-                                          ? '#f85149'
-                                          : 'inherit',
+                                        petrolDayAmount(d) > 0
+                                          ? '#3fb950'
+                                          : d.isPetrolDay &&
+                                              d.kmTraveled > 0 &&
+                                              Math.abs(petrolDayAmount(d) - petrolCalcFromKm(d)) > 10
+                                            ? '#f85149'
+                                            : 'inherit',
                                     }}
                                   >
                                     {formatPetrolCell(d)}
                                   </td>
                                   <td style={{ padding: 6 }}>₹{d.accommodation || '—'}</td>
-                                  <td style={{ padding: 6 }}>₹{d.grandTotal}</td>
+                                  <td style={{ padding: 6 }}>
+                                    ₹{d.grandTotal}
+                                    {splitLabel(d) === 'Petrol' && petrolDayAmount(d) > 0 && (
+                                      <span
+                                        style={{
+                                          display: 'block',
+                                          fontSize: '0.65rem',
+                                          color: 'var(--text-secondary)',
+                                          fontWeight: 400,
+                                        }}
+                                      >
+                                        = Petrol ₹{petrolDayAmount(d)}
+                                      </span>
+                                    )}
+                                  </td>
                                   <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
                                   <td
                                     style={{
@@ -610,6 +645,7 @@ const ExpenseCheck2Page = () => {
                                 }}
                               >
                                 <td style={{ padding: 8 }}>TOTAL</td>
+                                <td style={{ padding: 8 }}>—</td>
                                 <td style={{ padding: 8 }}>₹{dt.travel}</td>
                                 <td style={{ padding: 8 }}>₹{dt.local}</td>
                                 <td style={{ padding: 8 }}>

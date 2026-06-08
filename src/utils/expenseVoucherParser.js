@@ -219,6 +219,17 @@ const parseDateWiseBlocks = (matrix) => {
 
     const ticketComparable = isPetrolDay ? petrolDayAmount : ticketsSubtotal;
 
+    const splitType =
+      petrolDayAmount > 0 && ticketsSubtotal === 0
+        ? 'petrol'
+        : ticketsSubtotal > 0 && petrolDayAmount > 0
+          ? 'mixed'
+          : ticketsSubtotal > 0
+            ? 'bus_train'
+            : accommodation > 0
+              ? 'stay'
+              : 'other';
+
     if (ticketComparable > 0 || accommodation > 0 || grandTotal > 0) {
       blocks.push({
         date: toDateStr(date),
@@ -233,7 +244,14 @@ const parseDateWiseBlocks = (matrix) => {
         dayTotal,
         ticketsSubtotal,
         ticketComparable,
-        computedSum: ticketsSubtotal + accommodation,
+        computedSum: ticketsSubtotal + accommodation + petrolDayAmount,
+        splitType,
+        splitNote:
+          splitType === 'petrol'
+            ? 'Sheet row: Petrol (counts toward Fuel header)'
+            : splitType === 'bus_train'
+              ? 'Sheet rows: Travel + Local conveyance'
+              : '',
         isPetrolDay,
         hasBusTrainHint: !isPetrolDay && (travel > 0 || localConveyance > 0),
       });
