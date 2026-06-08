@@ -14,22 +14,52 @@ import { analyzeExpenseWithAI } from '../utils/deepseekAgent';
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
 
+const PETROL_RATE = 4;
+
+const petrolDayAmount = (d) => (d.isPetrolDay ? d.petrolTravel || d.dayTotal || 0 : 0);
+const petrolCalcFromKm = (d) => (d.kmTraveled > 0 ? Math.round(d.kmTraveled * PETROL_RATE) : 0);
+
+const formatPetrolCell = (d) => {
+  const amount = petrolDayAmount(d);
+  const calc = petrolCalcFromKm(d);
+  if (!amount && !calc) return '—';
+  if (d.kmTraveled > 0) {
+    return `₹${amount || calc} (${d.kmTraveled} km × ₹${PETROL_RATE})`;
+  }
+  return amount ? `₹${amount}` : `₹${calc}`;
+};
+
 const sumDateResults = (rows) =>
   rows.reduce(
     (acc, d) => {
-      const travel = d.travel || d.petrolTravel || 0;
+      const travel = d.travel || 0;
       const local = d.localConveyance || 0;
-      const travelLocal = d.ticketComparable ?? d.ticketsSubtotal ?? travel + local;
+      const petrol = petrolDayAmount(d);
+      const petrolCalc = petrolCalcFromKm(d);
+      const travelLocal = d.isPetrolDay
+        ? 0
+        : d.ticketComparable ?? d.ticketsSubtotal ?? travel + local;
       return {
         travel: acc.travel + travel,
         local: acc.local + local,
+        petrol: acc.petrol + petrol,
+        petrolCalc: acc.petrolCalc + petrolCalc,
         stay: acc.stay + (d.accommodation || 0),
         grand: acc.grand + (d.grandTotal || 0),
         fromTickets: acc.fromTickets + (d.ticketAmountFromImages || 0),
         travelLocal: acc.travelLocal + travelLocal,
       };
     },
-    { travel: 0, local: 0, stay: 0, grand: 0, fromTickets: 0, travelLocal: 0 },
+    {
+      travel: 0,
+      local: 0,
+      petrol: 0,
+      petrolCalc: 0,
+      stay: 0,
+      grand: 0,
+      fromTickets: 0,
+      travelLocal: 0,
+    },
   );
 
 const ExpenseCheck2Page = () => {
@@ -479,16 +509,31 @@ const ExpenseCheck2Page = () => {
                         result.voucher.totals?.manualDateWiseSum ??
                         result.voucher.dateWiseTicketsSum ??
                         0;
-                      const headerPetrol = result.voucher.totals?.manualPetrolSum ?? 0;
+                      const headerPetrol =
+                        result.voucher.totals?.manualPetrolSum ??
+                        result.voucher.totals?.fuelHeader ??
+                        result.voucher.fuelTotal ??
+                        0;
+                      const headerFuel = result.voucher.totals?.fuelHeader ?? result.voucher.fuelTotal ?? 0;
                       const headerStay =
                         result.voucher.totals?.accommodation ??
                         result.voucher.dateWiseAccommodationSum ??
                         0;
-                      const travelLocalOk =
-                        headerPetrol > 0
-                          ? Math.abs(dt.travelLocal - headerPetrol) <= 10
-                          : Math.abs(dt.travelLocal - headerTravelLocal) <= 10;
+                      const travelLocalOk = Math.abs(dt.travelLocal - headerTravelLocal) <= 10;
+                      const petrolOk =
+                        headerFuel > 0
+                          ? dt.petrol > 0
+                            ? Math.abs(dt.petrol - headerFuel) <= 50
+                            : Math.abs(dt.petrolCalc - headerFuel) <= 50
+                          : dt.petrol === 0;
+                      const petrolCalcOk =
+                        dt.petrol > 0 && dt.petrolCalc > 0
+                          ? Math.abs(dt.petrol - dt.petrolCalc) <= 10
+                          : true;
                       const stayOk = Math.abs(dt.stay - headerStay) <= 10;
+                      const combinedCheck =
+                        headerTravelLocal + headerFuel + headerStay;
+                      const combinedSum = dt.travelLocal + (dt.petrol || headerFuel) + dt.stay;
 
                       return (
                         <div
@@ -506,6 +551,7 @@ const ExpenseCheck2Page = () => {
                                 <th style={{ padding: 6 }}>Date</th>
                                 <th style={{ padding: 6 }}>Travel</th>
                                 <th style={{ padding: 6 }}>Local</th>
+                                <th style={{ padding: 6 }}>Petrol (₹4/km)</th>
                                 <th style={{ padding: 6 }}>Stay</th>
                                 <th style={{ padding: 6 }}>Grand total</th>
                                 <th style={{ padding: 6 }}>From tickets</th>
@@ -516,8 +562,22 @@ const ExpenseCheck2Page = () => {
                               {result.dateResults.map((d) => (
                                 <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
                                   <td style={{ padding: 6 }}>{d.date}</td>
-                                  <td style={{ padding: 6 }}>₹{d.travel || d.petrolTravel || 0}</td>
-                                  <td style={{ padding: 6 }}>₹{d.localConveyance}</td>
+                                  <td style={{ padding: 6 }}>₹{d.travel || '—'}</td>
+                                  <td style={{ padding: 6 }}>₹{d.localConveyance || '—'}</td>
+                                  <td
+                                    style={{
+                                      padding: 6,
+                                      fontSize: '0.72rem',
+                                      color:
+                                        d.isPetrolDay &&
+                                        d.kmTraveled > 0 &&
+                                        Math.abs(petrolDayAmount(d) - petrolCalcFromKm(d)) > 10
+                                          ? '#f85149'
+                                          : 'inherit',
+                                    }}
+                                  >
+                                    {formatPetrolCell(d)}
+                                  </td>
                                   <td style={{ padding: 6 }}>₹{d.accommodation || '—'}</td>
                                   <td style={{ padding: 6 }}>₹{d.grandTotal}</td>
                                   <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
@@ -552,6 +612,21 @@ const ExpenseCheck2Page = () => {
                                 <td style={{ padding: 8 }}>TOTAL</td>
                                 <td style={{ padding: 8 }}>₹{dt.travel}</td>
                                 <td style={{ padding: 8 }}>₹{dt.local}</td>
+                                <td style={{ padding: 8 }}>
+                                  ₹{dt.petrol || dt.petrolCalc || '—'}
+                                  {dt.petrolCalc > 0 && dt.petrol > 0 && (
+                                    <span
+                                      style={{
+                                        display: 'block',
+                                        fontSize: '0.68rem',
+                                        color: petrolCalcOk ? '#3fb950' : '#f85149',
+                                        fontWeight: 500,
+                                      }}
+                                    >
+                                      calc ₹{dt.petrolCalc}
+                                    </span>
+                                  )}
+                                </td>
                                 <td style={{ padding: 8 }}>₹{dt.stay}</td>
                                 <td style={{ padding: 8 }}>₹{dt.grand}</td>
                                 <td style={{ padding: 8 }}>
@@ -578,7 +653,20 @@ const ExpenseCheck2Page = () => {
                               <strong style={{ color: travelLocalOk ? '#3fb950' : '#f85149' }}>
                                 ₹{dt.travelLocal}
                               </strong>
-                              {' '}(header ₹{headerPetrol > 0 ? headerPetrol : headerTravelLocal})
+                              {' '}(header Tickets+Local ₹{headerTravelLocal})
+                            </span>
+                            <span>
+                              Petrol total:{' '}
+                              <strong style={{ color: petrolOk ? '#3fb950' : '#f85149' }}>
+                                ₹{dt.petrol || dt.petrolCalc || 0}
+                              </strong>
+                              {' '}(header Fuel ₹{headerFuel})
+                              {dt.petrolCalc > 0 && (
+                                <span style={{ color: petrolCalcOk ? '#3fb950' : '#f85149' }}>
+                                  {' '}
+                                  · km calc ₹{dt.petrolCalc}
+                                </span>
+                              )}
                             </span>
                             <span>
                               Stay total:{' '}
@@ -589,6 +677,20 @@ const ExpenseCheck2Page = () => {
                             </span>
                             <span>
                               Grand total (all dates): <strong>₹{dt.grand}</strong>
+                            </span>
+                            <span>
+                              Travel+Local + Fuel + Stay:{' '}
+                              <strong
+                                style={{
+                                  color:
+                                    Math.abs(combinedSum - combinedCheck) <= 50
+                                      ? '#3fb950'
+                                      : '#f85149',
+                                }}
+                              >
+                                ₹{combinedSum}
+                              </strong>
+                              {' '}(reconciliation ₹{combinedCheck})
                             </span>
                           </div>
                         </div>
