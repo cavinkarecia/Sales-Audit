@@ -143,6 +143,7 @@ const isAccLabel = (n) => n.includes('accom');
 const isGrandLabel = (n) => n.includes('grandtotal');
 const isDayTotalLabel = (n) => n === 'total';
 const isPetrolTravelLabel = (n) => n.includes('travelrs');
+const isPetrolLabel = (n) => n === 'petrol' || (n.endsWith('petrol') && !n.includes('expense'));
 const isKmLabel = (n) => n.includes('kmtraveled') || n.includes('kmtravel');
 const isFoodLabel = (n) => n === 'food';
 
@@ -188,6 +189,9 @@ const parseDateWiseBlocks = (matrix) => {
       const p = findAmountInRow(row, isPetrolTravelLabel);
       if (p > 0) petrolTravel = p;
 
+      const petrolRow = findAmountInRow(row, isPetrolLabel);
+      if (petrolRow > 0) petrolTravel = petrolRow;
+
       const dt = findAmountInRow(row, (n) => isDayTotalLabel(n) && !n.includes('thousand'));
       if (dt > 0) dayTotal = dt;
 
@@ -203,9 +207,10 @@ const parseDateWiseBlocks = (matrix) => {
       }
     }
 
-    const isPetrolDay = petrolTravel > 0 || (dayTotal > 0 && travel === 0 && localConveyance === 0);
+    const isPetrolDay =
+      petrolTravel > 0 || (dayTotal > 0 && travel === 0 && localConveyance === 0);
     const ticketsSubtotal = travel + localConveyance;
-    const petrolDayAmount = petrolTravel || dayTotal;
+    const petrolDayAmount = petrolTravel || (isPetrolDay && !petrolTravel ? dayTotal : 0);
 
     if (!grandTotal) {
       if (isPetrolDay) grandTotal = petrolDayAmount + accommodation + food;
@@ -280,8 +285,11 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const petrolDays = dateBlocks.filter((b) => b.isPetrolDay);
   const busDays = dateBlocks.filter((b) => !b.isPetrolDay);
 
-  const dateWiseTicketsSum = busDays.reduce((s, b) => s + b.ticketComparable, 0);
-  const dateWisePetrolSum = petrolDays.reduce((s, b) => s + b.ticketComparable, 0);
+  const dateWiseTicketsSum = dateBlocks.reduce(
+    (s, b) => s + (b.isPetrolDay ? 0 : b.ticketComparable),
+    0,
+  );
+  const dateWisePetrolSum = dateBlocks.reduce((s, b) => s + (b.petrolTravel || 0), 0);
   const dateWiseAccommodationSum = dateBlocks.reduce((s, b) => s + b.accommodation, 0);
   const dateWiseGrandSum = dateBlocks.reduce((s, b) => s + b.grandTotal, 0);
   const dateWiseBusTrainSum = dateBlocks.reduce((s, b) => s + b.ticketsSubtotal, 0);

@@ -16,7 +16,7 @@ const severityColor = (s) =>
 
 const PETROL_RATE = 4;
 
-const petrolDayAmount = (d) => (d.isPetrolDay ? d.petrolTravel || d.dayTotal || 0 : 0);
+const petrolDayAmount = (d) => d.petrolTravel || 0;
 const petrolCalcFromKm = (d) => (d.kmTraveled > 0 ? Math.round(d.kmTraveled * PETROL_RATE) : 0);
 
 const formatPetrolCell = (d) => {
