@@ -10,6 +10,7 @@ const STORAGE_KEYS = {
   expenseSummary: 'sales_audit_expense_v5_summary',
   expenseUrl: 'sales_audit_expense_v5_url',
   expenseSyncBuild: 'sales_audit_expense_v5_build',
+  expenseDateAudit: 'sales_audit_expense_v5_date_audit',
   allowanceLegacy: [
     'sales_audit_allowance_v3',
     'sales_audit_allowance_summary_v3',

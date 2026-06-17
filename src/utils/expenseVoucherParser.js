@@ -161,6 +161,22 @@ const isPetrolLabel = (n) => n === 'petrol' || (n.endsWith('petrol') && !n.inclu
 const isKmLabel = (n) => n.includes('kmtraveled') || n.includes('kmtravel') || n === 'km';
 const isFoodLabel = (n) => n === 'food';
 
+const findCellAnywhere = (matrix, needle, minRow = 0) => {
+  const t = norm(needle);
+  for (let r = minRow; r < matrix.length; r++) {
+    for (let c = 0; c < (matrix[r] || []).length; c++) {
+      if (norm(matrix[r][c]).includes(t)) return { r, c, row: matrix[r] };
+    }
+  }
+  return null;
+};
+
+const getDateScanStartRow = (matrix) => {
+  const totalHit = findCellInHeader(matrix, 'total');
+  if (totalHit) return totalHit.r + 2;
+  const cashier = findCellAnywhere(matrix, 'cashier');
+  if (cashier) return cashier.r + 1;
+  return 15;
 const looksLikeVoucher = (matrix) =>
   Boolean(
     findCellInHeader(matrix, 'requested by') ||
@@ -197,6 +213,7 @@ const findAmountInRow = (row, labelTest) => {
   for (let c = 0; c < (row || []).length; c++) {
     const label = norm(row[c]);
     if (!label || !labelTest(label)) continue;
+    // Amount to the right of label (same row)
     for (let j = c + 1; j < row.length; j++) {
       const amt = parseAmountFromCell(row[j]);
       if (amt > 0) return amt;
@@ -205,9 +222,47 @@ const findAmountInRow = (row, labelTest) => {
   return 0;
 };
 
+/** Regex fallback when labels are in images / odd layout — scan whole date block text. */
+const scanBlockTextFallback = (matrix, startR, endR) => {
+  const text = matrix
+    .slice(startR, endR)
+    .map((row) => (row || []).join('\t'))
+    .join('\n');
+
+  const out = { kmTraveled: 0, kmLegs: [], kmRaw: '', petrolTravel: 0, travelRsRaw: '' };
+
+  const kmPlus = text.match(/km\s*traveled[^\d]{0,30}(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)/i);
+  if (kmPlus) {
+    out.kmLegs = [parseFloat(kmPlus[1]), parseFloat(kmPlus[2])];
+    out.kmTraveled = parseFloat(kmPlus[3]);
+    out.kmRaw = `${kmPlus[1]} + ${kmPlus[2]} = ${kmPlus[3]}`;
+  } else {
+    const kmSingle = text.match(/km\s*traveled[^\d]{0,30}(\d+(?:\.\d+)?)/i);
+    if (kmSingle) {
+      out.kmTraveled = parseFloat(kmSingle[1]);
+      out.kmLegs = [out.kmTraveled];
+      out.kmRaw = kmSingle[1];
+    }
+  }
+
+  const travelRs = text.match(/travel\s*rs\.?[^\d]{0,30}(\d+)\s*\*\s*4\s*=\s*(\d+)/i);
+  if (travelRs) {
+    out.petrolTravel = parseFloat(travelRs[2]);
+    out.travelRsRaw = `${travelRs[1]} * 4 = ${travelRs[2]}`;
+  }
+
+  const petrolLine = text.match(/\bpetrol\b[^\d]{0,20}(\d+(?:\.\d+)?)/i);
+  if (petrolLine && !out.petrolTravel) {
+    out.petrolTravel = parseFloat(petrolLine[1]);
+  }
+
+  return out;
+};
+
 const parseDateWiseBlocks = (matrix) => {
   const blocks = [];
-  let r = 0;
+  const scanStart = getDateScanStartRow(matrix);
+  let r = scanStart;
 
   while (r < matrix.length) {
     const dateHit = findDateInRow(matrix[r]);
@@ -256,6 +311,40 @@ const parseDateWiseBlocks = (matrix) => {
       travelRsRaw = travelRsHit.raw;
     }
 
+    const travelBlk = findLabeledValueInBlock(matrix, r + 1, endR, isTravelLabel, (cell) =>
+      parseAmountFromCell(cell),
+    );
+    if (travelBlk > 0) travel = travelBlk;
+
+    const localBlk = findLabeledValueInBlock(matrix, r + 1, endR, isLocalLabel, (cell) =>
+      parseAmountFromCell(cell),
+    );
+    if (localBlk > 0) localConveyance = localBlk;
+
+    const accBlk = findLabeledValueInBlock(matrix, r + 1, endR, isAccLabel, (cell) =>
+      parseAmountFromCell(cell),
+    );
+    if (accBlk > 0) accommodation = accBlk;
+
+    const grandBlk = findLabeledValueInBlock(matrix, r + 1, endR, isGrandLabel, (cell) =>
+      parseAmountFromCell(cell),
+    );
+    if (grandBlk > 0) grandTotal = grandBlk;
+
+    const petrolBlk = findLabeledValueInBlock(matrix, r + 1, endR, isPetrolLabel, (cell) =>
+      parseAmountFromCell(cell),
+    );
+    if (petrolBlk > 0) petrolTravel = petrolBlk;
+
+    const totalBlk = findLabeledValueInBlock(
+      matrix,
+      r + 1,
+      endR,
+      (n) => isDayTotalLabel(n) && !n.includes('thousand'),
+      (cell) => parseAmountFromCell(cell),
+    );
+    if (totalBlk > 0) dayTotal = totalBlk;
+
     for (let rr = r + 1; rr < endR; rr++) {
       const row = matrix[rr] || [];
       if (!row.some((c) => String(c ?? '').trim())) continue;
@@ -293,6 +382,17 @@ const parseDateWiseBlocks = (matrix) => {
           }
         }
       }
+    }
+
+    const textFallback = scanBlockTextFallback(matrix, r + 1, endR);
+    if (!kmTraveled && textFallback.kmTraveled > 0) {
+      kmTraveled = textFallback.kmTraveled;
+      kmLegs = textFallback.kmLegs;
+      kmRaw = textFallback.kmRaw;
+    }
+    if (!petrolTravel && textFallback.petrolTravel > 0) {
+      petrolTravel = textFallback.petrolTravel;
+      travelRsRaw = textFallback.travelRsRaw;
     }
 
     const kmCalcAmount = kmTraveled > 0 ? Math.round(kmTraveled * PETROL_KM_RATE) : 0;

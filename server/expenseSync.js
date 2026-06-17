@@ -1,6 +1,7 @@
 import XLSX from 'xlsx';
 import { parseVoucherSheet } from '../src/utils/expenseVoucherParser.js';
 import { extractSpreadsheetId } from '../src/utils/spreadsheetUrl.js';
+import { auditAllVouchers } from '../src/utils/expenseDateAudit.js';
 
 const matrixFromCsv = (csv) => {
   const parsed = XLSX.read(csv, { type: 'string' });
@@ -120,6 +121,8 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs) => {
     };
   }
 
+  const dateAudit = auditAllVouchers(vouchers);
+
   return {
     vouchers,
     sheetSummary,
@@ -129,6 +132,7 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs) => {
     totalSheets: loadedTabs,
     totalTabsInWorkbook: tabCountInLink,
     totalAuditors: vouchers.length,
+    dateAudit,
     syncError,
     syncMode: 'server-csv',
   };

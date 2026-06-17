@@ -94,6 +94,7 @@ const ExpenseCheck2Page = () => {
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
   const [liveBuild, setLiveBuild] = useState('');
+  const [dateAuditSummary, setDateAuditSummary] = useState(null);
   const [openDateDetail, setOpenDateDetail] = useState(() => new Set());
 
   const toggleDateDetail = (id) => {
@@ -119,13 +120,15 @@ const ExpenseCheck2Page = () => {
     setAiReport('');
     setExpenseVouchers([]);
     setExpenseSheetSummary([]);
+    setDateAuditSummary(null);
     setSyncStatus('Server: listing all tabs and downloading every auditor sheet…');
     try {
       const result = await fetchAllExpenseVouchers(expenseSpreadsheetUrl.trim());
       setExpenseSheetSummary(result.sheetSummary || []);
+      setDateAuditSummary(result.dateAudit || null);
       setSyncError(result.syncError || null);
       setSyncStatus(
-        `Parsed ${result.totalAuditors} auditor(s) from ${result.totalTabsInWorkbook} tabs. Analyzing bill images (0/${result.vouchers.length})…`,
+        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. Analyzing bill images…`,
       );
       const enriched = await enrichAllVouchersWithImages(
         result.vouchers,
@@ -138,8 +141,11 @@ const ExpenseCheck2Page = () => {
       );
       setExpenseVouchers(enriched);
       localStorage.setItem('sales_audit_expense_v5_build', result.build || liveBuild || '');
+      if (result.dateAudit) {
+        localStorage.setItem('sales_audit_expense_v5_date_audit', JSON.stringify(result.dateAudit));
+      }
       setSyncStatus(
-        `Done — ${enriched.length} auditor(s) from ${result.totalTabsInWorkbook} tabs. Build: ${result.build || liveBuild || 'live'}`,
+        `Done — ${enriched.length} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates, ${result.dateAudit?.summary?.flaggedDates ?? 0} date flag(s). Build: ${result.build || liveBuild || 'live'}`,
       );
     } catch (err) {
       console.error(err);
@@ -222,6 +228,18 @@ const ExpenseCheck2Page = () => {
         syncLabel="Fetch all auditor sheets"
         loadingLabel="Fetching all tabs…"
       />
+
+      {dateAuditSummary?.summary && (
+        <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
+          <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>All pages — all dates audit</h3>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <span>Auditors: <strong>{dateAuditSummary.summary.auditors}</strong></span>
+            <span>Dates checked: <strong>{dateAuditSummary.summary.totalDates}</strong></span>
+            <span style={{ color: '#3fb950' }}>OK: <strong>{dateAuditSummary.summary.passedDates}</strong></span>
+            <span style={{ color: '#f85149' }}>Flags: <strong>{dateAuditSummary.summary.flaggedDates}</strong></span>
+          </div>
+        </div>
+      )}
 
       {syncStatus && (
         <p style={{ fontSize: '0.8rem', color: 'var(--accent-primary)', marginBottom: '1rem' }}>
@@ -363,7 +381,13 @@ const ExpenseCheck2Page = () => {
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {filtered.map((result) => (
+            {filtered.map((result) => {
+              const tabAudit = dateAuditSummary?.audits?.find(
+                (a) =>
+                  a.sheetName === result.voucher.sheetName ||
+                  a.auditorName === result.voucher.auditorName,
+              );
+              return (
               <div
                 key={result.id}
                 className="glass-card"
@@ -384,6 +408,12 @@ const ExpenseCheck2Page = () => {
                     <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
                       Emp No: {result.voucher.employeeNo || '—'} · Tab: {result.voucher.sheetName} · Total ₹
                       {result.voucher.declaredTotal}
+                      {tabAudit && (
+                        <span>
+                          {' '}
+                          · {tabAudit.dateCount} dates · {tabAudit.issueCount} flag(s)
+                        </span>
+                      )}
                     </p>
                   </div>
                   <span
@@ -569,18 +599,41 @@ const ExpenseCheck2Page = () => {
                                 <th style={{ padding: 6 }}>Stay</th>
                                 <th style={{ padding: 6 }}>Grand total</th>
                                 <th style={{ padding: 6 }}>From tickets</th>
-                                <th style={{ padding: 6 }}>Match</th>
+                                <th style={{ padding: 6 }}>Check</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {result.dateResults.map((d) => (
+                              {result.dateResults.map((d) => {
+                                const dayAudit = tabAudit?.perDate?.find((p) => p.date === d.date);
+                                const auditIssue = dayAudit?.issues?.[0];
+                                const auditOk = dayAudit?.ok?.[0];
+                                const checkColor = auditIssue
+                                  ? '#f85149'
+                                  : auditOk
+                                    ? '#3fb950'
+                                    : d.manualMatchesImages === true
+                                      ? '#3fb950'
+                                      : d.manualMatchesImages === false
+                                        ? '#f85149'
+                                        : '#8b949e';
+                                const checkText =
+                                  auditIssue?.message?.split(': ').slice(1).join(': ') ||
+                                  auditOk?.message?.split(': ').slice(1).join(': ') ||
+                                  (d.manualMatchesImages === true
+                                    ? 'Ticket OK'
+                                    : d.manualMatchesImages === false
+                                      ? 'Ticket mismatch'
+                                      : '—');
+
+                                return (
                                 <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
                                   <td style={{ padding: 6 }}>{d.date}</td>
                                   <td
                                     style={{
                                       padding: 6,
-                                      color: splitLabel(d) === 'Petrol' ? '#58a6ff' : 'inherit',
-                                      fontWeight: splitLabel(d) === 'Petrol' ? 600 : 400,
+                                      color:
+                                        splitLabel(d).includes('Petrol') ? '#58a6ff' : 'inherit',
+                                      fontWeight: splitLabel(d).includes('Petrol') ? 600 : 400,
                                     }}
                                   >
                                     {splitLabel(d)}
@@ -624,22 +677,14 @@ const ExpenseCheck2Page = () => {
                                   <td
                                     style={{
                                       padding: 6,
-                                      color:
-                                        d.manualMatchesImages === true
-                                          ? '#3fb950'
-                                          : d.manualMatchesImages === false
-                                            ? '#f85149'
-                                            : '#8b949e',
+                                      fontSize: '0.68rem',
+                                      color: checkColor,
                                     }}
                                   >
-                                    {d.manualMatchesImages === true
-                                      ? 'OK'
-                                      : d.manualMatchesImages === false
-                                        ? 'Mismatch'
-                                        : '—'}
+                                    {checkText}
                                   </td>
                                 </tr>
-                              ))}
+                              );})}
                             </tbody>
                             <tfoot>
                               <tr
@@ -748,7 +793,8 @@ const ExpenseCheck2Page = () => {
                   ))}
                 </ul>
               </div>
-            ))}
+            );
+            })}
           </div>
 
           {aiReport && (
