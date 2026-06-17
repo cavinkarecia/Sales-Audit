@@ -55,7 +55,41 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
   voucher.dateBlocks.forEach((block) => {
     const dayFlags = [];
 
-    if (!block.isPetrolDay) {
+    if (block.isPetrolDay || block.isKmPetrolDay || block.splitType === 'petrol_km') {
+      if (block.kmTraveled > 0) {
+        const expectedPetrol = block.kmCalcAmount || Math.round(block.kmTraveled * PETROL_ONE_WAY);
+        const sheetAmt = block.petrolTravel || block.dayTotal || block.grandTotal;
+        const kmNote = block.kmLegs?.length > 1
+          ? `${block.kmLegs.join('+')}=${block.kmTraveled} km`
+          : `${block.kmTraveled} km`;
+
+        if (Math.abs(expectedPetrol - sheetAmt) > 5) {
+          dayFlags.push(
+            flag(
+              'red',
+              'PETROL_KM_MISMATCH',
+              `${block.date}: ${kmNote} × ₹${PETROL_ONE_WAY} = ₹${expectedPetrol} but sheet shows ₹${sheetAmt}`,
+            ),
+          );
+        } else {
+          dayFlags.push(
+            flag(
+              'green',
+              'PETROL_KM_OK',
+              `${block.date}: ${kmNote} × ₹${PETROL_ONE_WAY} = ₹${expectedPetrol} matches sheet ₹${sheetAmt}`,
+            ),
+          );
+        }
+      } else if (block.petrolTravel > 0) {
+        dayFlags.push(
+          flag(
+            'green',
+            'PETROL_DAY',
+            `${block.date}: Petrol/fuel ₹${block.petrolTravel} (no km row in sheet)`,
+          ),
+        );
+      }
+    } else {
       const sumMismatch = Math.abs(block.ticketsSubtotal - (block.grandTotal - block.accommodation)) > 5;
       if (sumMismatch && block.grandTotal > 0 && block.accommodation === 0) {
         dayFlags.push(
@@ -76,17 +110,6 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
             ),
           );
         }
-      }
-    } else if (block.kmTraveled > 0) {
-      const expectedPetrol = block.kmTraveled * PETROL_ONE_WAY;
-      if (Math.abs(expectedPetrol - block.petrolTravel) > 10) {
-        dayFlags.push(
-          flag(
-            'orange',
-            'PETROL_DAY_MISMATCH',
-            `${block.date}: ${block.kmTraveled} km × ₹4 = ₹${expectedPetrol} vs sheet ₹${block.petrolTravel}`,
-          ),
-        );
       }
     }
 
@@ -109,7 +132,7 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
           ),
         );
       }
-    } else if (block.hasBusTrainHint && !block.isPetrolDay) {
+    } else if (block.hasBusTrainHint && !block.isPetrolDay && !block.isKmPetrolDay) {
       dayFlags.push(
         flag(
           'orange',

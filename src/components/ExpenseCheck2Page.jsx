@@ -20,6 +20,7 @@ const petrolDayAmount = (d) => d.petrolTravel || 0;
 const petrolCalcFromKm = (d) => (d.kmTraveled > 0 ? Math.round(d.kmTraveled * PETROL_RATE) : 0);
 
 const splitLabel = (d) => {
+  if (d.splitType === 'petrol_km' || d.isKmPetrolDay) return 'Petrol (KM×4)';
   if (d.splitType === 'petrol' || (d.isPetrolDay && petrolDayAmount(d) > 0)) return 'Petrol';
   if (d.splitType === 'bus_train' || d.hasBusTrainHint) return 'Bus/Train';
   if (d.splitType === 'mixed') return 'Mixed';
@@ -29,10 +30,14 @@ const splitLabel = (d) => {
 
 const formatPetrolCell = (d) => {
   const amount = petrolDayAmount(d);
-  const calc = petrolCalcFromKm(d);
+  const calc = d.kmCalcAmount || petrolCalcFromKm(d);
   if (!amount && !calc) return '—';
   if (d.kmTraveled > 0) {
-    return `₹${amount || calc} (${d.kmTraveled} km × ₹${PETROL_RATE})`;
+    const kmPart =
+      d.kmLegs?.length > 1
+        ? `${d.kmLegs.join('+')}=${d.kmTraveled} km`
+        : `${d.kmTraveled} km`;
+    return `₹${amount || calc} (${kmPart} × ₹${PETROL_RATE})`;
   }
   return `₹${amount || calc}`;
 };
@@ -132,7 +137,7 @@ const ExpenseCheck2Page = () => {
         },
       );
       setExpenseVouchers(enriched);
-      localStorage.setItem('sales_audit_expense_v4_build', result.build || liveBuild || '');
+      localStorage.setItem('sales_audit_expense_v5_build', result.build || liveBuild || '');
       setSyncStatus(
         `Done — ${enriched.length} auditor(s) from ${result.totalTabsInWorkbook} tabs. Build: ${result.build || liveBuild || 'live'}`,
       );
@@ -560,7 +565,7 @@ const ExpenseCheck2Page = () => {
                                 <th style={{ padding: 6 }}>Split</th>
                                 <th style={{ padding: 6 }}>Travel</th>
                                 <th style={{ padding: 6 }}>Local</th>
-                                <th style={{ padding: 6 }}>Petrol (₹4/km)</th>
+                                <th style={{ padding: 6 }}>Petrol / KM×₹4</th>
                                 <th style={{ padding: 6 }}>Stay</th>
                                 <th style={{ padding: 6 }}>Grand total</th>
                                 <th style={{ padding: 6 }}>From tickets</th>

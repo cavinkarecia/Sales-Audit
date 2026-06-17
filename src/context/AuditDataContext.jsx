@@ -6,10 +6,10 @@ const STORAGE_KEYS = {
   pjp: 'sales_audit_pjp_v2',
   pjpSummary: 'sales_audit_pjp_summary_v2',
   pjpUrl: 'sales_audit_pjp_url',
-  expenseVouchers: 'sales_audit_expense_v4_vouchers',
-  expenseSummary: 'sales_audit_expense_v4_summary',
-  expenseUrl: 'sales_audit_expense_v4_url',
-  expenseSyncBuild: 'sales_audit_expense_v4_build',
+  expenseVouchers: 'sales_audit_expense_v5_vouchers',
+  expenseSummary: 'sales_audit_expense_v5_summary',
+  expenseUrl: 'sales_audit_expense_v5_url',
+  expenseSyncBuild: 'sales_audit_expense_v5_build',
   allowanceLegacy: [
     'sales_audit_allowance_v3',
     'sales_audit_allowance_summary_v3',
@@ -58,10 +58,10 @@ export const AuditDataProvider = ({ children }) => {
       'sales_audit_expense_v2_vouchers',
       'sales_audit_expense_v2_summary',
       'sales_audit_expense_v2_url',
-      'sales_audit_expense_v3_vouchers',
-      'sales_audit_expense_v3_summary',
-      'sales_audit_expense_v3_url',
-      'sales_audit_expense_v3_build',
+      'sales_audit_expense_v4_vouchers',
+      'sales_audit_expense_v4_summary',
+      'sales_audit_expense_v4_url',
+      'sales_audit_expense_v4_build',
     ].forEach((key) => localStorage.removeItem(key));
   }, []);
 

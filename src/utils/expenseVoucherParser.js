@@ -3,6 +3,7 @@ import { parseExcelDate } from './sheetFetcher.js';
 import { extractSpreadsheetId } from './spreadsheetUrl.js';
 
 const pad = (n) => String(n).padStart(2, '0');
+export const PETROL_KM_RATE = 4;
 
 const toDateStr = (d) =>
   d ? `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}` : '';
@@ -13,16 +14,6 @@ const parseMoney = (val) => {
 };
 
 const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-
-const findCell = (matrix, needle) => {
-  const t = norm(needle);
-  for (let r = 0; r < matrix.length; r++) {
-    for (let c = 0; c < (matrix[r] || []).length; c++) {
-      if (norm(matrix[r][c]).includes(t)) return { r, c, row: matrix[r] };
-    }
-  }
-  return null;
-};
 
 const findCellInHeader = (matrix, needle, maxRow = 18) => {
   const t = norm(needle);
@@ -52,7 +43,6 @@ const valueAfterLabel = (hit) => {
   return '';
 };
 
-/** Amount in column D (index 3) or first positive number after label. */
 const amountAfterLabel = (hit) => {
   if (!hit?.row) return 0;
   const direct = parseMoney(hit.row[3]);
@@ -68,7 +58,8 @@ const amountAfterLabel = (hit) => {
   return 0;
 };
 
-const parseAmountFromCell = (cell) => {
+/** Extract final amount from cells like "91 * 4 = 364" or "364". */
+export const parseAmountFromCell = (cell) => {
   const s = String(cell ?? '').trim();
   if (!s) return 0;
   const eqMatch = s.match(/=\s*([\d,]+(?:\.\d+)?)\s*$/);
@@ -78,16 +69,28 @@ const parseAmountFromCell = (cell) => {
   return nums[nums.length - 1];
 };
 
-const findAmountInRow = (row, labelTest) => {
-  for (let c = 0; c < (row || []).length; c++) {
-    const label = norm(row[c]);
-    if (!label || !labelTest(label)) continue;
-    for (let j = c + 1; j < row.length; j++) {
-      const amt = parseAmountFromCell(row[j]);
-      if (amt > 0) return amt;
-    }
+/** Parse "46 + 45 = 91" or "91" → total km. */
+export const parseKmFromCell = (cell) => {
+  const s = String(cell ?? '').trim();
+  if (!s) return { total: 0, legs: [], raw: '' };
+
+  const eqMatch = s.match(/=\s*(\d+(?:\.\d+)?)\s*$/);
+  if (eqMatch) {
+    const total = parseFloat(eqMatch[1]);
+    const legs = [...s.matchAll(/(\d+(?:\.\d+)?)/g)]
+      .map((m) => parseFloat(m[1]))
+      .filter((n) => n < total || s.includes('+'));
+    return { total, legs: legs.length > 1 ? legs.slice(0, -1) : legs, raw: s };
   }
-  return 0;
+
+  if (/\+/.test(s)) {
+    const legs = [...s.matchAll(/(\d+(?:\.\d+)?)/g)].map((m) => parseFloat(m[1]));
+    const total = legs.reduce((a, b) => a + b, 0);
+    return { total, legs, raw: s };
+  }
+
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  return m ? { total: parseFloat(m[1]), legs: [parseFloat(m[1])], raw: s } : { total: 0, legs: [], raw: s };
 };
 
 const parseExcelSerialDate = (serial) => {
@@ -103,7 +106,8 @@ const parseExcelSerialDate = (serial) => {
 const parseDateCell = (cell) => {
   if (cell === null || cell === undefined || cell === '') return null;
   const s = String(cell).trim();
-  if (!s) return null;
+  if (!s || s.length > 14) return null;
+  if (/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s*[-–to]/i.test(s)) return null;
 
   if (typeof cell === 'number' || (/^\d{5}(\.\d+)?$/.test(s) && !s.includes('/'))) {
     const serial = parseExcelSerialDate(cell);
@@ -122,7 +126,6 @@ const parseDateCell = (cell) => {
     const p1 = parseInt(parts[1], 10);
     let year = parseInt(parts[2], 10);
     if (year < 100) year += 2000;
-    // HEPL vouchers use DD/MM/YY (India)
     if (p0 >= 1 && p0 <= 31 && p1 >= 1 && p1 <= 12) {
       return new Date(year, p1 - 1, p0);
     }
@@ -133,32 +136,94 @@ const parseDateCell = (cell) => {
   return null;
 };
 
-const isDateInColA = (matrix, r) => parseDateCell(matrix[r]?.[0]);
+/** Date may be in column A or another column — scan the row. */
+const findDateInRow = (row) => {
+  if (!row?.length) return null;
+  for (let c = 0; c < Math.min(row.length, 12); c++) {
+    const d = parseDateCell(row[c]);
+    if (!d) continue;
+    const otherCells = row.filter((cell, i) => i !== c && String(cell ?? '').trim()).length;
+    if (c === 0 || otherCells <= 1) return { date: d, col: c };
+  }
+  return null;
+};
 
 const isTravelLabel = (n) =>
-  n === 'travel' || (n.startsWith('travel') && !n.includes('rs') && !n.includes('km'));
+  (n === 'travel' || (n.startsWith('travel') && !n.includes('rs') && !n.includes('km'))) &&
+  !n.includes('expense');
 
 const isLocalLabel = (n) => n.includes('localconv');
 const isAccLabel = (n) => n.includes('accom');
 const isGrandLabel = (n) => n.includes('grandtotal');
 const isDayTotalLabel = (n) => n === 'total';
-const isPetrolTravelLabel = (n) => n.includes('travelrs');
+const isPetrolTravelLabel = (n) => n.includes('travelrs') || n === 'travelrs';
 const isPetrolLabel = (n) => n === 'petrol' || (n.endsWith('petrol') && !n.includes('expense'));
-const isKmLabel = (n) => n.includes('kmtraveled') || n.includes('kmtravel');
+const isKmLabel = (n) => n.includes('kmtraveled') || n.includes('kmtravel') || n === 'km';
 const isFoodLabel = (n) => n === 'food';
 
 const looksLikeVoucher = (matrix) =>
   Boolean(
-    findCell(matrix, 'requested by') ||
-      findCell(matrix, 'fuel expenses') ||
-      findCell(matrix, 'expenses claim voucher'),
+    findCellInHeader(matrix, 'requested by') ||
+      findCellInHeader(matrix, 'fuel expenses') ||
+      findCellInHeader(matrix, 'expenses claim voucher'),
   );
+
+/** Find label anywhere in row; value may be to the right OR in cells below. */
+const findLabeledValueInBlock = (matrix, startR, endR, labelTest, parseValue) => {
+  for (let rr = startR; rr < endR; rr++) {
+    const row = matrix[rr] || [];
+    for (let c = 0; c < row.length; c++) {
+      const label = norm(row[c]);
+      if (!label || !labelTest(label)) continue;
+
+      for (let j = c + 1; j < row.length; j++) {
+        const raw = String(row[j] ?? '').trim();
+        if (raw) return parseValue(row[j], raw, rr, j);
+      }
+
+      for (let dr = 1; dr <= 2 && rr + dr < endR; dr++) {
+        const below = matrix[rr + dr] || [];
+        for (let j = c; j < Math.min(c + 4, below.length); j++) {
+          const raw = String(below[j] ?? '').trim();
+          if (raw && !labelTest(norm(raw))) return parseValue(below[j], raw, rr + dr, j);
+        }
+      }
+    }
+  }
+  return null;
+};
+
+const findAmountInRow = (row, labelTest) => {
+  for (let c = 0; c < (row || []).length; c++) {
+    const label = norm(row[c]);
+    if (!label || !labelTest(label)) continue;
+    for (let j = c + 1; j < row.length; j++) {
+      const amt = parseAmountFromCell(row[j]);
+      if (amt > 0) return amt;
+    }
+  }
+  return 0;
+};
 
 const parseDateWiseBlocks = (matrix) => {
   const blocks = [];
-  for (let r = 0; r < matrix.length; r++) {
-    const date = isDateInColA(matrix, r);
-    if (!date) continue;
+  let r = 0;
+
+  while (r < matrix.length) {
+    const dateHit = findDateInRow(matrix[r]);
+    if (!dateHit) {
+      r++;
+      continue;
+    }
+
+    const date = dateHit.date;
+    let endR = matrix.length;
+    for (let rr = r + 1; rr < matrix.length; rr++) {
+      if (findDateInRow(matrix[rr])) {
+        endR = rr;
+        break;
+      }
+    }
 
     let travel = 0;
     let localConveyance = 0;
@@ -166,11 +231,32 @@ const parseDateWiseBlocks = (matrix) => {
     let grandTotal = 0;
     let petrolTravel = 0;
     let kmTraveled = 0;
+    let kmLegs = [];
+    let kmRaw = '';
+    let travelRsRaw = '';
     let food = 0;
     let dayTotal = 0;
 
-    for (let rr = r + 1; rr < matrix.length; rr++) {
-      if (isDateInColA(matrix, rr)) break;
+    const kmHit = findLabeledValueInBlock(matrix, r + 1, endR, isKmLabel, (cell, raw) => ({
+      ...parseKmFromCell(cell),
+      raw,
+    }));
+    if (kmHit?.total > 0) {
+      kmTraveled = kmHit.total;
+      kmLegs = kmHit.legs?.length ? kmHit.legs : [kmHit.total];
+      kmRaw = kmHit.raw;
+    }
+
+    const travelRsHit = findLabeledValueInBlock(matrix, r + 1, endR, isPetrolTravelLabel, (cell, raw) => ({
+      amount: parseAmountFromCell(cell),
+      raw,
+    }));
+    if (travelRsHit?.amount > 0) {
+      petrolTravel = travelRsHit.amount;
+      travelRsRaw = travelRsHit.raw;
+    }
+
+    for (let rr = r + 1; rr < endR; rr++) {
       const row = matrix[rr] || [];
       if (!row.some((c) => String(c ?? '').trim())) continue;
 
@@ -186,9 +272,6 @@ const parseDateWiseBlocks = (matrix) => {
       const g = findAmountInRow(row, isGrandLabel);
       if (g > 0) grandTotal = g;
 
-      const p = findAmountInRow(row, isPetrolTravelLabel);
-      if (p > 0) petrolTravel = p;
-
       const petrolRow = findAmountInRow(row, isPetrolLabel);
       if (petrolRow > 0) petrolTravel = petrolRow;
 
@@ -198,19 +281,31 @@ const parseDateWiseBlocks = (matrix) => {
       const f = findAmountInRow(row, isFoodLabel);
       if (f > 0) food = f;
 
-      for (let c = 0; c < row.length; c++) {
-        if (isKmLabel(norm(row[c]))) {
-          const kmCell = String(row[c + 1] ?? row[c] ?? '');
-          const kmMatch = kmCell.match(/(\d+(?:\.\d+)?)/);
-          if (kmMatch) kmTraveled = parseFloat(kmMatch[1]);
+      if (!kmTraveled) {
+        for (let c = 0; c < row.length; c++) {
+          if (isKmLabel(norm(row[c]))) {
+            const parsed = parseKmFromCell(row[c + 1] ?? row[c]);
+            if (parsed.total > 0) {
+              kmTraveled = parsed.total;
+              kmLegs = parsed.legs;
+              kmRaw = parsed.raw;
+            }
+          }
         }
       }
     }
 
+    const kmCalcAmount = kmTraveled > 0 ? Math.round(kmTraveled * PETROL_KM_RATE) : 0;
+    const isKmPetrolDay = petrolTravel > 0 && (kmTraveled > 0 || travelRsRaw.includes('*'));
+    const isSimplePetrolDay = petrolTravel > 0 && travel === 0 && localConveyance === 0;
     const isPetrolDay =
-      petrolTravel > 0 || (dayTotal > 0 && travel === 0 && localConveyance === 0);
+      isKmPetrolDay || isSimplePetrolDay || (dayTotal > 0 && travel === 0 && localConveyance === 0);
+
+    if (!petrolTravel && isPetrolDay && dayTotal > 0) petrolTravel = dayTotal;
+    if (!petrolTravel && kmCalcAmount > 0 && isKmPetrolDay) petrolTravel = kmCalcAmount;
+
     const ticketsSubtotal = travel + localConveyance;
-    const petrolDayAmount = petrolTravel || (isPetrolDay && !petrolTravel ? dayTotal : 0);
+    const petrolDayAmount = petrolTravel || (isPetrolDay ? dayTotal : 0);
 
     if (!grandTotal) {
       if (isPetrolDay) grandTotal = petrolDayAmount + accommodation + food;
@@ -219,8 +314,9 @@ const parseDateWiseBlocks = (matrix) => {
 
     const ticketComparable = isPetrolDay ? petrolDayAmount : ticketsSubtotal;
 
-    const splitType =
-      petrolDayAmount > 0 && ticketsSubtotal === 0
+    const splitType = isKmPetrolDay
+      ? 'petrol_km'
+      : petrolDayAmount > 0 && ticketsSubtotal === 0
         ? 'petrol'
         : ticketsSubtotal > 0 && petrolDayAmount > 0
           ? 'mixed'
@@ -240,6 +336,16 @@ const parseDateWiseBlocks = (matrix) => {
         food,
         petrolTravel: petrolDayAmount,
         kmTraveled,
+        kmLegs,
+        kmRaw,
+        travelRsRaw,
+        kmCalcAmount,
+        kmFormula:
+          kmLegs.length > 1
+            ? `${kmLegs.join(' + ')} = ${kmTraveled} km × ₹${PETROL_KM_RATE} = ₹${kmCalcAmount}`
+            : kmTraveled > 0
+              ? `${kmTraveled} km × ₹${PETROL_KM_RATE} = ₹${kmCalcAmount}`
+              : '',
         grandTotal,
         dayTotal,
         ticketsSubtotal,
@@ -247,16 +353,22 @@ const parseDateWiseBlocks = (matrix) => {
         computedSum: ticketsSubtotal + accommodation + petrolDayAmount,
         splitType,
         splitNote:
-          splitType === 'petrol'
-            ? 'Sheet row: Petrol (counts toward Fuel header)'
-            : splitType === 'bus_train'
-              ? 'Sheet rows: Travel + Local conveyance'
-              : '',
+          splitType === 'petrol_km'
+            ? `Sheet: KM TRAVELED ${kmRaw || kmTraveled} → TRAVEL RS ${travelRsRaw || petrolDayAmount}`
+            : splitType === 'petrol'
+              ? 'Sheet row: Petrol (counts toward Fuel header)'
+              : splitType === 'bus_train'
+                ? 'Sheet rows: Travel + Local conveyance'
+                : '',
         isPetrolDay,
+        isKmPetrolDay,
         hasBusTrainHint: !isPetrolDay && (travel > 0 || localConveyance > 0),
       });
     }
+
+    r = endR;
   }
+
   return blocks;
 };
 
@@ -340,7 +452,7 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   };
 };
 
-/** Server sync (preferred) — downloads all tabs on Render, not in the browser. */
+/** Server sync — downloads all tabs on Render. */
 export const fetchAllExpenseVouchers = async (url) => {
   const spreadsheetId = extractSpreadsheetId(url);
   if (!spreadsheetId) {
