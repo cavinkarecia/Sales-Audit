@@ -93,17 +93,16 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
 
   const manualTickets = voucher.dateWiseTicketsSum || 0;
   const manualPetrol = voucher.dateWisePetrolSum || 0;
-  const manualTravelTotal = manualTickets + manualPetrol;
   const fromTickets = analysis.totalFromTickets || 0;
 
-  const busTrainCorrect = fromTickets > 0 ? fromTickets : manualTravelTotal;
+  const busTravelLocal = fromTickets > 0 ? fromTickets : manualTickets;
   const stayAmount = Math.max(
     voucher.accommodationTotal,
     voucher.dateWiseAccommodationSum || 0,
   );
-  const fuelAmount = Math.max(voucher.fuelTotal, manualPetrol);
+  const petrolAmount = Math.max(voucher.fuelTotal, manualPetrol);
 
-  const correctTotal = busTrainCorrect + stayAmount + fuelAmount;
+  const correctTotal = busTravelLocal + petrolAmount + stayAmount;
 
   const headerParts = voucher.fuelTotal + voucher.ticketsTotal + voucher.accommodationTotal;
 
@@ -116,7 +115,7 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
     totals: {
       declaredTotal: voucher.declaredTotal,
       headerParts,
-      manualDateWiseSum: manualTravelTotal,
+      manualDateWiseSum: manualTickets + manualPetrol,
       manualTicketsSum: manualTickets,
       manualPetrolSum: manualPetrol,
       dateWiseAccommodationSum: voucher.dateWiseAccommodationSum,

@@ -42,6 +42,29 @@ const formatPetrolCell = (d) => {
   return `₹${amount || calc}`;
 };
 
+const fmtRs = (n) => (Number(n) > 0 ? `₹${n}` : '—');
+const isMismatch = (a, b, tol = 10) => Math.abs((a || 0) - (b || 0)) > tol;
+
+const expectedDayGrand = (d) => {
+  if (d.isKmPetrolDay || d.splitType === 'petrol_km') {
+    return d.kmCalcAmount || petrolCalcFromKm(d) || petrolDayAmount(d);
+  }
+  if (d.isPetrolDay) return petrolDayAmount(d) + (d.accommodation || 0);
+  return (d.travel || 0) + (d.localConveyance || 0) + (d.accommodation || 0);
+};
+
+const CmpCell = ({ value, match, bold }) => (
+  <td
+    style={{
+      padding: '8px 10px',
+      color: match ? '#3fb950' : '#f85149',
+      fontWeight: bold ? 700 : 500,
+    }}
+  >
+    {value}
+  </td>
+);
+
 const sumDateResults = (rows) =>
   rows.reduce(
     (acc, d) => {
@@ -74,6 +97,119 @@ const sumDateResults = (rows) =>
       travelLocal: 0,
     },
   );
+
+const SplitAmount = ({ amount, match }) => (
+  <span
+    style={{
+      fontWeight: 700,
+      color: match === undefined ? 'inherit' : match ? '#3fb950' : '#f85149',
+    }}
+  >
+    {fmtRs(amount)}
+  </span>
+);
+
+const AuditorTotalSummary = ({ voucher }) => {
+  const dt = sumDateResults(voucher.dateBlocks || []);
+
+  const headerFuel = voucher.fuelTotal || 0;
+  const headerTickets = voucher.ticketsTotal || 0;
+  const headerStay = voucher.accommodationTotal || 0;
+  const headerTotal = voucher.declaredTotal || headerFuel + headerTickets + headerStay;
+
+  const dayFuel = voucher.dateWisePetrolSum || dt.petrol || 0;
+  const dayTickets = voucher.dateWiseTicketsSum || dt.travelLocal || 0;
+  const dayStay = voucher.dateWiseAccommodationSum || dt.stay || 0;
+  const dayTotal = dayFuel + dayTickets + dayStay;
+
+  const fuelOk = !isMismatch(headerFuel, dayFuel, 50);
+  const ticketsOk = !isMismatch(headerTickets, dayTickets, 10);
+  const stayOk = !isMismatch(headerStay, dayStay, 10);
+  const totalOk = !isMismatch(headerTotal, dayTotal, 15);
+  const allOk = fuelOk && ticketsOk && stayOk && totalOk;
+
+  const thStyle = {
+    padding: '8px 10px',
+    textAlign: 'right',
+    fontSize: '0.72rem',
+    color: 'var(--text-secondary)',
+    fontWeight: 600,
+  };
+  const labelStyle = {
+    padding: '10px 10px',
+    fontSize: '0.78rem',
+    color: 'var(--text-secondary)',
+    whiteSpace: 'nowrap',
+  };
+  const amtStyle = { padding: '10px 10px', textAlign: 'right', fontSize: '0.85rem' };
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: '12px 14px',
+        borderRadius: 8,
+        background: 'rgba(88,166,255,0.06)',
+        border: `1px solid ${allOk ? 'var(--border-main)' : 'rgba(248,81,73,0.4)'}`,
+        overflowX: 'auto',
+      }}
+    >
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
+            <th style={{ ...thStyle, textAlign: 'left' }} />
+            <th style={thStyle}>Fuel</th>
+            <th style={thStyle}>Tickets + Local</th>
+            <th style={thStyle}>Accommodation</th>
+            <th style={{ ...thStyle, fontWeight: 800 }}>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
+            <td style={labelStyle}>1. Auditor entered (sheet header)</td>
+            <td style={amtStyle}>
+              <SplitAmount amount={headerFuel} />
+            </td>
+            <td style={amtStyle}>
+              <SplitAmount amount={headerTickets} />
+            </td>
+            <td style={amtStyle}>
+              <SplitAmount amount={headerStay} />
+            </td>
+            <td style={amtStyle}>
+              <SplitAmount amount={headerTotal} />
+            </td>
+          </tr>
+          <tr>
+            <td style={labelStyle}>2. Date-wise splits total (all days)</td>
+            <td style={amtStyle}>
+              <SplitAmount amount={dayFuel} match={fuelOk} />
+            </td>
+            <td style={amtStyle}>
+              <SplitAmount amount={dayTickets} match={ticketsOk} />
+            </td>
+            <td style={amtStyle}>
+              <SplitAmount amount={dayStay} match={stayOk} />
+            </td>
+            <td style={amtStyle}>
+              <SplitAmount amount={dayTotal} match={totalOk} />
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {!allOk && (
+        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: '#f85149' }}>
+          Red = date-wise total does not match what auditor entered in header.
+        </p>
+      )}
+      {voucher.imageAnalysis?.note && (
+        <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+          {voucher.imageAnalysis.note}
+        </p>
+      )}
+    </div>
+  );
+};
 
 const ExpenseCheck2Page = () => {
   const {
@@ -430,64 +566,7 @@ const ExpenseCheck2Page = () => {
                   </span>
                 </div>
 
-                {result.voucher.totals && (
-                  <div
-                    style={{
-                      marginTop: 12,
-                      padding: 12,
-                      background: 'rgba(88,166,255,0.06)',
-                      borderRadius: 8,
-                      fontSize: '0.8rem',
-                    }}
-                  >
-                    <h4 style={{ margin: '0 0 8px', fontSize: '0.85rem' }}>Total reconciliation</h4>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 8 }}>
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Declared (sheet)</span>
-                        <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.declaredTotal}</div>
-                      </div>
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Date-wise travel+local</span>
-                        <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.manualTicketsSum ?? result.voucher.totals.manualDateWiseSum}</div>
-                      </div>
-                      {result.voucher.totals.manualPetrolSum > 0 && (
-                        <div>
-                          <span style={{ color: 'var(--text-secondary)' }}>Date-wise petrol</span>
-                          <div style={{ fontWeight: 700 }}>₹{result.voucher.totals.manualPetrolSum}</div>
-                        </div>
-                      )}
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Header Tickets+Local</span>
-                        <div>₹{result.voucher.totals.headerTicketsLocal}</div>
-                      </div>
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>From ticket images (AI)</span>
-                        <div style={{ fontWeight: 700, color: '#3fb950' }}>
-                          ₹{result.voucher.totals.fromTicketImages || '—'}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Correct total</span>
-                        <div style={{ fontWeight: 800, color: '#58a6ff' }}>
-                          ₹{result.voucher.totals.correctTotal}
-                        </div>
-                      </div>
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Fuel (secondary)</span>
-                        <div>₹{result.voucher.totals.fuelHeader}</div>
-                      </div>
-                      <div>
-                        <span style={{ color: 'var(--text-secondary)' }}>Stay</span>
-                        <div>₹{result.voucher.totals.accommodation}</div>
-                      </div>
-                    </div>
-                    {result.voucher.imageAnalysis?.note && (
-                      <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)', fontSize: '0.75rem' }}>
-                        {result.voucher.imageAnalysis.note}
-                      </p>
-                    )}
-                  </div>
-                )}
+                <AuditorTotalSummary voucher={result.voucher} />
 
                 {result.voucher.imageUrls?.length > 0 && (
                   <div style={{ marginTop: 10 }}>
@@ -536,7 +615,7 @@ const ExpenseCheck2Page = () => {
                       }}
                     >
                       <span>
-                        Date-wise detail ({result.dateResults.length} days)
+                        Date-wise comparison ({result.dateResults.length} days) — auditor vs system
                       </span>
                       {openDateDetail.has(result.id) ? (
                         <ChevronUp size={16} />
@@ -547,36 +626,6 @@ const ExpenseCheck2Page = () => {
 
                     {openDateDetail.has(result.id) && (() => {
                       const dt = sumDateResults(result.dateResults);
-                      const headerTravelLocal =
-                        result.voucher.totals?.manualTicketsSum ??
-                        result.voucher.totals?.manualDateWiseSum ??
-                        result.voucher.dateWiseTicketsSum ??
-                        0;
-                      const headerPetrol =
-                        result.voucher.totals?.manualPetrolSum ??
-                        result.voucher.totals?.fuelHeader ??
-                        result.voucher.fuelTotal ??
-                        0;
-                      const headerFuel = result.voucher.totals?.fuelHeader ?? result.voucher.fuelTotal ?? 0;
-                      const headerStay =
-                        result.voucher.totals?.accommodation ??
-                        result.voucher.dateWiseAccommodationSum ??
-                        0;
-                      const travelLocalOk = Math.abs(dt.travelLocal - headerTravelLocal) <= 10;
-                      const petrolOk =
-                        headerFuel > 0
-                          ? dt.petrol > 0
-                            ? Math.abs(dt.petrol - headerFuel) <= 50
-                            : Math.abs(dt.petrolCalc - headerFuel) <= 50
-                          : dt.petrol === 0;
-                      const petrolCalcOk =
-                        dt.petrol > 0 && dt.petrolCalc > 0
-                          ? Math.abs(dt.petrol - dt.petrolCalc) <= 10
-                          : true;
-                      const stayOk = Math.abs(dt.stay - headerStay) <= 10;
-                      const combinedCheck =
-                        headerTravelLocal + headerFuel + headerStay;
-                      const combinedSum = dt.travelLocal + (dt.petrol || headerFuel) + dt.stay;
 
                       return (
                         <div
@@ -588,103 +637,72 @@ const ExpenseCheck2Page = () => {
                             overflowX: 'auto',
                           }}
                         >
-                          <table style={{ width: '100%', fontSize: '0.75rem', borderCollapse: 'collapse' }}>
+                          <table style={{ width: '100%', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
                             <thead>
-                              <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                                <th style={{ padding: 6 }}>Date</th>
-                                <th style={{ padding: 6 }}>Split</th>
-                                <th style={{ padding: 6 }}>Travel</th>
-                                <th style={{ padding: 6 }}>Local</th>
-                                <th style={{ padding: 6 }}>Petrol / KM×₹4</th>
-                                <th style={{ padding: 6 }}>Stay</th>
-                                <th style={{ padding: 6 }}>Grand total</th>
-                                <th style={{ padding: 6 }}>From tickets</th>
-                                <th style={{ padding: 6 }}>Check</th>
+                              <tr style={{ background: 'rgba(88,166,255,0.08)', color: 'var(--text-secondary)' }}>
+                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>#</th>
+                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>Date</th>
+                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>Type</th>
+                                <th colSpan={5} style={{ padding: 6, textAlign: 'center', borderBottom: '1px solid var(--border-main)' }}>
+                                  Auditor entered (in sheet)
+                                </th>
+                                <th colSpan={2} style={{ padding: 6, textAlign: 'center', borderBottom: '1px solid var(--border-main)' }}>
+                                  System check
+                                </th>
+                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>Status</th>
+                              </tr>
+                              <tr style={{ color: 'var(--text-secondary)', fontSize: '0.68rem' }}>
+                                <th style={{ padding: 4 }}>Travel</th>
+                                <th style={{ padding: 4 }}>Local</th>
+                                <th style={{ padding: 4 }}>Petrol</th>
+                                <th style={{ padding: 4 }}>Stay</th>
+                                <th style={{ padding: 4 }}>Grand</th>
+                                <th style={{ padding: 4 }}>Should be</th>
+                                <th style={{ padding: 4 }}>Formula</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {result.dateResults.map((d) => {
-                                const dayAudit = tabAudit?.perDate?.find((p) => p.date === d.date);
-                                const auditIssue = dayAudit?.issues?.[0];
-                                const auditOk = dayAudit?.ok?.[0];
-                                const checkColor = auditIssue
-                                  ? '#f85149'
-                                  : auditOk
-                                    ? '#3fb950'
-                                    : d.manualMatchesImages === true
-                                      ? '#3fb950'
-                                      : d.manualMatchesImages === false
-                                        ? '#f85149'
-                                        : '#8b949e';
-                                const checkText =
-                                  auditIssue?.message?.split(': ').slice(1).join(': ') ||
-                                  auditOk?.message?.split(': ').slice(1).join(': ') ||
-                                  (d.manualMatchesImages === true
-                                    ? 'Ticket OK'
-                                    : d.manualMatchesImages === false
-                                      ? 'Ticket mismatch'
-                                      : '—');
+                              {result.dateResults.map((d, idx) => {
+                                const auditorGrand = d.grandTotal || 0;
+                                const systemExpected = expectedDayGrand(d);
+                                const dayMatch = !isMismatch(auditorGrand, systemExpected, 5);
+                                let formula = '';
+                                if (d.isKmPetrolDay || d.splitType === 'petrol_km') {
+                                  const km =
+                                    d.kmLegs?.length > 1
+                                      ? `${d.kmLegs.join('+')}=${d.kmTraveled}`
+                                      : `${d.kmTraveled}`;
+                                  formula = `${km} km × ₹4`;
+                                } else if (d.isPetrolDay) {
+                                  formula = 'Petrol = Grand';
+                                } else {
+                                  formula = 'Travel+Local+Stay';
+                                }
 
                                 return (
-                                <tr key={d.date} style={{ borderTop: '1px solid var(--border-main)' }}>
-                                  <td style={{ padding: 6 }}>{d.date}</td>
-                                  <td
+                                  <tr
+                                    key={d.date}
                                     style={{
-                                      padding: 6,
-                                      color:
-                                        splitLabel(d).includes('Petrol') ? '#58a6ff' : 'inherit',
-                                      fontWeight: splitLabel(d).includes('Petrol') ? 600 : 400,
+                                      borderTop: '1px solid var(--border-main)',
+                                      background: dayMatch ? 'transparent' : 'rgba(248,81,73,0.06)',
                                     }}
                                   >
-                                    {splitLabel(d)}
-                                  </td>
-                                  <td style={{ padding: 6 }}>₹{d.travel || '—'}</td>
-                                  <td style={{ padding: 6 }}>₹{d.localConveyance || '—'}</td>
-                                  <td
-                                    style={{
-                                      padding: 6,
-                                      fontSize: '0.72rem',
-                                      fontWeight: petrolDayAmount(d) > 0 ? 700 : 400,
-                                      color:
-                                        petrolDayAmount(d) > 0
-                                          ? '#3fb950'
-                                          : d.isPetrolDay &&
-                                              d.kmTraveled > 0 &&
-                                              Math.abs(petrolDayAmount(d) - petrolCalcFromKm(d)) > 10
-                                            ? '#f85149'
-                                            : 'inherit',
-                                    }}
-                                  >
-                                    {formatPetrolCell(d)}
-                                  </td>
-                                  <td style={{ padding: 6 }}>₹{d.accommodation || '—'}</td>
-                                  <td style={{ padding: 6 }}>
-                                    ₹{d.grandTotal}
-                                    {splitLabel(d) === 'Petrol' && petrolDayAmount(d) > 0 && (
-                                      <span
-                                        style={{
-                                          display: 'block',
-                                          fontSize: '0.65rem',
-                                          color: 'var(--text-secondary)',
-                                          fontWeight: 400,
-                                        }}
-                                      >
-                                        = Petrol ₹{petrolDayAmount(d)}
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td style={{ padding: 6 }}>₹{d.ticketAmountFromImages || '—'}</td>
-                                  <td
-                                    style={{
-                                      padding: 6,
-                                      fontSize: '0.68rem',
-                                      color: checkColor,
-                                    }}
-                                  >
-                                    {checkText}
-                                  </td>
-                                </tr>
-                              );})}
+                                    <td style={{ padding: 6, color: 'var(--text-secondary)' }}>{idx + 1}</td>
+                                    <td style={{ padding: 6, fontWeight: 600 }}>{d.date}</td>
+                                    <td style={{ padding: 6, fontSize: '0.68rem' }}>{splitLabel(d)}</td>
+                                    <td style={{ padding: 6 }}>{fmtRs(d.travel)}</td>
+                                    <td style={{ padding: 6 }}>{fmtRs(d.localConveyance)}</td>
+                                    <td style={{ padding: 6 }}>{fmtRs(petrolDayAmount(d))}</td>
+                                    <td style={{ padding: 6 }}>{fmtRs(d.accommodation)}</td>
+                                    <CmpCell value={fmtRs(auditorGrand)} match={dayMatch} />
+                                    <CmpCell value={fmtRs(systemExpected)} match={dayMatch} />
+                                    <td style={{ padding: 6, fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                                      {formula}
+                                    </td>
+                                    <CmpCell value={dayMatch ? 'OK' : 'ERROR'} match={dayMatch} bold />
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                             <tfoot>
                               <tr
@@ -694,104 +712,65 @@ const ExpenseCheck2Page = () => {
                                   background: 'rgba(88,166,255,0.08)',
                                 }}
                               >
-                                <td style={{ padding: 8 }}>TOTAL</td>
-                                <td style={{ padding: 8 }}>—</td>
-                                <td style={{ padding: 8 }}>₹{dt.travel}</td>
-                                <td style={{ padding: 8 }}>₹{dt.local}</td>
-                                <td style={{ padding: 8 }}>
-                                  ₹{dt.petrol || dt.petrolCalc || '—'}
-                                  {dt.petrolCalc > 0 && dt.petrol > 0 && (
-                                    <span
-                                      style={{
-                                        display: 'block',
-                                        fontSize: '0.68rem',
-                                        color: petrolCalcOk ? '#3fb950' : '#f85149',
-                                        fontWeight: 500,
-                                      }}
-                                    >
-                                      calc ₹{dt.petrolCalc}
-                                    </span>
+                                <td colSpan={3} style={{ padding: 8 }}>TOTAL</td>
+                                <td style={{ padding: 8 }}>{fmtRs(dt.travel)}</td>
+                                <td style={{ padding: 8 }}>{fmtRs(dt.local)}</td>
+                                <td style={{ padding: 8 }}>{fmtRs(dt.petrol)}</td>
+                                <td style={{ padding: 8 }}>{fmtRs(dt.stay)}</td>
+                                <CmpCell
+                                  value={fmtRs(dt.grand)}
+                                  match={!isMismatch(
+                                    result.voucher.declaredTotal,
+                                    dt.grand,
+                                    50,
                                   )}
-                                </td>
-                                <td style={{ padding: 8 }}>₹{dt.stay}</td>
-                                <td style={{ padding: 8 }}>₹{dt.grand}</td>
-                                <td style={{ padding: 8 }}>
-                                  ₹{dt.fromTickets > 0 ? dt.fromTickets : '—'}
-                                </td>
+                                />
+                                <CmpCell
+                                  value={fmtRs(dt.travelLocal + dt.petrol + dt.stay)}
+                                  match={!isMismatch(dt.grand, dt.travelLocal + dt.petrol + dt.stay, 15)}
+                                />
                                 <td style={{ padding: 8 }}>—</td>
+                                <CmpCell
+                                  value={
+                                    isMismatch(dt.grand, dt.travelLocal + dt.petrol + dt.stay, 15)
+                                      ? 'CHECK'
+                                      : 'OK'
+                                  }
+                                  match={!isMismatch(dt.grand, dt.travelLocal + dt.petrol + dt.stay, 15)}
+                                  bold
+                                />
                               </tr>
                             </tfoot>
                           </table>
-                          <div
-                            style={{
-                              marginTop: 10,
-                              padding: '8px 10px',
-                              borderRadius: 6,
-                              background: 'rgba(88,166,255,0.06)',
-                              fontSize: '0.75rem',
-                              display: 'flex',
-                              flexWrap: 'wrap',
-                              gap: 12,
-                            }}
-                          >
-                            <span>
-                              Travel + Local total:{' '}
-                              <strong style={{ color: travelLocalOk ? '#3fb950' : '#f85149' }}>
-                                ₹{dt.travelLocal}
-                              </strong>
-                              {' '}(header Tickets+Local ₹{headerTravelLocal})
-                            </span>
-                            <span>
-                              Petrol total:{' '}
-                              <strong style={{ color: petrolOk ? '#3fb950' : '#f85149' }}>
-                                ₹{dt.petrol || dt.petrolCalc || 0}
-                              </strong>
-                              {' '}(header Fuel ₹{headerFuel})
-                              {dt.petrolCalc > 0 && (
-                                <span style={{ color: petrolCalcOk ? '#3fb950' : '#f85149' }}>
-                                  {' '}
-                                  · km calc ₹{dt.petrolCalc}
-                                </span>
-                              )}
-                            </span>
-                            <span>
-                              Stay total:{' '}
-                              <strong style={{ color: stayOk ? '#3fb950' : '#f85149' }}>
-                                ₹{dt.stay}
-                              </strong>
-                              {' '}(header ₹{headerStay})
-                            </span>
-                            <span>
-                              Grand total (all dates): <strong>₹{dt.grand}</strong>
-                            </span>
-                            <span>
-                              Travel+Local + Fuel + Stay:{' '}
-                              <strong
-                                style={{
-                                  color:
-                                    Math.abs(combinedSum - combinedCheck) <= 50
-                                      ? '#3fb950'
-                                      : '#f85149',
-                                }}
-                              >
-                                ₹{combinedSum}
-                              </strong>
-                              {' '}(reconciliation ₹{combinedCheck})
-                            </span>
-                          </div>
                         </div>
                       );
                     })()}
                   </div>
                 )}
 
-                <ul style={{ margin: '12px 0 0', paddingLeft: 18, fontSize: '0.78rem' }}>
-                  {result.flags.map((f, i) => (
-                    <li key={i} style={{ color: severityColor(f.severity), marginBottom: 4 }}>
-                      {f.message}
-                    </li>
-                  ))}
-                </ul>
+                {result.flags.filter((f) => f.severity === 'red').length > 0 && (
+                  <div
+                    style={{
+                      marginTop: 10,
+                      padding: '8px 12px',
+                      borderRadius: 8,
+                      border: '1px solid #f85149',
+                      background: 'rgba(248,81,73,0.08)',
+                      fontSize: '0.75rem',
+                    }}
+                  >
+                    <strong style={{ color: '#f85149' }}>Mistakes found:</strong>
+                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                      {result.flags
+                        .filter((f) => f.severity === 'red')
+                        .map((f, i) => (
+                          <li key={i} style={{ color: '#f85149', marginBottom: 4 }}>
+                            {f.message}
+                          </li>
+                        ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             );
             })}
