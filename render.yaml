@@ -2,6 +2,7 @@ services:
   - type: web
     name: sales-audit-2-0
     runtime: node
+    branch: master
     plan: free
     buildCommand: npm install --legacy-peer-deps && npm run build
     startCommand: node server/server.js
