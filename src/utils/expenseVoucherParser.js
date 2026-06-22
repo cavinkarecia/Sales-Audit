@@ -177,6 +177,8 @@ const getDateScanStartRow = (matrix) => {
   const cashier = findCellAnywhere(matrix, 'cashier');
   if (cashier) return cashier.r + 1;
   return 15;
+};
+
 const looksLikeVoucher = (matrix) =>
   Boolean(
     findCellInHeader(matrix, 'requested by') ||
