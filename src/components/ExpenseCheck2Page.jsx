@@ -211,6 +211,81 @@ const AuditorTotalSummary = ({ voucher }) => {
   );
 };
 
+const collectAuditorMistakes = (result, tabAudit) => {
+  const v = result.voucher;
+  const dt = sumDateResults(v.dateBlocks || []);
+  const items = [];
+
+  const add = (severity, message) => {
+    const msg = String(message || '').trim();
+    if (!msg || items.some((i) => i.message === msg)) return;
+    items.push({ severity, message: msg });
+  };
+
+  const dayFuel = v.dateWisePetrolSum || dt.petrol || 0;
+  const dayTickets = v.dateWiseTicketsSum ?? dt.travelLocal ?? 0;
+  const dayStay = v.dateWiseAccommodationSum || dt.stay || 0;
+  const checkedTotal = dayFuel + dayTickets + dayStay;
+
+  if (v.fuelTotal > 0 && isMismatch(v.fuelTotal, dayFuel, 50)) {
+    add('red', `Fuel: header ₹${v.fuelTotal} ≠ date-wise sum ₹${dayFuel}`);
+  }
+  if (v.ticketsTotal > 0 && isMismatch(v.ticketsTotal, dayTickets, 10)) {
+    add('red', `Tickets + Local: header ₹${v.ticketsTotal} ≠ date-wise sum ₹${dayTickets}`);
+  }
+  if (v.accommodationTotal > 0 && isMismatch(v.accommodationTotal, dayStay, 10)) {
+    add('red', `Stay: header ₹${v.accommodationTotal} ≠ date-wise sum ₹${dayStay}`);
+  }
+  if (v.declaredTotal > 0 && isMismatch(v.declaredTotal, checkedTotal, 15)) {
+    add('red', `Total: declared ₹${v.declaredTotal} ≠ checked ₹${checkedTotal}`);
+  }
+
+  (tabAudit?.headerIssues || []).forEach((h) => add('red', h.message));
+
+  result.flags
+    .filter((f) => f.severity === 'red' || f.severity === 'orange')
+    .forEach((f) => add(f.severity, f.message));
+
+  return items;
+};
+
+const AuditorMistakesSection = ({ result, tabAudit }) => {
+  const mistakes = collectAuditorMistakes(result, tabAudit);
+  if (!mistakes.length) return null;
+
+  const redCount = mistakes.filter((m) => m.severity === 'red').length;
+
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        padding: '10px 14px',
+        borderRadius: 8,
+        border: `1px solid ${redCount > 0 ? '#f85149' : '#d29922'}`,
+        background: redCount > 0 ? 'rgba(248,81,73,0.08)' : 'rgba(210,153,34,0.08)',
+        fontSize: '0.78rem',
+      }}
+    >
+      <strong style={{ color: redCount > 0 ? '#f85149' : '#d29922' }}>
+        Mistakes found ({mistakes.length})
+      </strong>
+      <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+        {mistakes.map((m, i) => (
+          <li
+            key={`${m.message}-${i}`}
+            style={{
+              color: severityColor(m.severity === 'orange' ? 'orange' : 'red'),
+              marginBottom: 4,
+            }}
+          >
+            {m.message}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
 const ExpenseCheck2Page = () => {
   const {
     attendanceRecords,
@@ -597,6 +672,8 @@ const ExpenseCheck2Page = () => {
 
                 <AuditorTotalSummary voucher={result.voucher} />
 
+                <AuditorMistakesSection result={result} tabAudit={tabAudit} />
+
                 {result.voucher.imageUrls?.length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <h4 style={{ fontSize: '0.8rem' }}>Bill images ({result.voucher.imageUrls.length})</h4>
@@ -783,30 +860,6 @@ const ExpenseCheck2Page = () => {
                         </div>
                       );
                     })()}
-                  </div>
-                )}
-
-                {result.flags.filter((f) => f.severity === 'red').length > 0 && (
-                  <div
-                    style={{
-                      marginTop: 10,
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      border: '1px solid #f85149',
-                      background: 'rgba(248,81,73,0.08)',
-                      fontSize: '0.75rem',
-                    }}
-                  >
-                    <strong style={{ color: '#f85149' }}>Mistakes found:</strong>
-                    <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                      {result.flags
-                        .filter((f) => f.severity === 'red')
-                        .map((f, i) => (
-                          <li key={i} style={{ color: '#f85149', marginBottom: 4 }}>
-                            {f.message}
-                          </li>
-                        ))}
-                    </ul>
                   </div>
                 )}
               </div>
