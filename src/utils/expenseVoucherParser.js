@@ -5,6 +5,35 @@ import { extractSpreadsheetId } from './spreadsheetUrl.js';
 const pad = (n) => String(n).padStart(2, '0');
 export const PETROL_KM_RATE = 4;
 
+/** Travel + local for one bus/train day — excludes petrol, fuel, and stay. */
+export const ticketsLocalForBlock = (block) => {
+  if (!block) return 0;
+  if (block.isKmPetrolDay || block.splitType === 'petrol_km') return 0;
+  if (block.isPetrolDay && block.splitType === 'petrol') return 0;
+  if (block.splitType === 'stay' && !(block.travel || block.localConveyance)) return 0;
+
+  const travel = block.travel || 0;
+  const local = block.localConveyance || 0;
+  const stay = block.accommodation || 0;
+  const grand = block.grandTotal || 0;
+  let amount = travel + local;
+
+  if (amount <= 0 && grand > stay) {
+    if (block.hasBusTrainHint || block.splitType === 'bus_train' || block.splitType === 'mixed') {
+      amount = grand - stay;
+    }
+  }
+
+  if (stay > 0 && grand > 0 && amount > grand - stay + 5) {
+    amount = Math.max(0, grand - stay);
+  }
+
+  return Math.max(0, amount);
+};
+
+export const computeDateWiseTicketsLocalSum = (blocks) =>
+  (blocks || []).reduce((sum, block) => sum + ticketsLocalForBlock(block), 0);
+
 const toDateStr = (d) =>
   d ? `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()}` : '';
 
@@ -294,6 +323,8 @@ const parseDateWiseBlocks = (matrix) => {
     let food = 0;
     let dayTotal = 0;
 
+    let petrolFromLabel = false;
+
     const kmHit = findLabeledValueInBlock(matrix, r + 1, endR, isKmLabel, (cell, raw) => ({
       ...parseKmFromCell(cell),
       raw,
@@ -311,6 +342,7 @@ const parseDateWiseBlocks = (matrix) => {
     if (travelRsHit?.amount > 0) {
       petrolTravel = travelRsHit.amount;
       travelRsRaw = travelRsHit.raw;
+      petrolFromLabel = true;
     }
 
     const travelBlk = findLabeledValueInBlock(matrix, r + 1, endR, isTravelLabel, (cell) =>
@@ -336,7 +368,10 @@ const parseDateWiseBlocks = (matrix) => {
     const petrolBlk = findLabeledValueInBlock(matrix, r + 1, endR, isPetrolLabel, (cell) =>
       parseAmountFromCell(cell),
     );
-    if (petrolBlk > 0) petrolTravel = petrolBlk;
+    if (petrolBlk > 0) {
+      petrolTravel = petrolBlk;
+      petrolFromLabel = true;
+    }
 
     const totalBlk = findLabeledValueInBlock(
       matrix,
@@ -364,7 +399,10 @@ const parseDateWiseBlocks = (matrix) => {
       if (g > 0) grandTotal = g;
 
       const petrolRow = findAmountInRow(row, isPetrolLabel);
-      if (petrolRow > 0) petrolTravel = petrolRow;
+      if (petrolRow > 0) {
+        petrolTravel = petrolRow;
+        petrolFromLabel = true;
+      }
 
       const dt = findAmountInRow(row, (n) => isDayTotalLabel(n) && !n.includes('thousand'));
       if (dt > 0) dayTotal = dt;
@@ -395,26 +433,28 @@ const parseDateWiseBlocks = (matrix) => {
     if (!petrolTravel && textFallback.petrolTravel > 0) {
       petrolTravel = textFallback.petrolTravel;
       travelRsRaw = textFallback.travelRsRaw;
+      petrolFromLabel = true;
     }
 
     const kmCalcAmount = kmTraveled > 0 ? Math.round(kmTraveled * PETROL_KM_RATE) : 0;
-    const isKmPetrolDay = petrolTravel > 0 && (kmTraveled > 0 || travelRsRaw.includes('*'));
-    const isSimplePetrolDay = petrolTravel > 0 && travel === 0 && localConveyance === 0;
-    const isPetrolDay =
-      isKmPetrolDay || isSimplePetrolDay || (dayTotal > 0 && travel === 0 && localConveyance === 0);
+    if (!petrolTravel && kmCalcAmount > 0 && kmTraveled > 0) {
+      petrolTravel = kmCalcAmount;
+      petrolFromLabel = true;
+    }
 
-    if (!petrolTravel && isPetrolDay && dayTotal > 0) petrolTravel = dayTotal;
-    if (!petrolTravel && kmCalcAmount > 0 && isKmPetrolDay) petrolTravel = kmCalcAmount;
+    const isKmPetrolDay =
+      petrolTravel > 0 && (kmTraveled > 0 || travelRsRaw.includes('*'));
+    const isSimplePetrolDay =
+      petrolFromLabel && petrolTravel > 0 && travel === 0 && localConveyance === 0;
+    const isPetrolDay = isKmPetrolDay || isSimplePetrolDay;
 
     const ticketsSubtotal = travel + localConveyance;
-    const petrolDayAmount = petrolTravel || (isPetrolDay ? dayTotal : 0);
+    const petrolDayAmount = petrolTravel || 0;
 
     if (!grandTotal) {
       if (isPetrolDay) grandTotal = petrolDayAmount + accommodation + food;
       else grandTotal = ticketsSubtotal + accommodation;
     }
-
-    const ticketComparable = isPetrolDay ? petrolDayAmount : ticketsSubtotal;
 
     const splitType = isKmPetrolDay
       ? 'petrol_km'
@@ -427,6 +467,21 @@ const parseDateWiseBlocks = (matrix) => {
             : accommodation > 0
               ? 'stay'
               : 'other';
+
+    const hasBusTrainHint =
+      !isPetrolDay &&
+      (travel > 0 || localConveyance > 0 || splitType === 'bus_train' || splitType === 'mixed');
+
+    const ticketComparable = ticketsLocalForBlock({
+      travel,
+      localConveyance,
+      accommodation,
+      grandTotal,
+      hasBusTrainHint,
+      splitType,
+      isPetrolDay,
+      isKmPetrolDay,
+    });
 
     if (ticketComparable > 0 || accommodation > 0 || grandTotal > 0) {
       blocks.push({
@@ -464,7 +519,7 @@ const parseDateWiseBlocks = (matrix) => {
                 : '',
         isPetrolDay,
         isKmPetrolDay,
-        hasBusTrainHint: !isPetrolDay && (travel > 0 || localConveyance > 0),
+        hasBusTrainHint,
       });
     }
 
@@ -499,7 +554,9 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const employeeNoHit = findCellInHeader(matrix, 'employee no');
   const fuelRow = findCellInHeader(matrix, 'fuel expenses');
   const ticketRow =
-    findCellInHeader(matrix, 'tickets') || findCellInHeader(matrix, 'local conv');
+    findCellInHeader(matrix, 'ticketslocal') ||
+    findCellInHeader(matrix, 'tickets') ||
+    findCellInHeader(matrix, 'local conv');
   const accommodationRow =
     findCellInHeader(matrix, 'accomdation') || findCellInHeader(matrix, 'accommodation');
   const totalRow = findLabelInHeader(matrix, /^total$/i);
@@ -517,10 +574,7 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const petrolDays = dateBlocks.filter((b) => b.isPetrolDay);
   const busDays = dateBlocks.filter((b) => !b.isPetrolDay);
 
-  const dateWiseTicketsSum = dateBlocks.reduce(
-    (s, b) => s + (b.isPetrolDay ? 0 : b.ticketComparable),
-    0,
-  );
+  const dateWiseTicketsSum = computeDateWiseTicketsLocalSum(dateBlocks);
   const dateWisePetrolSum = dateBlocks.reduce((s, b) => s + (b.petrolTravel || 0), 0);
   const dateWiseAccommodationSum = dateBlocks.reduce((s, b) => s + b.accommodation, 0);
   const dateWiseGrandSum = dateBlocks.reduce((s, b) => s + b.grandTotal, 0);

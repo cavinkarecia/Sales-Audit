@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Bot, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
-import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
+import { fetchAllExpenseVouchers, ticketsLocalForBlock } from '../utils/expenseVoucherParser';
 import { enrichAllVouchersWithImages } from '../utils/expenseImageAnalysis';
 import {
   verifyAllExpenseVouchers,
@@ -72,9 +72,9 @@ const sumDateResults = (rows) =>
       const local = d.localConveyance || 0;
       const petrol = petrolDayAmount(d);
       const petrolCalc = petrolCalcFromKm(d);
-      const travelLocal = d.isPetrolDay
+      const travelLocal = d.isPetrolDay || d.isKmPetrolDay
         ? 0
-        : d.ticketComparable ?? d.ticketsSubtotal ?? travel + local;
+        : ticketsLocalForBlock(d);
       return {
         travel: acc.travel + travel,
         local: acc.local + local,
@@ -118,7 +118,7 @@ const AuditorTotalSummary = ({ voucher }) => {
   const headerTotal = voucher.declaredTotal || headerFuel + headerTickets + headerStay;
 
   const dayFuel = voucher.dateWisePetrolSum || dt.petrol || 0;
-  const dayTickets = voucher.dateWiseTicketsSum || dt.travelLocal || 0;
+  const dayTickets = voucher.dateWiseTicketsSum ?? dt.travelLocal ?? 0;
   const dayStay = voucher.dateWiseAccommodationSum || dt.stay || 0;
   const dayTotal = dayFuel + dayTickets + dayStay;
 
@@ -232,6 +232,8 @@ const ExpenseCheck2Page = () => {
   const [liveBuild, setLiveBuild] = useState('');
   const [dateAuditSummary, setDateAuditSummary] = useState(null);
   const [openDateDetail, setOpenDateDetail] = useState(() => new Set());
+  const [tabsSummaryOpen, setTabsSummaryOpen] = useState(false);
+  const [selectedAuditorId, setSelectedAuditorId] = useState('');
 
   const toggleDateDetail = (id) => {
     setOpenDateDetail((prev) => {
@@ -304,6 +306,21 @@ const ExpenseCheck2Page = () => {
     if (filter === 'all') return verification.results;
     return verification.results.filter((r) => r.summary.status === filter);
   }, [verification, filter]);
+
+  const selectedResult = useMemo(() => {
+    if (!filtered.length) return null;
+    return filtered.find((r) => r.id === selectedAuditorId) || filtered[0];
+  }, [filtered, selectedAuditorId]);
+
+  useEffect(() => {
+    if (!filtered.length) {
+      setSelectedAuditorId('');
+      return;
+    }
+    if (!filtered.some((r) => r.id === selectedAuditorId)) {
+      setSelectedAuditorId(filtered[0].id);
+    }
+  }, [filtered, selectedAuditorId]);
 
   const handleAi = async () => {
     if (!verification) return;
@@ -417,33 +434,57 @@ const ExpenseCheck2Page = () => {
 
       {expenseSheetSummary.length > 0 && (
         <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-          <h3 style={{ margin: '0 0 10px', fontSize: '0.9rem' }}>Auditor tabs fetched</h3>
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-              <thead>
-                <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                  <th style={{ padding: 8 }}>Tab</th>
-                  <th style={{ padding: 8 }}>Requested By</th>
-                  <th style={{ padding: 8 }}>Emp No</th>
-                  <th style={{ padding: 8 }}>Date rows</th>
-                  <th style={{ padding: 8 }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expenseSheetSummary.map((s) => (
-                  <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
-                    <td style={{ padding: 8 }}>{s.sheetName}</td>
-                    <td style={{ padding: 8 }}>{s.auditorName || '—'}</td>
-                    <td style={{ padding: 8 }}>{s.employeeNo || '—'}</td>
-                    <td style={{ padding: 8 }}>{s.dateRows ?? '—'}</td>
-                    <td style={{ padding: 8, color: s.status === 'loaded' ? '#3fb950' : '#f85149' }}>
-                      {s.status}
-                    </td>
+          <button
+            type="button"
+            onClick={() => setTabsSummaryOpen((o) => !o)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '0.9rem',
+              fontWeight: 600,
+            }}
+          >
+            <span>
+              Auditor tabs fetched ({expenseSheetSummary.filter((s) => s.status === 'loaded').length}/
+              {expenseSheetSummary.length})
+            </span>
+            {tabsSummaryOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+          {tabsSummaryOpen && (
+            <div style={{ overflowX: 'auto', marginTop: 10 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>Tab</th>
+                    <th style={{ padding: 8 }}>Requested By</th>
+                    <th style={{ padding: 8 }}>Emp No</th>
+                    <th style={{ padding: 8 }}>Date rows</th>
+                    <th style={{ padding: 8 }}>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {expenseSheetSummary.map((s) => (
+                    <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
+                      <td style={{ padding: 8 }}>{s.sheetName}</td>
+                      <td style={{ padding: 8 }}>{s.auditorName || '—'}</td>
+                      <td style={{ padding: 8 }}>{s.employeeNo || '—'}</td>
+                      <td style={{ padding: 8 }}>{s.dateRows ?? '—'}</td>
+                      <td style={{ padding: 8, color: s.status === 'loaded' ? '#3fb950' : '#f85149' }}>
+                        {s.status}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -516,14 +557,47 @@ const ExpenseCheck2Page = () => {
             </button>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {filtered.map((result) => {
-              const tabAudit = dateAuditSummary?.audits?.find(
-                (a) =>
-                  a.sheetName === result.voucher.sheetName ||
-                  a.auditorName === result.voucher.auditorName,
-              );
-              return (
+          {filtered.length > 0 && (
+            <div className="glass-card" style={{ padding: '12px 16px', marginBottom: 12 }}>
+              <label
+                htmlFor="auditor-select"
+                style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 6 }}
+              >
+                Select auditor ({filtered.length})
+              </label>
+              <select
+                id="auditor-select"
+                value={selectedResult?.id || ''}
+                onChange={(e) => setSelectedAuditorId(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border-main)',
+                  background: 'rgba(0,0,0,0.25)',
+                  color: '#fff',
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                }}
+              >
+                {filtered.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.voucher.auditorName} — Emp {r.voucher.employeeNo || '—'} — ₹
+                    {r.voucher.declaredTotal} — {r.summary.status.toUpperCase()}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {selectedResult && (() => {
+            const result = selectedResult;
+            const tabAudit = dateAuditSummary?.audits?.find(
+              (a) =>
+                a.sheetName === result.voucher.sheetName ||
+                a.auditorName === result.voucher.auditorName,
+            );
+            return (
               <div
                 key={result.id}
                 className="glass-card"
@@ -740,6 +814,15 @@ const ExpenseCheck2Page = () => {
                                   bold
                                 />
                               </tr>
+                              <tr style={{ background: 'rgba(88,166,255,0.04)', fontSize: '0.68rem' }}>
+                                <td colSpan={11} style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
+                                  Tickets + Local (bus/train days only):{' '}
+                                  <strong style={{ color: !isMismatch(result.voucher.ticketsTotal, dt.travelLocal, 10) ? '#3fb950' : '#f85149' }}>
+                                    {fmtRs(dt.travelLocal)}
+                                  </strong>
+                                  {' '}(header ₹{result.voucher.ticketsTotal || 0})
+                                </td>
+                              </tr>
                             </tfoot>
                           </table>
                         </div>
@@ -773,8 +856,7 @@ const ExpenseCheck2Page = () => {
                 )}
               </div>
             );
-            })}
-          </div>
+          })()}
 
           {aiReport && (
             <div
