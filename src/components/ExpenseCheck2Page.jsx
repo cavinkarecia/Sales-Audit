@@ -232,8 +232,7 @@ const ExpenseCheck2Page = () => {
   const [liveBuild, setLiveBuild] = useState('');
   const [dateAuditSummary, setDateAuditSummary] = useState(null);
   const [openDateDetail, setOpenDateDetail] = useState(() => new Set());
-  const [tabsSummaryOpen, setTabsSummaryOpen] = useState(false);
-  const [selectedAuditorId, setSelectedAuditorId] = useState('');
+  const [selectedLoadedTab, setSelectedLoadedTab] = useState('');
 
   const toggleDateDetail = (id) => {
     setOpenDateDetail((prev) => {
@@ -307,20 +306,25 @@ const ExpenseCheck2Page = () => {
     return verification.results.filter((r) => r.summary.status === filter);
   }, [verification, filter]);
 
-  const selectedResult = useMemo(() => {
-    if (!filtered.length) return null;
-    return filtered.find((r) => r.id === selectedAuditorId) || filtered[0];
-  }, [filtered, selectedAuditorId]);
+  const loadedSheets = useMemo(
+    () => expenseSheetSummary.filter((s) => s.status === 'loaded'),
+    [expenseSheetSummary],
+  );
+
+  const selectedSheetInfo = useMemo(
+    () => loadedSheets.find((s) => s.sheetName === selectedLoadedTab) || loadedSheets[0] || null,
+    [loadedSheets, selectedLoadedTab],
+  );
 
   useEffect(() => {
-    if (!filtered.length) {
-      setSelectedAuditorId('');
+    if (!loadedSheets.length) {
+      setSelectedLoadedTab('');
       return;
     }
-    if (!filtered.some((r) => r.id === selectedAuditorId)) {
-      setSelectedAuditorId(filtered[0].id);
+    if (!loadedSheets.some((s) => s.sheetName === selectedLoadedTab)) {
+      setSelectedLoadedTab(loadedSheets[0].sheetName);
     }
-  }, [filtered, selectedAuditorId]);
+  }, [loadedSheets, selectedLoadedTab]);
 
   const handleAi = async () => {
     if (!verification) return;
@@ -432,58 +436,42 @@ const ExpenseCheck2Page = () => {
         </div>
       )}
 
-      {expenseSheetSummary.length > 0 && (
+      {loadedSheets.length > 0 && (
         <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-          <button
-            type="button"
-            onClick={() => setTabsSummaryOpen((o) => !o)}
+          <label
+            htmlFor="loaded-sheets-select"
+            style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 6 }}
+          >
+            Sheets loaded ({loadedSheets.length} of {expenseSheetSummary.length})
+          </label>
+          <select
+            id="loaded-sheets-select"
+            value={selectedSheetInfo?.sheetName || ''}
+            onChange={(e) => setSelectedLoadedTab(e.target.value)}
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
               width: '100%',
-              padding: 0,
-              border: 'none',
-              background: 'transparent',
+              padding: '10px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border-main)',
+              background: 'rgba(0,0,0,0.25)',
               color: '#fff',
+              fontSize: '0.85rem',
               cursor: 'pointer',
-              fontSize: '0.9rem',
-              fontWeight: 600,
             }}
           >
-            <span>
-              Auditor tabs fetched ({expenseSheetSummary.filter((s) => s.status === 'loaded').length}/
-              {expenseSheetSummary.length})
-            </span>
-            {tabsSummaryOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </button>
-          {tabsSummaryOpen && (
-            <div style={{ overflowX: 'auto', marginTop: 10 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
-                <thead>
-                  <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
-                    <th style={{ padding: 8 }}>Tab</th>
-                    <th style={{ padding: 8 }}>Requested By</th>
-                    <th style={{ padding: 8 }}>Emp No</th>
-                    <th style={{ padding: 8 }}>Date rows</th>
-                    <th style={{ padding: 8 }}>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {expenseSheetSummary.map((s) => (
-                    <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
-                      <td style={{ padding: 8 }}>{s.sheetName}</td>
-                      <td style={{ padding: 8 }}>{s.auditorName || '—'}</td>
-                      <td style={{ padding: 8 }}>{s.employeeNo || '—'}</td>
-                      <td style={{ padding: 8 }}>{s.dateRows ?? '—'}</td>
-                      <td style={{ padding: 8, color: s.status === 'loaded' ? '#3fb950' : '#f85149' }}>
-                        {s.status}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {loadedSheets.map((s) => (
+              <option key={s.sheetName} value={s.sheetName}>
+                {s.sheetName} — {s.auditorName || '—'} — Emp {s.employeeNo || '—'} — {s.dateRows ?? 0} dates
+              </option>
+            ))}
+          </select>
+          {selectedSheetInfo && (
+            <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+              Tab: <strong>{selectedSheetInfo.sheetName}</strong> · Requested by:{' '}
+              <strong>{selectedSheetInfo.auditorName || '—'}</strong> · Emp No:{' '}
+              <strong>{selectedSheetInfo.employeeNo || '—'}</strong> · Date rows:{' '}
+              <strong>{selectedSheetInfo.dateRows ?? '—'}</strong>
+            </p>
           )}
         </div>
       )}
@@ -557,47 +545,14 @@ const ExpenseCheck2Page = () => {
             </button>
           </div>
 
-          {filtered.length > 0 && (
-            <div className="glass-card" style={{ padding: '12px 16px', marginBottom: 12 }}>
-              <label
-                htmlFor="auditor-select"
-                style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 6 }}
-              >
-                Select auditor ({filtered.length})
-              </label>
-              <select
-                id="auditor-select"
-                value={selectedResult?.id || ''}
-                onChange={(e) => setSelectedAuditorId(e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: 8,
-                  border: '1px solid var(--border-main)',
-                  background: 'rgba(0,0,0,0.25)',
-                  color: '#fff',
-                  fontSize: '0.85rem',
-                  cursor: 'pointer',
-                }}
-              >
-                {filtered.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.voucher.auditorName} — Emp {r.voucher.employeeNo || '—'} — ₹
-                    {r.voucher.declaredTotal} — {r.summary.status.toUpperCase()}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {selectedResult && (() => {
-            const result = selectedResult;
-            const tabAudit = dateAuditSummary?.audits?.find(
-              (a) =>
-                a.sheetName === result.voucher.sheetName ||
-                a.auditorName === result.voucher.auditorName,
-            );
-            return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {filtered.map((result) => {
+              const tabAudit = dateAuditSummary?.audits?.find(
+                (a) =>
+                  a.sheetName === result.voucher.sheetName ||
+                  a.auditorName === result.voucher.auditorName,
+              );
+              return (
               <div
                 key={result.id}
                 className="glass-card"
@@ -856,7 +811,8 @@ const ExpenseCheck2Page = () => {
                 )}
               </div>
             );
-          })()}
+            })}
+          </div>
 
           {aiReport && (
             <div
