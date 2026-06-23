@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: expense-check-2-v22
+          build: expense-check-2-v23
         </span>
       </nav>
       <Routes>

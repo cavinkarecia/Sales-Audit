@@ -276,10 +276,16 @@ const scanBlockTextFallback = (matrix, startR, endR) => {
     }
   }
 
-  const travelRs = text.match(/travel\s*rs\.?[^\d]{0,30}(\d+)\s*\*\s*4\s*=\s*(\d+)/i);
+  const travelRs = text.match(/travel\s*rs\.?[^\d]{0,30}(\d+)\s*\*\s*(4|8)\s*=\s*(\d+)/i);
   if (travelRs) {
-    out.petrolTravel = parseFloat(travelRs[2]);
-    out.travelRsRaw = `${travelRs[1]} * 4 = ${travelRs[2]}`;
+    out.petrolTravel = parseFloat(travelRs[3]);
+    out.travelRsRaw = `${travelRs[1]} * ${travelRs[2]} = ${travelRs[3]}`;
+  } else {
+    const travelRs4 = text.match(/travel\s*rs\.?[^\d]{0,30}(\d+)\s*\*\s*4\s*=\s*(\d+)/i);
+    if (travelRs4) {
+      out.petrolTravel = parseFloat(travelRs4[2]);
+      out.travelRsRaw = `${travelRs4[1]} * 4 = ${travelRs4[2]}`;
+    }
   }
 
   const petrolLine = text.match(/\bpetrol\b[^\d]{0,20}(\d+(?:\.\d+)?)/i);
@@ -425,6 +431,10 @@ const parseDateWiseBlocks = (matrix) => {
     }
 
     const textFallback = scanBlockTextFallback(matrix, r + 1, endR);
+    const blockText = matrix
+      .slice(r + 1, endR)
+      .map((row) => (row || []).map((c) => String(c ?? '')).join(' '))
+      .join(' ');
     if (!kmTraveled && textFallback.kmTraveled > 0) {
       kmTraveled = textFallback.kmTraveled;
       kmLegs = textFallback.kmLegs;
@@ -436,7 +446,14 @@ const parseDateWiseBlocks = (matrix) => {
       petrolFromLabel = true;
     }
 
-    const kmCalcAmount = kmTraveled > 0 ? Math.round(kmTraveled * PETROL_KM_RATE) : 0;
+    const isRoundTrip =
+      /round\s*trip/i.test(blockText) ||
+      /\*\s*8\s*=/.test(travelRsRaw) ||
+      /\*\s*8\s*=/.test(textFallback.travelRsRaw || '');
+
+    const kmCalcAmount = kmTraveled > 0
+      ? Math.round(kmTraveled * (isRoundTrip ? 8 : PETROL_KM_RATE))
+      : 0;
     if (!petrolTravel && kmCalcAmount > 0 && kmTraveled > 0) {
       petrolTravel = kmCalcAmount;
       petrolFromLabel = true;
@@ -499,10 +516,11 @@ const parseDateWiseBlocks = (matrix) => {
         kmCalcAmount,
         kmFormula:
           kmLegs.length > 1
-            ? `${kmLegs.join(' + ')} = ${kmTraveled} km × ₹${PETROL_KM_RATE} = ₹${kmCalcAmount}`
+            ? `${kmLegs.join(' + ')} = ${kmTraveled} km × ₹${isRoundTrip ? 8 : PETROL_KM_RATE} = ₹${kmCalcAmount}`
             : kmTraveled > 0
-              ? `${kmTraveled} km × ₹${PETROL_KM_RATE} = ₹${kmCalcAmount}`
+              ? `${kmTraveled} km × ₹${isRoundTrip ? 8 : PETROL_KM_RATE} = ₹${kmCalcAmount}`
               : '',
+        isRoundTrip,
         grandTotal,
         dayTotal,
         ticketsSubtotal,

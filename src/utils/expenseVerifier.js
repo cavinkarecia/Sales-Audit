@@ -57,7 +57,8 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
 
     if (block.isPetrolDay || block.isKmPetrolDay || block.splitType === 'petrol_km') {
       if (block.kmTraveled > 0) {
-        const expectedPetrol = block.kmCalcAmount || Math.round(block.kmTraveled * PETROL_ONE_WAY);
+        const rate = block.isRoundTrip ? PETROL_ROUND : PETROL_ONE_WAY;
+        const expectedPetrol = block.kmCalcAmount || Math.round(block.kmTraveled * rate);
         const sheetAmt = block.petrolTravel || block.dayTotal || block.grandTotal;
         const kmNote = block.kmLegs?.length > 1
           ? `${block.kmLegs.join('+')}=${block.kmTraveled} km`
@@ -68,7 +69,7 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
             flag(
               'red',
               'PETROL_KM_MISMATCH',
-              `${block.date}: ${kmNote} × ₹${PETROL_ONE_WAY} = ₹${expectedPetrol} but sheet shows ₹${sheetAmt}`,
+              `${block.date}: ${kmNote} × ₹${rate} = ₹${expectedPetrol} but sheet shows ₹${sheetAmt}`,
             ),
           );
         } else {
@@ -76,7 +77,7 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
             flag(
               'green',
               'PETROL_KM_OK',
-              `${block.date}: ${kmNote} × ₹${PETROL_ONE_WAY} = ₹${expectedPetrol} matches sheet ₹${sheetAmt}`,
+              `${block.date}: ${kmNote} × ₹${rate} = ₹${expectedPetrol} matches sheet ₹${sheetAmt}`,
             ),
           );
         }
@@ -241,22 +242,26 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
 
   if (voucher.totals) {
     const t = voucher.totals;
-    if (Math.abs(t.difference) > 10) {
+    const daySplit =
+      (voucher.dateWiseTicketsSum || 0) +
+      (voucher.dateWisePetrolSum || 0) +
+      (voucher.dateWiseAccommodationSum || 0);
+    if (voucher.declaredTotal > 0 && Math.abs(daySplit - voucher.declaredTotal) > 15) {
       flags.push(
         flag(
-          t.difference > 0 ? 'orange' : 'red',
-          'CORRECT_TOTAL_MISMATCH',
-          `Declared ₹${t.declaredTotal} vs correct total ₹${t.correctTotal} (diff ₹${Math.round(t.difference)})`,
-          t,
+          'red',
+          'DECLARED_VS_DAY_SPLIT',
+          `Declared ₹${voucher.declaredTotal} ≠ day-wise split total ₹${daySplit}`,
+          { declaredTotal: voucher.declaredTotal, daySplit },
         ),
       );
     }
-    if (t.fromTicketImages > 0 && Math.abs(t.fromTicketImages - t.manualDateWiseSum) > 10) {
+    if (t.fromTicketImages > 0 && Math.abs(t.fromTicketImages - t.manualTicketsSum) > 10) {
       flags.push(
         flag(
           'orange',
           'MANUAL_VS_TICKET_IMAGE',
-          `Manual travel total ₹${t.manualDateWiseSum} vs bus/train from ticket images ₹${t.fromTicketImages}`,
+          `Manual tickets+local ₹${t.manualTicketsSum} vs bus/train from ticket images ₹${t.fromTicketImages}`,
           t,
         ),
       );

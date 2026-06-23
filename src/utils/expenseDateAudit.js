@@ -1,4 +1,5 @@
 import { PETROL_KM_RATE } from './expenseVoucherParser.js';
+import { PETROL_ROUND_RATE } from './expenseDayCheck.js';
 
 const near = (a, b, tol = 5) => Math.abs(a - b) <= tol;
 
@@ -24,7 +25,8 @@ export const validateDateBlock = (block) => {
   }
 
   if (isKmPetrol && block.kmTraveled > 0) {
-    const expected = block.kmCalcAmount || Math.round(block.kmTraveled * PETROL_KM_RATE);
+    const rate = block.isRoundTrip ? PETROL_ROUND_RATE : PETROL_KM_RATE;
+    const expected = block.kmCalcAmount || Math.round(block.kmTraveled * rate);
     const kmNote =
       block.kmLegs?.length > 1
         ? `${block.kmLegs.join('+')}=${block.kmTraveled} km`
@@ -34,12 +36,12 @@ export const validateDateBlock = (block) => {
     if (near(expected, sheetAmt)) {
       ok.push({
         code: 'PETROL_KM_OK',
-        message: `${block.date}: ${kmNote} × ₹${PETROL_KM_RATE} = ₹${expected} ✓`,
+        message: `${block.date}: ${kmNote} × ₹${rate} = ₹${expected} ✓`,
       });
     } else {
       issues.push({
         code: 'PETROL_KM_MISMATCH',
-        message: `${block.date}: ${kmNote} × ₹${PETROL_KM_RATE} = ₹${expected} but sheet ₹${sheetAmt}`,
+        message: `${block.date}: ${kmNote} × ₹${rate} = ₹${expected} but sheet ₹${sheetAmt}`,
       });
     }
   } else if (isPetrol && petrolAmt > 0) {

@@ -3,54 +3,147 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Bot, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
-import { fetchAllExpenseVouchers, ticketsLocalForBlock } from '../utils/expenseVoucherParser';
+import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
 import { enrichAllVouchersWithImages } from '../utils/expenseImageAnalysis';
 import {
   verifyAllExpenseVouchers,
   buildExpenseAIPayload,
 } from '../utils/expenseVerifier';
 import { analyzeExpenseWithAI } from '../utils/deepseekAgent';
+import { analyzeExpenseDay, sumDaySplits } from '../utils/expenseDayCheck';
 
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
 
-const PETROL_RATE = 4;
-
-const petrolDayAmount = (d) => d.petrolTravel || 0;
-const petrolCalcFromKm = (d) => (d.kmTraveled > 0 ? Math.round(d.kmTraveled * PETROL_RATE) : 0);
-
 const splitLabel = (d) => {
-  if (d.splitType === 'petrol_km' || d.isKmPetrolDay) return 'Petrol (KM×4)';
-  if (d.splitType === 'petrol' || (d.isPetrolDay && petrolDayAmount(d) > 0)) return 'Petrol';
+  if (d.splitType === 'petrol_km' || d.isKmPetrolDay) {
+    return d.isRoundTrip ? 'Petrol (KM×8 round)' : 'Petrol (KM×4)';
+  }
+  if (d.splitType === 'petrol' || (d.isPetrolDay && (d.petrolTravel || 0) > 0)) return 'Petrol';
   if (d.splitType === 'bus_train' || d.hasBusTrainHint) return 'Bus/Train';
   if (d.splitType === 'mixed') return 'Mixed';
   if (d.splitType === 'stay') return 'Stay';
   return '—';
 };
 
-const formatPetrolCell = (d) => {
-  const amount = petrolDayAmount(d);
-  const calc = d.kmCalcAmount || petrolCalcFromKm(d);
-  if (!amount && !calc) return '—';
-  if (d.kmTraveled > 0) {
-    const kmPart =
-      d.kmLegs?.length > 1
-        ? `${d.kmLegs.join('+')}=${d.kmTraveled} km`
-        : `${d.kmTraveled} km`;
-    return `₹${amount || calc} (${kmPart} × ₹${PETROL_RATE})`;
-  }
-  return `₹${amount || calc}`;
-};
-
 const fmtRs = (n) => (Number(n) > 0 ? `₹${n}` : '—');
 const isMismatch = (a, b, tol = 10) => Math.abs((a || 0) - (b || 0)) > tol;
 
-const expectedDayGrand = (d) => {
-  if (d.isKmPetrolDay || d.splitType === 'petrol_km') {
-    return d.kmCalcAmount || petrolCalcFromKm(d) || petrolDayAmount(d);
-  }
-  if (d.isPetrolDay) return petrolDayAmount(d) + (d.accommodation || 0);
-  return (d.travel || 0) + (d.localConveyance || 0) + (d.accommodation || 0);
+const DateWiseSplitTable = ({ dateResults, ticketsHeader }) => {
+  const totals = sumDaySplits(dateResults);
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <p style={{ margin: '0 0 8px', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
+        <strong>Travel</strong> = bus/train ticket amount · <strong>Local</strong> = local allowance ·{' '}
+        <strong>Petrol</strong> = fuel (km × ₹4 one-way, km × ₹8 round trip) · <strong>Stay</strong> = accommodation ·{' '}
+        <strong>Day total</strong> = Travel + Local + Petrol + Stay
+      </p>
+      <table style={{ width: '100%', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ background: 'rgba(88,166,255,0.1)', color: 'var(--text-secondary)', textAlign: 'left' }}>
+            <th style={{ padding: 6 }}>#</th>
+            <th style={{ padding: 6 }}>Date</th>
+            <th style={{ padding: 6 }}>Travel (tickets)</th>
+            <th style={{ padding: 6 }}>Local allowance</th>
+            <th style={{ padding: 6 }}>Petrol</th>
+            <th style={{ padding: 6 }}>Stay</th>
+            <th style={{ padding: 6 }}>Day total</th>
+            <th style={{ padding: 6 }}>System check</th>
+            <th style={{ padding: 6 }}>OK?</th>
+          </tr>
+        </thead>
+        <tbody>
+          {dateResults.map((d, idx) => {
+            const a = analyzeExpenseDay(d);
+            return (
+              <tr
+                key={d.date}
+                style={{
+                  borderTop: '1px solid var(--border-main)',
+                  background: a.ok ? 'transparent' : 'rgba(248,81,73,0.06)',
+                }}
+              >
+                <td style={{ padding: 6, color: 'var(--text-secondary)' }}>{idx + 1}</td>
+                <td style={{ padding: 6, fontWeight: 600 }}>
+                  {d.date}
+                  <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', fontWeight: 400 }}>
+                    {splitLabel(d)}
+                  </div>
+                </td>
+                <td style={{ padding: 6 }}>{fmtRs(a.travel)}</td>
+                <td style={{ padding: 6 }}>{fmtRs(a.local)}</td>
+                <td style={{ padding: 6 }}>
+                  {fmtRs(a.petrolEntered)}
+                  {a.petrolCheck !== '—' && (
+                    <div
+                      style={{
+                        fontSize: '0.62rem',
+                        color: a.petrolMatch ? 'var(--text-secondary)' : '#f85149',
+                        marginTop: 2,
+                      }}
+                    >
+                      {a.petrolCheck}
+                    </div>
+                  )}
+                </td>
+                <td style={{ padding: 6 }}>{fmtRs(a.stay)}</td>
+                <td style={{ padding: 6, fontWeight: 700 }}>{fmtRs(a.daySplitTotal)}</td>
+                <td style={{ padding: 6, fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
+                  {a.rowCheck}
+                  {a.sheetGrand > 0 && (
+                    <div>
+                      Sheet grand: {fmtRs(a.sheetGrand)}
+                      {!a.grandMatch && (
+                        <span style={{ color: '#f85149' }}> ≠ {fmtRs(a.rowExpected)}</span>
+                      )}
+                    </div>
+                  )}
+                </td>
+                <CmpCell value={a.ok ? 'OK' : 'ERROR'} match={a.ok} bold />
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot>
+          <tr
+            style={{
+              borderTop: '2px solid var(--accent-primary)',
+              fontWeight: 700,
+              background: 'rgba(88,166,255,0.1)',
+            }}
+          >
+            <td colSpan={2} style={{ padding: 8 }}>
+              Day-wise split total
+            </td>
+            <td style={{ padding: 8 }}>{fmtRs(totals.travel)}</td>
+            <td style={{ padding: 8 }}>{fmtRs(totals.local)}</td>
+            <td style={{ padding: 8 }}>{fmtRs(totals.petrol)}</td>
+            <td style={{ padding: 8 }}>{fmtRs(totals.stay)}</td>
+            <td style={{ padding: 8, color: '#58a6ff' }}>{fmtRs(totals.daySplitTotal)}</td>
+            <td colSpan={2} style={{ padding: 8 }} />
+          </tr>
+          <tr style={{ background: 'rgba(88,166,255,0.04)', fontSize: '0.68rem' }}>
+            <td colSpan={9} style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
+              Tickets + Local (bus/train days only):{' '}
+              <strong
+                style={{
+                  color: !isMismatch(ticketsHeader, totals.ticketsLocal, 10) ? '#3fb950' : '#f85149',
+                }}
+              >
+                {fmtRs(totals.ticketsLocal)}
+              </strong>
+              {ticketsHeader > 0 && ` (header ₹${ticketsHeader})`}
+              {' · '}
+              Fuel from dates: <strong>{fmtRs(totals.petrol)}</strong>
+              {' · '}
+              Stay from dates: <strong>{fmtRs(totals.stay)}</strong>
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
 };
 
 const CmpCell = ({ value, match, bold }) => (
@@ -65,38 +158,7 @@ const CmpCell = ({ value, match, bold }) => (
   </td>
 );
 
-const sumDateResults = (rows) =>
-  rows.reduce(
-    (acc, d) => {
-      const travel = d.travel || 0;
-      const local = d.localConveyance || 0;
-      const petrol = petrolDayAmount(d);
-      const petrolCalc = petrolCalcFromKm(d);
-      const travelLocal = d.isPetrolDay || d.isKmPetrolDay
-        ? 0
-        : ticketsLocalForBlock(d);
-      return {
-        travel: acc.travel + travel,
-        local: acc.local + local,
-        petrol: acc.petrol + petrol,
-        petrolCalc: acc.petrolCalc + petrolCalc,
-        stay: acc.stay + (d.accommodation || 0),
-        grand: acc.grand + (d.grandTotal || 0),
-        fromTickets: acc.fromTickets + (d.ticketAmountFromImages || 0),
-        travelLocal: acc.travelLocal + travelLocal,
-      };
-    },
-    {
-      travel: 0,
-      local: 0,
-      petrol: 0,
-      petrolCalc: 0,
-      stay: 0,
-      grand: 0,
-      fromTickets: 0,
-      travelLocal: 0,
-    },
-  );
+const sumDateResults = (rows) => sumDaySplits(rows);
 
 const SplitAmount = ({ amount, match }) => (
   <span
@@ -118,9 +180,9 @@ const AuditorTotalSummary = ({ voucher }) => {
   const headerTotal = voucher.declaredTotal || headerFuel + headerTickets + headerStay;
 
   const dayFuel = voucher.dateWisePetrolSum || dt.petrol || 0;
-  const dayTickets = voucher.dateWiseTicketsSum ?? dt.travelLocal ?? 0;
+  const dayTickets = voucher.dateWiseTicketsSum ?? dt.ticketsLocal ?? 0;
   const dayStay = voucher.dateWiseAccommodationSum || dt.stay || 0;
-  const dayTotal = dayFuel + dayTickets + dayStay;
+  const dayTotal = dt.daySplitTotal || dayFuel + dayTickets + dayStay;
 
   const fuelOk = !isMismatch(headerFuel, dayFuel, 50);
   const ticketsOk = !isMismatch(headerTickets, dayTickets, 10);
@@ -223,9 +285,9 @@ const collectAuditorMistakes = (result, tabAudit) => {
   };
 
   const dayFuel = v.dateWisePetrolSum || dt.petrol || 0;
-  const dayTickets = v.dateWiseTicketsSum ?? dt.travelLocal ?? 0;
+  const dayTickets = v.dateWiseTicketsSum ?? dt.ticketsLocal ?? 0;
   const dayStay = v.dateWiseAccommodationSum || dt.stay || 0;
-  const checkedTotal = dayFuel + dayTickets + dayStay;
+  const checkedTotal = dt.daySplitTotal || dayFuel + dayTickets + dayStay;
 
   if (v.fuelTotal > 0 && isMismatch(v.fuelTotal, dayFuel, 50)) {
     add('red', `Fuel: header ₹${v.fuelTotal} ≠ date-wise sum ₹${dayFuel}`);
@@ -243,7 +305,13 @@ const collectAuditorMistakes = (result, tabAudit) => {
   (tabAudit?.headerIssues || []).forEach((h) => add('red', h.message));
 
   result.flags
-    .filter((f) => f.severity === 'red' || f.severity === 'orange')
+    .filter(
+      (f) =>
+        (f.severity === 'red' || f.severity === 'orange') &&
+        f.code !== 'CORRECT_TOTAL_MISMATCH' &&
+        f.code !== 'PETROL_CALC' &&
+        f.code !== 'TOTAL_FORMULA',
+    )
     .forEach((f) => add(f.severity, f.message));
 
   return items;
@@ -721,7 +789,7 @@ const ExpenseCheck2Page = () => {
                       }}
                     >
                       <span>
-                        Date-wise comparison ({result.dateResults.length} days) — auditor vs system
+                        Date-wise split ({result.dateResults.length} days)
                       </span>
                       {openDateDetail.has(result.id) ? (
                         <ChevronUp size={16} />
@@ -730,136 +798,21 @@ const ExpenseCheck2Page = () => {
                       )}
                     </button>
 
-                    {openDateDetail.has(result.id) && (() => {
-                      const dt = sumDateResults(result.dateResults);
-
-                      return (
+                    {openDateDetail.has(result.id) && (
                         <div
                           style={{
                             marginTop: 8,
                             padding: 10,
                             borderRadius: 8,
                             border: '1px solid var(--border-main)',
-                            overflowX: 'auto',
                           }}
                         >
-                          <table style={{ width: '100%', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ background: 'rgba(88,166,255,0.08)', color: 'var(--text-secondary)' }}>
-                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>#</th>
-                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>Date</th>
-                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>Type</th>
-                                <th colSpan={5} style={{ padding: 6, textAlign: 'center', borderBottom: '1px solid var(--border-main)' }}>
-                                  Auditor entered (in sheet)
-                                </th>
-                                <th colSpan={2} style={{ padding: 6, textAlign: 'center', borderBottom: '1px solid var(--border-main)' }}>
-                                  System check
-                                </th>
-                                <th rowSpan={2} style={{ padding: 6, verticalAlign: 'bottom' }}>Status</th>
-                              </tr>
-                              <tr style={{ color: 'var(--text-secondary)', fontSize: '0.68rem' }}>
-                                <th style={{ padding: 4 }}>Travel</th>
-                                <th style={{ padding: 4 }}>Local</th>
-                                <th style={{ padding: 4 }}>Petrol</th>
-                                <th style={{ padding: 4 }}>Stay</th>
-                                <th style={{ padding: 4 }}>Grand</th>
-                                <th style={{ padding: 4 }}>Should be</th>
-                                <th style={{ padding: 4 }}>Formula</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {result.dateResults.map((d, idx) => {
-                                const auditorGrand = d.grandTotal || 0;
-                                const systemExpected = expectedDayGrand(d);
-                                const dayMatch = !isMismatch(auditorGrand, systemExpected, 5);
-                                let formula = '';
-                                if (d.isKmPetrolDay || d.splitType === 'petrol_km') {
-                                  const km =
-                                    d.kmLegs?.length > 1
-                                      ? `${d.kmLegs.join('+')}=${d.kmTraveled}`
-                                      : `${d.kmTraveled}`;
-                                  formula = `${km} km × ₹4`;
-                                } else if (d.isPetrolDay) {
-                                  formula = 'Petrol = Grand';
-                                } else {
-                                  formula = 'Travel+Local+Stay';
-                                }
-
-                                return (
-                                  <tr
-                                    key={d.date}
-                                    style={{
-                                      borderTop: '1px solid var(--border-main)',
-                                      background: dayMatch ? 'transparent' : 'rgba(248,81,73,0.06)',
-                                    }}
-                                  >
-                                    <td style={{ padding: 6, color: 'var(--text-secondary)' }}>{idx + 1}</td>
-                                    <td style={{ padding: 6, fontWeight: 600 }}>{d.date}</td>
-                                    <td style={{ padding: 6, fontSize: '0.68rem' }}>{splitLabel(d)}</td>
-                                    <td style={{ padding: 6 }}>{fmtRs(d.travel)}</td>
-                                    <td style={{ padding: 6 }}>{fmtRs(d.localConveyance)}</td>
-                                    <td style={{ padding: 6 }}>{fmtRs(petrolDayAmount(d))}</td>
-                                    <td style={{ padding: 6 }}>{fmtRs(d.accommodation)}</td>
-                                    <CmpCell value={fmtRs(auditorGrand)} match={dayMatch} />
-                                    <CmpCell value={fmtRs(systemExpected)} match={dayMatch} />
-                                    <td style={{ padding: 6, fontSize: '0.65rem', color: 'var(--text-secondary)' }}>
-                                      {formula}
-                                    </td>
-                                    <CmpCell value={dayMatch ? 'OK' : 'ERROR'} match={dayMatch} bold />
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr
-                                style={{
-                                  borderTop: '2px solid var(--accent-primary)',
-                                  fontWeight: 700,
-                                  background: 'rgba(88,166,255,0.08)',
-                                }}
-                              >
-                                <td colSpan={3} style={{ padding: 8 }}>TOTAL</td>
-                                <td style={{ padding: 8 }}>{fmtRs(dt.travel)}</td>
-                                <td style={{ padding: 8 }}>{fmtRs(dt.local)}</td>
-                                <td style={{ padding: 8 }}>{fmtRs(dt.petrol)}</td>
-                                <td style={{ padding: 8 }}>{fmtRs(dt.stay)}</td>
-                                <CmpCell
-                                  value={fmtRs(dt.grand)}
-                                  match={!isMismatch(
-                                    result.voucher.declaredTotal,
-                                    dt.grand,
-                                    50,
-                                  )}
-                                />
-                                <CmpCell
-                                  value={fmtRs(dt.travelLocal + dt.petrol + dt.stay)}
-                                  match={!isMismatch(dt.grand, dt.travelLocal + dt.petrol + dt.stay, 15)}
-                                />
-                                <td style={{ padding: 8 }}>—</td>
-                                <CmpCell
-                                  value={
-                                    isMismatch(dt.grand, dt.travelLocal + dt.petrol + dt.stay, 15)
-                                      ? 'CHECK'
-                                      : 'OK'
-                                  }
-                                  match={!isMismatch(dt.grand, dt.travelLocal + dt.petrol + dt.stay, 15)}
-                                  bold
-                                />
-                              </tr>
-                              <tr style={{ background: 'rgba(88,166,255,0.04)', fontSize: '0.68rem' }}>
-                                <td colSpan={11} style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
-                                  Tickets + Local (bus/train days only):{' '}
-                                  <strong style={{ color: !isMismatch(result.voucher.ticketsTotal, dt.travelLocal, 10) ? '#3fb950' : '#f85149' }}>
-                                    {fmtRs(dt.travelLocal)}
-                                  </strong>
-                                  {' '}(header ₹{result.voucher.ticketsTotal || 0})
-                                </td>
-                              </tr>
-                            </tfoot>
-                          </table>
+                          <DateWiseSplitTable
+                            dateResults={result.dateResults}
+                            ticketsHeader={result.voucher.ticketsTotal || 0}
+                          />
                         </div>
-                      );
-                    })()}
+                      )}
                   </div>
                 )}
               </div>
