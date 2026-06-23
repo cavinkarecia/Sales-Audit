@@ -232,7 +232,7 @@ const ExpenseCheck2Page = () => {
   const [liveBuild, setLiveBuild] = useState('');
   const [dateAuditSummary, setDateAuditSummary] = useState(null);
   const [openDateDetail, setOpenDateDetail] = useState(() => new Set());
-  const [selectedLoadedTab, setSelectedLoadedTab] = useState('');
+  const [sheetStatusOpen, setSheetStatusOpen] = useState(false);
 
   const toggleDateDetail = (id) => {
     setOpenDateDetail((prev) => {
@@ -306,25 +306,10 @@ const ExpenseCheck2Page = () => {
     return verification.results.filter((r) => r.summary.status === filter);
   }, [verification, filter]);
 
-  const loadedSheets = useMemo(
-    () => expenseSheetSummary.filter((s) => s.status === 'loaded'),
+  const loadedSheetCount = useMemo(
+    () => expenseSheetSummary.filter((s) => s.status === 'loaded').length,
     [expenseSheetSummary],
   );
-
-  const selectedSheetInfo = useMemo(
-    () => loadedSheets.find((s) => s.sheetName === selectedLoadedTab) || loadedSheets[0] || null,
-    [loadedSheets, selectedLoadedTab],
-  );
-
-  useEffect(() => {
-    if (!loadedSheets.length) {
-      setSelectedLoadedTab('');
-      return;
-    }
-    if (!loadedSheets.some((s) => s.sheetName === selectedLoadedTab)) {
-      setSelectedLoadedTab(loadedSheets[0].sheetName);
-    }
-  }, [loadedSheets, selectedLoadedTab]);
 
   const handleAi = async () => {
     if (!verification) return;
@@ -436,42 +421,57 @@ const ExpenseCheck2Page = () => {
         </div>
       )}
 
-      {loadedSheets.length > 0 && (
+      {expenseSheetSummary.length > 0 && (
         <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem' }}>
-          <label
-            htmlFor="loaded-sheets-select"
-            style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)', marginBottom: 6 }}
-          >
-            Sheets loaded ({loadedSheets.length} of {expenseSheetSummary.length})
-          </label>
-          <select
-            id="loaded-sheets-select"
-            value={selectedSheetInfo?.sheetName || ''}
-            onChange={(e) => setSelectedLoadedTab(e.target.value)}
+          <button
+            type="button"
+            onClick={() => setSheetStatusOpen((o) => !o)}
             style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               width: '100%',
-              padding: '10px 12px',
-              borderRadius: 8,
-              border: '1px solid var(--border-main)',
-              background: 'rgba(0,0,0,0.25)',
+              padding: 0,
+              border: 'none',
+              background: 'transparent',
               color: '#fff',
-              fontSize: '0.85rem',
               cursor: 'pointer',
+              fontSize: '0.9rem',
+              fontWeight: 600,
             }}
           >
-            {loadedSheets.map((s) => (
-              <option key={s.sheetName} value={s.sheetName}>
-                {s.sheetName} — {s.auditorName || '—'} — Emp {s.employeeNo || '—'} — {s.dateRows ?? 0} dates
-              </option>
-            ))}
-          </select>
-          {selectedSheetInfo && (
-            <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-              Tab: <strong>{selectedSheetInfo.sheetName}</strong> · Requested by:{' '}
-              <strong>{selectedSheetInfo.auditorName || '—'}</strong> · Emp No:{' '}
-              <strong>{selectedSheetInfo.employeeNo || '—'}</strong> · Date rows:{' '}
-              <strong>{selectedSheetInfo.dateRows ?? '—'}</strong>
-            </p>
+            <span>
+              Sheet Status ({loadedSheetCount}/{expenseSheetSummary.length} loaded)
+            </span>
+            {sheetStatusOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </button>
+          {sheetStatusOpen && (
+            <div style={{ overflowX: 'auto', marginTop: 10 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                <thead>
+                  <tr style={{ color: 'var(--text-secondary)', textAlign: 'left' }}>
+                    <th style={{ padding: 8 }}>Tab</th>
+                    <th style={{ padding: 8 }}>Requested By</th>
+                    <th style={{ padding: 8 }}>Emp No</th>
+                    <th style={{ padding: 8 }}>Date rows</th>
+                    <th style={{ padding: 8 }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {expenseSheetSummary.map((s) => (
+                    <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
+                      <td style={{ padding: 8 }}>{s.sheetName}</td>
+                      <td style={{ padding: 8 }}>{s.auditorName || '—'}</td>
+                      <td style={{ padding: 8 }}>{s.employeeNo || '—'}</td>
+                      <td style={{ padding: 8 }}>{s.dateRows ?? '—'}</td>
+                      <td style={{ padding: 8, color: s.status === 'loaded' ? '#3fb950' : '#f85149' }}>
+                        {s.status}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
       )}
