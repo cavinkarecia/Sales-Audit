@@ -27,10 +27,22 @@ import {
 import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
 import { parseAttendanceExcel } from '../utils/ExcelParser';
+import { toDayKey, parseLocalDate, formatDayLabel, weekdayFromDayKey, WEEKDAY_OPTIONS } from '../utils/attendanceProcessor';
 import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats } from '../utils/sheetFetcher';
 import { buildTravelLegs, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
+
+const normalizeReportData = (data) =>
+  (Array.isArray(data) ? data : [])
+    .map((record) => {
+      const date = parseLocalDate(record.date);
+      return {
+        ...record,
+        date,
+      };
+    })
+    .filter((record) => record.name && record.date);
 
 const AttendanceDashboard = () => {
   const {
@@ -46,14 +58,16 @@ const AttendanceDashboard = () => {
   const [reportData, setReportData] = useState(() => {
     try {
       const saved = localStorage.getItem('sales_audit_report_data');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? normalizeReportData(JSON.parse(saved)) : [];
     } catch (e) {
       console.error('Error loading data from localStorage:', e);
       return [];
     }
   });
-  const [timeFilter, setTimeFilter] = useState('daily'); 
-  const [activePeriod, setActivePeriod] = useState(null); 
+  const [timeFilter, setTimeFilter] = useState('daily');
+  const [activePeriod, setActivePeriod] = useState(null);
+  const [selectedDayKeys, setSelectedDayKeys] = useState([]);
+  const [selectedWeekdays, setSelectedWeekdays] = useState([]);
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
   const [isParsing, setIsParsing] = useState(false);
@@ -83,7 +97,7 @@ const AttendanceDashboard = () => {
 
   React.useEffect(() => {
     if (ctxAttendance.length && reportData.length === 0) {
-      setReportData(ctxAttendance);
+      setReportData(normalizeReportData(ctxAttendance));
     }
   }, [ctxAttendance]);
 
@@ -110,7 +124,30 @@ const AttendanceDashboard = () => {
     setIsParsing(true);
     try {
       const data = await parseAttendanceExcel(file);
-      setReportData(data);
+      const uploadBatch = Date.now();
+      const tagged = data.map((row) => ({ ...row, _uploadBatch: uploadBatch }));
+
+      localStorage.removeItem('sales_audit_report_data');
+      setAttendanceRecords([]);
+
+      setTimeFilter('daily');
+      setActivePeriod(null);
+      setSelectedWeekdays([]);
+      setExpandedKpi(null);
+      setSelectedCluster(null);
+
+      const dayKeys = [...new Set(tagged.map((d) => toDayKey(d.date)).filter(Boolean))].sort();
+      setSelectedDayKeys(dayKeys);
+      setReportData(tagged);
+      setAttendanceRecords(tagged);
+
+      const auditorCount = new Set(tagged.map((d) => d.name)).size;
+      if (dayKeys.length > 0) {
+        alert(
+          `Loaded ${tagged.length} attendance record${tagged.length === 1 ? '' : 's'} for ${auditorCount} auditor${auditorCount === 1 ? '' : 's'}.\n` +
+          `Choose Date: ${formatDayLabel(dayKeys[0])}${dayKeys.length > 1 ? ` → ${formatDayLabel(dayKeys[dayKeys.length - 1])}` : ''} (${dayKeys.length} day${dayKeys.length === 1 ? '' : 's'}).`,
+        );
+      }
     } catch (err) {
       console.error('Error parsing file:', err);
       alert('Failed to parse file. Please ensure it is a valid GoSurvey attendance export.');
@@ -194,11 +231,7 @@ const AttendanceDashboard = () => {
 
   React.useEffect(() => {
     if (reportData.length > 0) {
-      const dates = reportData.map(d => d.date).filter(Boolean);
-      if (dates.length > 0) {
-        setActivePeriod(null);
-        setExpandedKpi(null);
-      }
+      setExpandedKpi(null);
     }
   }, [reportData]);
 
@@ -232,79 +265,165 @@ const AttendanceDashboard = () => {
     return nearestCluster;
   };
 
-  const processedData = useMemo(() => {
-    if (reportData.length === 0) return [];
-    return reportData.map(record => {
-      const masterInfo = auditorsMaster.find(a => 
-        a.name.toLowerCase().includes(record.name.toLowerCase()) ||
-        record.name.toLowerCase().includes(a.name.toLowerCase())
-      );
-      const date = record.date;
-      const geoCluster = detectClusterFromCoords(record.location);
-      const parts = record.location ? record.location.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p)) : [];
-      const currentCity = parts.length >= 2 ? findNearestCity(parts[0], parts[1]) : 'Offline';
-      const distance = (parts.length >= 2 && masterInfo?.coords) 
-        ? getDistance(masterInfo.coords.lat, masterInfo.coords.lng, parts[0], parts[1]) 
-        : 'N/A';
-
-      let mappedAsmName = record.asmName || 'N/A';
-      if (record.name) {
-        const lowerName = record.name.toLowerCase().trim();
-        mappedAsmName = asmMapping[lowerName] || mappedAsmName;
-        if (mappedAsmName === 'N/A') {
-          const match = Object.keys(asmMapping).find(k => k.includes(lowerName) || lowerName.includes(k));
-          if (match) mappedAsmName = asmMapping[match];
-        }
-      }
-
-      return {
-        ...record,
-        asmName: mappedAsmName,
-        baseLocation: masterInfo?.location || 'Unknown',
-        currentCity: currentCity,
-        distanceFromBase: distance,
-        cluster: geoCluster || masterInfo?.cluster || 'Unknown',
-        empCode: masterInfo?.empCode || 'N/A',
-        weekKey: date ? format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd') : null,
-        monthKey: date ? format(startOfMonth(date), 'yyyy-MM') : null,
-        dayKey: date ? format(date, 'yyyy-MM-dd') : null
-      };
-    });
+  const latestUploadBatch = useMemo(() => {
+    const batches = reportData.map((r) => r._uploadBatch).filter(Boolean);
+    return batches.length ? Math.max(...batches) : null;
   }, [reportData]);
+
+  const activeReportData = useMemo(() => {
+    if (latestUploadBatch == null) return reportData;
+    return reportData.filter((r) => !r._uploadBatch || r._uploadBatch === latestUploadBatch);
+  }, [reportData, latestUploadBatch]);
+
+  const processedData = useMemo(() => {
+    if (activeReportData.length === 0) return [];
+    return activeReportData
+      .map((record) => {
+        const date = parseLocalDate(record.date);
+        if (!date || !record.name) return null;
+
+        const dayKey = toDayKey(date);
+        const masterInfo = auditorsMaster.find(
+          (a) =>
+            a.name.toLowerCase().includes(record.name.toLowerCase()) ||
+            record.name.toLowerCase().includes(a.name.toLowerCase()),
+        );
+        const geoCluster = detectClusterFromCoords(record.location);
+        const parts = record.location
+          ? record.location.split(/[,\s]+/).map((p) => parseFloat(p)).filter((p) => !Number.isNaN(p))
+          : [];
+        const currentCity = parts.length >= 2 ? findNearestCity(parts[0], parts[1]) : 'Offline';
+        const distance =
+          parts.length >= 2 && masterInfo?.coords
+            ? getDistance(masterInfo.coords.lat, masterInfo.coords.lng, parts[0], parts[1])
+            : 'N/A';
+
+        let mappedAsmName = record.asmName || 'N/A';
+        if (record.name) {
+          const lowerName = record.name.toLowerCase().trim();
+          mappedAsmName = asmMapping[lowerName] || mappedAsmName;
+          if (mappedAsmName === 'N/A') {
+            const match = Object.keys(asmMapping).find(
+              (k) => k.includes(lowerName) || lowerName.includes(k),
+            );
+            if (match) mappedAsmName = asmMapping[match];
+          }
+        }
+
+        return {
+          ...record,
+          date,
+          asmName: mappedAsmName,
+          baseLocation: masterInfo?.location || 'Unknown',
+          currentCity,
+          distanceFromBase: distance,
+          cluster: geoCluster || masterInfo?.cluster || 'Unknown',
+          empCode: masterInfo?.empCode || 'N/A',
+          weekKey: format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          monthKey: format(startOfMonth(date), 'yyyy-MM'),
+          dayKey,
+          weekday: weekdayFromDayKey(dayKey),
+        };
+      })
+      .filter(Boolean);
+  }, [activeReportData]);
+
+  const availableDailyDates = useMemo(() => {
+    if (processedData.length === 0) return [];
+    let keys = [...new Set(processedData.map((d) => d.dayKey).filter(Boolean))].sort();
+    if (selectedWeekdays.length > 0) {
+      keys = keys.filter((key) => selectedWeekdays.includes(weekdayFromDayKey(key)));
+    }
+    return keys.map((key) => ({ key, label: formatDayLabel(key) }));
+  }, [processedData, selectedWeekdays]);
 
   const availablePeriods = useMemo(() => {
     if (processedData.length === 0) return [];
     const periods = new Set();
-    processedData.forEach(item => {
-      if (timeFilter === 'daily') periods.add(item.dayKey);
+    processedData.forEach((item) => {
       if (timeFilter === 'weekly') periods.add(item.weekKey);
       if (timeFilter === 'monthly') periods.add(item.monthKey);
     });
-    return Array.from(periods).filter(Boolean).sort().reverse().map(key => {
-      let label = key;
-      const date = new Date(key);
-      if (timeFilter === 'daily') label = format(date, 'eee, dd MMM yyyy');
-      if (timeFilter === 'weekly') label = `Week of ${format(date, 'dd MMM yyyy')}`;
-      if (timeFilter === 'monthly') label = format(date, 'MMMM yyyy');
-      return { key, label };
-    });
+    return Array.from(periods)
+      .filter(Boolean)
+      .sort()
+      .map((key) => {
+        let label = key;
+        if (timeFilter === 'weekly') {
+          label = `Week of ${formatDayLabel(key)}`;
+        } else if (timeFilter === 'monthly') {
+          const [year, month] = key.split('-');
+          label = format(new Date(Number(year), Number(month) - 1, 1), 'MMMM yyyy');
+        }
+        return { key, label };
+      });
   }, [processedData, timeFilter]);
 
   React.useEffect(() => {
-    if (availablePeriods.length > 0 && !activePeriod) {
+    if (timeFilter !== 'daily' || selectedDayKeys.length > 0 || processedData.length === 0) return;
+    setSelectedDayKeys([...new Set(processedData.map((d) => d.dayKey))].sort());
+  }, [processedData, timeFilter, selectedDayKeys.length]);
+
+  React.useEffect(() => {
+    if (timeFilter !== 'daily') return;
+    setSelectedDayKeys(availableDailyDates.map((d) => d.key));
+  }, [selectedWeekdays]);
+
+  React.useEffect(() => {
+    if (timeFilter === 'daily') return;
+    if (availablePeriods.length === 0) {
+      setActivePeriod(null);
+      return;
+    }
+    const stillValid = activePeriod && availablePeriods.some((p) => p.key === activePeriod);
+    if (!stillValid) {
       setActivePeriod(availablePeriods[0].key);
     }
-  }, [availablePeriods, activePeriod]);
+  }, [availablePeriods, activePeriod, timeFilter]);
+
+  const uploadSummary = useMemo(() => {
+    if (processedData.length === 0) return null;
+    const dayKeys = [...new Set(processedData.map((d) => d.dayKey).filter(Boolean))].sort();
+    const monthKeys = [...new Set(processedData.map((d) => d.monthKey).filter(Boolean))].sort();
+    return {
+      records: processedData.length,
+      auditors: new Set(processedData.map((d) => d.name)).size,
+      days: dayKeys.length,
+      months: monthKeys.length,
+      from: dayKeys[0],
+      to: dayKeys[dayKeys.length - 1],
+    };
+  }, [processedData]);
+
+  const toggleDayKey = (dayKey) => {
+    setSelectedDayKeys((prev) =>
+      prev.includes(dayKey) ? prev.filter((k) => k !== dayKey) : [...prev, dayKey].sort(),
+    );
+    setExpandedKpi(null);
+  };
+
+  const toggleWeekday = (weekday) => {
+    setSelectedWeekdays((prev) =>
+      prev.includes(weekday) ? prev.filter((w) => w !== weekday) : [...prev, weekday],
+    );
+    setExpandedKpi(null);
+  };
 
   const filteredData = useMemo(() => {
-    if (processedData.length === 0 || !activePeriod) return [];
-    return processedData.filter(item => {
-      if (timeFilter === 'daily') return item.dayKey === activePeriod;
+    if (processedData.length === 0) return [];
+
+    if (timeFilter === 'daily') {
+      if (selectedDayKeys.length === 0) return [];
+      return processedData.filter((item) => selectedDayKeys.includes(item.dayKey));
+    }
+
+    if (!activePeriod) return [];
+    return processedData.filter((item) => {
       if (timeFilter === 'weekly') return item.weekKey === activePeriod;
       if (timeFilter === 'monthly') return item.monthKey === activePeriod;
       return false;
     });
-  }, [processedData, timeFilter, activePeriod]);
+  }, [processedData, timeFilter, activePeriod, selectedDayKeys]);
 
   const stats = useMemo(() => {
     if (filteredData.length === 0) return null;
@@ -592,7 +711,12 @@ const AttendanceDashboard = () => {
           {['daily', 'weekly', 'monthly'].map(f => (
             <button
               key={f}
-              onClick={() => { setTimeFilter(f); setActivePeriod(null); setExpandedKpi(null); }}
+              onClick={() => {
+                setTimeFilter(f);
+                setActivePeriod(null);
+                setSelectedWeekdays([]);
+                setExpandedKpi(null);
+              }}
               style={{
                 padding: '6px 16px',
                 borderRadius: '6px',
@@ -613,54 +737,215 @@ const AttendanceDashboard = () => {
       </header>
 
       {/* Control Bar */}
-      <div className="card" style={{ display: 'flex', gap: '16px', marginBottom: '24px', alignItems: 'center', padding: '10px 16px' }}>
-        <input 
-          type="file" 
-          ref={fileInputRef} 
-          style={{ display: 'none' }} 
-          accept=".xlsx, .xls, .csv" 
-          onChange={handleFileUpload}
-        />
-        <button 
-          onClick={() => fileInputRef.current?.click()} 
-          disabled={isParsing}
-          style={{ 
-            background: isParsing ? 'rgba(88, 166, 255, 0.2)' : 'transparent', 
-            border: '1px solid var(--border-main)', 
-            color: 'var(--text-primary)', 
-            padding: '6px 12px', 
-            borderRadius: '6px', 
-            cursor: isParsing ? 'wait' : 'pointer', 
-            fontSize: '0.75rem', 
-            display: 'flex', 
-            alignItems: 'center', 
-            gap: '6px' 
-          }}
-        >
-          {isParsing ? (
-            <div className="spinner-small" style={{ width: '12px', height: '12px', border: '2px solid rgba(255,255,255,0.1)', borderTop: '2px solid #fff', borderRadius: '50%', animation: 'spin 1s linear infinite' }}></div>
-          ) : (
-            <Upload size={14} />
-          )}
-          {isParsing ? 'Processing...' : 'Upload attendance'}
-        </button>
-
-        <div style={{ width: '1px', height: '20px', background: 'var(--border-main)' }}></div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Calendar size={14} color="var(--accent-primary)" />
-          <select 
-            value={activePeriod || ''} 
-            onChange={(e) => { setActivePeriod(e.target.value); setExpandedKpi(null); }}
-            style={{ background: 'var(--bg-secondary)', color: '#fff', border: '1px solid var(--border-main)', padding: '4px 12px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.8rem', outline: 'none' }}
+      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px', padding: '12px 16px' }}>
+        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <input
+            type="file"
+            ref={fileInputRef}
+            style={{ display: 'none' }}
+            accept=".xlsx, .xls, .csv"
+            onChange={handleFileUpload}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isParsing}
+            style={{
+              background: isParsing ? 'rgba(88, 166, 255, 0.2)' : 'transparent',
+              border: '1px solid var(--border-main)',
+              color: 'var(--text-primary)',
+              padding: '6px 12px',
+              borderRadius: '6px',
+              cursor: isParsing ? 'wait' : 'pointer',
+              fontSize: '0.75rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
           >
-            {availablePeriods.map(p => <option key={p.key} value={p.key}>{p.label}</option>)}
-          </select>
+            {isParsing ? (
+              <div
+                className="spinner-small"
+                style={{
+                  width: '12px',
+                  height: '12px',
+                  border: '2px solid rgba(255,255,255,0.1)',
+                  borderTop: '2px solid #fff',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }}
+              />
+            ) : (
+              <Upload size={14} />
+            )}
+            {isParsing ? 'Processing...' : 'Upload attendance'}
+          </button>
+
+          {uploadSummary && (
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.auditors}</strong> auditors ·{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.days}</strong> days · Choose Date{' '}
+              {uploadSummary.from === uploadSummary.to
+                ? formatDayLabel(uploadSummary.from)
+                : `${formatDayLabel(uploadSummary.from)} → ${formatDayLabel(uploadSummary.to)}`}
+            </div>
+          )}
+
+          <div style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Filter size={12} /> <strong>{filteredData.length}</strong> Records
+          </div>
         </div>
 
-        <div style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Filter size={12} /> <strong>{filteredData.length}</strong> Records
-        </div>
+        {timeFilter === 'daily' && processedData.length > 0 && (
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Day filter
+              </span>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                {WEEKDAY_OPTIONS.map((day) => {
+                  const active = selectedWeekdays.includes(day);
+                  return (
+                    <button
+                      key={day}
+                      type="button"
+                      onClick={() => toggleWeekday(day)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-main)'}`,
+                        background: active ? 'rgba(88, 166, 255, 0.2)' : 'transparent',
+                        color: active ? '#fff' : 'var(--text-secondary)',
+                        fontSize: '0.72rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {day}
+                    </button>
+                  );
+                })}
+                {selectedWeekdays.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWeekdays([])}
+                    style={{
+                      padding: '4px 8px',
+                      borderRadius: '6px',
+                      border: '1px solid var(--border-main)',
+                      background: 'transparent',
+                      color: 'var(--text-muted)',
+                      fontSize: '0.68rem',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    All days
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 280px', minWidth: '240px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Calendar size={12} color="var(--accent-primary)" />
+                  Choose dates ({selectedDayKeys.length}/{availableDailyDates.length})
+                </span>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
+                    style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '0.68rem', cursor: 'pointer', padding: 0 }}
+                  >
+                    Select all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDayKeys([])}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.68rem', cursor: 'pointer', padding: 0 }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div
+                style={{
+                  maxHeight: '180px',
+                  overflowY: 'auto',
+                  border: '1px solid var(--border-main)',
+                  borderRadius: '8px',
+                  background: 'var(--bg-secondary)',
+                  padding: '6px 8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '2px',
+                }}
+              >
+                {availableDailyDates.length === 0 ? (
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '6px' }}>
+                    No dates match the day filter
+                  </span>
+                ) : (
+                  availableDailyDates.map((d) => (
+                    <label
+                      key={d.key}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        fontSize: '0.78rem',
+                        padding: '4px 6px',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        background: selectedDayKeys.includes(d.key) ? 'rgba(88, 166, 255, 0.12)' : 'transparent',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedDayKeys.includes(d.key)}
+                        onChange={() => toggleDayKey(d.key)}
+                      />
+                      <span style={{ fontFamily: 'monospace', letterSpacing: '0.02em' }}>{d.label}</span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {timeFilter !== 'daily' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Calendar size={14} color="var(--accent-primary)" />
+            <select
+              value={activePeriod || ''}
+              onChange={(e) => {
+                setActivePeriod(e.target.value);
+                setExpandedKpi(null);
+              }}
+              disabled={availablePeriods.length === 0}
+              style={{
+                background: 'var(--bg-secondary)',
+                color: '#fff',
+                border: '1px solid var(--border-main)',
+                padding: '4px 12px',
+                borderRadius: '6px',
+                cursor: availablePeriods.length === 0 ? 'not-allowed' : 'pointer',
+                fontSize: '0.8rem',
+                outline: 'none',
+              }}
+            >
+              {availablePeriods.length === 0 ? (
+                <option value="">No periods in upload</option>
+              ) : (
+                availablePeriods.map((p) => (
+                  <option key={p.key} value={p.key}>
+                    {p.label}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+        )}
       </div>
 
       {reportData.length === 0 && (

@@ -1,9 +1,10 @@
 import * as XLSX from 'xlsx';
-import { consolidateLatestAttendance, isFieldPresent } from './attendanceProcessor.js';
+import { consolidateLatestAttendance, isFieldPresent, parseLocalDate } from './attendanceProcessor.js';
 
 const LETTER_MAP = {
   id: 'A',
-  date: 'B',
+  dateCollected: 'B',
+  date: 'I',
   location: 'G',
   name: 'H',
   isPresent: 'J',
@@ -21,7 +22,8 @@ const LETTER_MAP = {
 const canonHeader = (k) => String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const HEADER_CANDIDATES = {
-  date: ['datecollected', 'date', 'submissiondate', 'timestamp'],
+  date: ['choosedate', 'choose date', 'surveydate', 'attendancedate'],
+  dateCollected: ['datecollected', 'submissiondate', 'timestamp', 'uploadtime'],
   name: ['chooseyourname', 'auditorname', 'employeename', 'name'],
   location: ['location', 'latlong', 'gps', 'coordinates'],
   isPresent: ['areyouonfieldtoday', 'onfield', 'fieldtoday', 'present'],
@@ -29,7 +31,7 @@ const HEADER_CANDIDATES = {
   absentReason: ['absentreason', 'reason'],
   asmName: ['asmname', 'asm'],
   totalShops: ['totalshopsinbeat', 'totalshops', 'shopcount'],
-  submittedAt: ['submittedat', 'submissiontime', 'timestamp', 'datetime'],
+  submittedAt: ['submittedat', 'submissiontime', 'datetime'],
 };
 
 const pickByHeaders = (row, field) => {
@@ -40,20 +42,20 @@ const pickByHeaders = (row, field) => {
   return undefined;
 };
 
-const parseExcelDate = (excelDate) => {
-  if (!excelDate) return null;
-  if (excelDate instanceof Date && !Number.isNaN(excelDate.getTime())) return excelDate;
-  const num = Number(excelDate);
-  if (!Number.isNaN(num) && String(excelDate).trim() !== '') {
-    return new Date((num - 25569) * 86400 * 1000);
+const pickChooseDate = (row) => {
+  for (const [key, val] of Object.entries(row)) {
+    const c = canonHeader(key);
+    if (c === 'choosedate') return val;
   }
-  const parsed = new Date(excelDate);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return undefined;
 };
+
+const parseExcelDate = (excelDate) => parseLocalDate(excelDate);
 
 const mapRowLetter = (row) => ({
   id: row[LETTER_MAP.id],
   date: parseExcelDate(row[LETTER_MAP.date]),
+  dateCollected: parseExcelDate(row[LETTER_MAP.dateCollected]),
   location: row[LETTER_MAP.location],
   name: row[LETTER_MAP.name],
   isPresentRaw: row[LETTER_MAP.isPresent],
@@ -66,13 +68,14 @@ const mapRowLetter = (row) => ({
   beatName: row[LETTER_MAP.beatName] || 'Unknown Beat',
   asmName: row[LETTER_MAP.asmName],
   totalShops: parseInt(row[LETTER_MAP.totalShops], 10) || 0,
-  submittedAt: null,
+  submittedAt: parseExcelDate(row[LETTER_MAP.dateCollected]),
   rowIndex: row.__rowIndex,
 });
 
 const mapRowHeaders = (row) => ({
   id: row.id ?? row.ID,
-  date: parseExcelDate(pickByHeaders(row, 'date')),
+  date: parseExcelDate(pickChooseDate(row) ?? pickByHeaders(row, 'date')),
+  dateCollected: parseExcelDate(pickByHeaders(row, 'dateCollected')),
   location: pickByHeaders(row, 'location'),
   name: pickByHeaders(row, 'name'),
   isPresentRaw: pickByHeaders(row, 'isPresent'),
@@ -85,7 +88,7 @@ const mapRowHeaders = (row) => ({
   beatName: row.beatName || 'Unknown Beat',
   asmName: pickByHeaders(row, 'asmName'),
   totalShops: parseInt(pickByHeaders(row, 'totalShops'), 10) || 0,
-  submittedAt: parseExcelDate(pickByHeaders(row, 'submittedAt')),
+  submittedAt: parseExcelDate(pickByHeaders(row, 'submittedAt') ?? pickByHeaders(row, 'dateCollected')),
   rowIndex: row.__rowIndex,
 });
 
@@ -102,9 +105,10 @@ export const parseAttendanceExcel = async (file) => {
 
         const useHeaders =
           jsonHeaders.length > 0 &&
-          Object.keys(jsonHeaders[0] || {}).some((k) =>
-            canonHeader(k).includes('chooseyourname'),
-          );
+          Object.keys(jsonHeaders[0] || {}).some((k) => {
+            const c = canonHeader(k);
+            return c.includes('chooseyourname') || c === 'choosedate';
+          });
 
         const rawRows = useHeaders ? jsonHeaders : jsonLetter.slice(1);
         const mapped = rawRows
