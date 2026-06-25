@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import LeafletTravelMap from './LeafletTravelMap';
 import auditorsMaster from '../data/auditors.json';
 import asmMapping from '../data/asm_mapping.json';
@@ -47,34 +48,74 @@ const normalizeReportData = (data) =>
     .filter((record) => record.name && record.chooseDate);
 
 const dropdownPanelStyle = {
-  position: 'absolute',
-  top: 'calc(100% + 6px)',
-  left: 0,
-  zIndex: 120,
+  position: 'fixed',
+  zIndex: 10000,
   minWidth: '260px',
-  maxHeight: '280px',
+  maxHeight: '320px',
   overflowY: 'auto',
   background: 'var(--bg-secondary)',
   border: '1px solid var(--border-main)',
   borderRadius: '8px',
-  boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+  boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
   padding: '8px',
 };
 
 const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, children, minWidth = 220 }) => {
-  const ref = React.useRef(null);
+  const triggerRef = React.useRef(null);
+  const panelRef = React.useRef(null);
+  const [panelPos, setPanelPos] = React.useState({ top: 0, left: 0, width: minWidth });
+
+  const updatePanelPos = React.useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPanelPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: Math.max(rect.width, minWidth),
+    });
+  }, [minWidth]);
+
+  React.useEffect(() => {
+    if (!isOpen) return undefined;
+    updatePanelPos();
+    window.addEventListener('scroll', updatePanelPos, true);
+    window.addEventListener('resize', updatePanelPos);
+    return () => {
+      window.removeEventListener('scroll', updatePanelPos, true);
+      window.removeEventListener('resize', updatePanelPos);
+    };
+  }, [isOpen, updatePanelPos]);
 
   React.useEffect(() => {
     if (!isOpen) return undefined;
     const onDocClick = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
+      if (triggerRef.current?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target)) return;
+      onClose();
     };
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [isOpen, onClose]);
 
+  const panel =
+    isOpen &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={{
+          ...dropdownPanelStyle,
+          top: panelPos.top,
+          left: panelPos.left,
+          minWidth: panelPos.width,
+        }}
+      >
+        {children}
+      </div>,
+      document.body,
+    );
+
   return (
-    <div ref={ref} style={{ position: 'relative', minWidth }}>
+    <div ref={triggerRef} style={{ position: 'relative', minWidth }}>
       <button
         type="button"
         onClick={onToggle}
@@ -100,7 +141,7 @@ const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, child
         </span>
         <ChevronDown size={14} style={{ marginLeft: 'auto', opacity: 0.7 }} />
       </button>
-      {isOpen && <div style={{ ...dropdownPanelStyle, minWidth }}>{children}</div>}
+      {panel}
     </div>
   );
 };
@@ -792,6 +833,8 @@ const AttendanceDashboard = () => {
 
   return (
     <div className="dashboard-content animate-in">
+      {/* Part 1 — Attendance (Choose Date filters drive everything below in this section only) */}
+      <section className="attendance-section" aria-label="Attendance dashboard">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-main)' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800', background: 'linear-gradient(to right, #fff, #58a6ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
@@ -830,7 +873,20 @@ const AttendanceDashboard = () => {
       </header>
 
       {/* Filter bar: Upload | Choose Date dropdown | Day dropdown | Clear all */}
-      <div className="card" style={{ display: 'flex', gap: '12px', marginBottom: '24px', alignItems: 'center', padding: '12px 16px', flexWrap: 'wrap' }}>
+      <div
+        className="card attendance-filter-bar"
+        style={{
+          display: 'flex',
+          gap: '12px',
+          marginBottom: '24px',
+          alignItems: 'center',
+          padding: '12px 16px',
+          flexWrap: 'wrap',
+          position: 'relative',
+          zIndex: 30,
+          overflow: 'visible',
+        }}
+      >
         <input
           type="file"
           ref={fileInputRef}
@@ -1235,6 +1291,10 @@ const AttendanceDashboard = () => {
         </div>
       )}
 
+      </section>
+
+      {/* Part 2 — PJP sync (independent filters; not affected by Choose Date above) */}
+      <section className="pjp-section" aria-label="PJP sync">
       {/* Auditor's Geographic Footprint - History Section */}
       <div className="card" style={{ marginTop: '40px', padding: '24px', background: 'rgba(88, 166, 255, 0.02)', border: '1px solid var(--border-main)', borderRadius: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
@@ -1611,6 +1671,7 @@ const AttendanceDashboard = () => {
           </div>
         )}
       </div>
+      </section>
 
     </div>
   );

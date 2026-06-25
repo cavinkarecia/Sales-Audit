@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v25-choose-date-filters
+          build: v26-dropdown-fix
         </span>
       </nav>
       <Routes>
