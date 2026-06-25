@@ -16,6 +16,7 @@ import {
   TrendingUp,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   Filter,
   Upload,
   Compass,
@@ -60,10 +61,11 @@ const dropdownPanelStyle = {
   padding: '8px',
 };
 
-const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, children, minWidth = 220 }) => {
+const FilterDropdown = React.memo(({ label, summary, icon, isOpen, onToggle, onClose, children, minWidth = 220 }) => {
   const triggerRef = React.useRef(null);
   const panelRef = React.useRef(null);
   const [panelPos, setPanelPos] = React.useState({ top: 0, left: 0, width: minWidth });
+  const rafRef = React.useRef(0);
 
   const updatePanelPos = React.useCallback(() => {
     if (!triggerRef.current) return;
@@ -75,16 +77,22 @@ const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, child
     });
   }, [minWidth]);
 
+  const schedulePanelPos = React.useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(updatePanelPos);
+  }, [updatePanelPos]);
+
   React.useEffect(() => {
     if (!isOpen) return undefined;
     updatePanelPos();
-    window.addEventListener('scroll', updatePanelPos, true);
-    window.addEventListener('resize', updatePanelPos);
+    window.addEventListener('scroll', schedulePanelPos, true);
+    window.addEventListener('resize', schedulePanelPos);
     return () => {
-      window.removeEventListener('scroll', updatePanelPos, true);
-      window.removeEventListener('resize', updatePanelPos);
+      window.removeEventListener('scroll', schedulePanelPos, true);
+      window.removeEventListener('resize', schedulePanelPos);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-  }, [isOpen, updatePanelPos]);
+  }, [isOpen, updatePanelPos, schedulePanelPos]);
 
   React.useEffect(() => {
     if (!isOpen) return undefined;
@@ -96,6 +104,8 @@ const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, child
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [isOpen, onClose]);
+
+  const ChevronIcon = isOpen ? ChevronUp : ChevronDown;
 
   const panel =
     isOpen &&
@@ -119,6 +129,7 @@ const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, child
       <button
         type="button"
         onClick={onToggle}
+        aria-expanded={isOpen}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -139,10 +150,57 @@ const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, child
           <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{label}</span>
           <span style={{ fontWeight: '600' }}>{summary}</span>
         </span>
-        <ChevronDown size={14} style={{ marginLeft: 'auto', opacity: 0.7 }} />
+        <ChevronIcon size={14} style={{ marginLeft: 'auto', opacity: 0.85, flexShrink: 0 }} />
       </button>
       {panel}
     </div>
+  );
+});
+
+const selectAllBtnStyle = {
+  width: '100%',
+  marginBottom: '8px',
+  padding: '6px 10px',
+  borderRadius: '6px',
+  border: '1px solid var(--accent-primary)',
+  background: 'rgba(88, 166, 255, 0.12)',
+  color: 'var(--accent-primary)',
+  fontSize: '0.72rem',
+  fontWeight: '700',
+  cursor: 'pointer',
+};
+
+const CLUSTER_CENTROIDS = {
+  TN: { lat: 11.1271, lng: 78.6569 },
+  KAR: { lat: 15.3173, lng: 75.7139 },
+  RAPT: { lat: 17.3850, lng: 78.4867 },
+  JOBC: { lat: 22.9868, lng: 87.8550 },
+  North: { lat: 28.6139, lng: 77.2090 },
+  West: { lat: 19.0760, lng: 72.8777 },
+};
+
+const detectClusterFromCoords = (locationStr) => {
+  if (!locationStr) return null;
+  const parts = locationStr.split(/[,\s]+/).map((p) => parseFloat(p)).filter((p) => !Number.isNaN(p));
+  if (parts.length < 2) return null;
+  const [lat, lng] = parts;
+  let nearestCluster = 'Unknown';
+  let minDistance = Infinity;
+  Object.entries(CLUSTER_CENTROIDS).forEach(([cluster, centroid]) => {
+    const dist = Math.sqrt((lat - centroid.lat) ** 2 + (lng - centroid.lng) ** 2);
+    if (dist < minDistance) {
+      minDistance = dist;
+      nearestCluster = cluster;
+    }
+  });
+  return nearestCluster;
+};
+
+const findMasterAuditor = (name) => {
+  if (!name) return null;
+  const lower = name.toLowerCase();
+  return auditorsMaster.find(
+    (a) => a.name.toLowerCase().includes(lower) || lower.includes(a.name.toLowerCase()),
   );
 };
 
@@ -343,32 +401,6 @@ const AttendanceDashboard = () => {
     setExpandedKpi(expandedKpi === kpi ? null : kpi);
   };
 
-  const CLUSTER_CENTROIDS = {
-    'TN': { lat: 11.1271, lng: 78.6569 },
-    'KAR': { lat: 15.3173, lng: 75.7139 },
-    'RAPT': { lat: 17.3850, lng: 78.4867 },
-    'JOBC': { lat: 22.9868, lng: 87.8550 },
-    'North': { lat: 28.6139, lng: 77.2090 },
-    'West': { lat: 19.0760, lng: 72.8777 }
-  };
-
-  const detectClusterFromCoords = (locationStr) => {
-    if (!locationStr) return null;
-    const parts = locationStr.split(/[,\s]+/).map(p => parseFloat(p)).filter(p => !isNaN(p));
-    if (parts.length < 2) return null;
-    const [lat, lng] = parts;
-    let nearestCluster = 'Unknown';
-    let minDistance = Infinity;
-    Object.entries(CLUSTER_CENTROIDS).forEach(([cluster, centroid]) => {
-      const dist = Math.sqrt(Math.pow(lat - centroid.lat, 2) + Math.pow(lng - centroid.lng, 2));
-      if (dist < minDistance) {
-        minDistance = dist;
-        nearestCluster = cluster;
-      }
-    });
-    return nearestCluster;
-  };
-
   const latestUploadBatch = useMemo(() => {
     const batches = reportData.map((r) => r._uploadBatch).filter(Boolean);
     return batches.length ? Math.max(...batches) : null;
@@ -387,11 +419,7 @@ const AttendanceDashboard = () => {
         if (!chooseDate || !record.name) return null;
 
         const chooseDateKey = toDayKey(chooseDate);
-        const masterInfo = auditorsMaster.find(
-          (a) =>
-            a.name.toLowerCase().includes(record.name.toLowerCase()) ||
-            record.name.toLowerCase().includes(a.name.toLowerCase()),
-        );
+        const masterInfo = findMasterAuditor(record.name);
         const geoCluster = detectClusterFromCoords(record.location);
         const parts = record.location
           ? record.location.split(/[,\s]+/).map((p) => parseFloat(p)).filter((p) => !Number.isNaN(p))
@@ -440,11 +468,14 @@ const AttendanceDashboard = () => {
     return keys.map((key) => ({ key, label: formatDayLabel(key) }));
   }, [processedData]);
 
+  const selectedDayKeySet = useMemo(() => new Set(selectedDayKeys), [selectedDayKeys]);
+  const selectedWeekdaySet = useMemo(() => new Set(selectedWeekdays), [selectedWeekdays]);
+
   const availableDailyDates = useMemo(() => {
     if (allChooseDateOptions.length === 0) return [];
     if (selectedWeekdays.length === 0) return allChooseDateOptions;
-    return allChooseDateOptions.filter((d) => selectedWeekdays.includes(weekdayFromDayKey(d.key)));
-  }, [allChooseDateOptions, selectedWeekdays]);
+    return allChooseDateOptions.filter((d) => selectedWeekdaySet.has(weekdayFromDayKey(d.key)));
+  }, [allChooseDateOptions, selectedWeekdays.length, selectedWeekdaySet]);
 
   const availablePeriods = useMemo(() => {
     if (processedData.length === 0) return [];
@@ -542,11 +573,11 @@ const AttendanceDashboard = () => {
     let rows = processedData;
 
     if (selectedDayKeys.length > 0) {
-      rows = rows.filter((item) => selectedDayKeys.includes(item.chooseDateKey));
+      rows = rows.filter((item) => selectedDayKeySet.has(item.chooseDateKey));
     }
 
     if (selectedWeekdays.length > 0) {
-      rows = rows.filter((item) => selectedWeekdays.includes(item.weekday));
+      rows = rows.filter((item) => selectedWeekdaySet.has(item.weekday));
     }
 
     if (timeFilter === 'weekly' && activePeriod) {
@@ -557,7 +588,7 @@ const AttendanceDashboard = () => {
     }
 
     return rows;
-  }, [processedData, timeFilter, activePeriod, selectedDayKeys, selectedWeekdays]);
+  }, [processedData, timeFilter, activePeriod, selectedDayKeys, selectedWeekdays, selectedDayKeySet, selectedWeekdaySet]);
 
   const stats = useMemo(() => {
     if (filteredData.length === 0) return null;
@@ -946,18 +977,7 @@ const AttendanceDashboard = () => {
           <button
             type="button"
             onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
-            style={{
-              width: '100%',
-              marginBottom: '8px',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: '1px solid var(--accent-primary)',
-              background: 'rgba(88, 166, 255, 0.12)',
-              color: 'var(--accent-primary)',
-              fontSize: '0.72rem',
-              fontWeight: '700',
-              cursor: 'pointer',
-            }}
+            style={selectAllBtnStyle}
           >
             Select all
           </button>
@@ -977,12 +997,12 @@ const AttendanceDashboard = () => {
                   padding: '5px 6px',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  background: selectedDayKeys.includes(d.key) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                  background: selectedDayKeySet.has(d.key) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
                 }}
               >
                 <input
                   type="checkbox"
-                  checked={selectedDayKeys.includes(d.key)}
+                  checked={selectedDayKeySet.has(d.key)}
                   onChange={() => toggleDayKey(d.key)}
                 />
                 <span style={{ fontFamily: 'monospace' }}>{d.label}</span>
@@ -1003,6 +1023,13 @@ const AttendanceDashboard = () => {
           onClose={() => setDayDropdownOpen(false)}
           minWidth={180}
         >
+          <button
+            type="button"
+            onClick={() => setSelectedWeekdays([...WEEKDAY_OPTIONS])}
+            style={selectAllBtnStyle}
+          >
+            Select all
+          </button>
           {WEEKDAY_OPTIONS.map((day) => (
             <label
               key={day}
@@ -1014,12 +1041,12 @@ const AttendanceDashboard = () => {
                 padding: '5px 6px',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                background: selectedWeekdays.includes(day) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                background: selectedWeekdaySet.has(day) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
               }}
             >
               <input
                 type="checkbox"
-                checked={selectedWeekdays.includes(day)}
+                checked={selectedWeekdaySet.has(day)}
                 onChange={() => toggleWeekday(day)}
               />
               <span>{day}</span>

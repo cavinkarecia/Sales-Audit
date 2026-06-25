@@ -200,26 +200,49 @@ const LeafletTravelMap = ({
       return { markers: m, polylines: p, fitPoints: fits };
     }
 
-    auditorsMaster.forEach((a) => {
-      if (!a.coords) return;
-      m.push({
-        id: `base-${a.name}`,
-        kind: 'base',
-        position: [a.coords.lat, a.coords.lng],
-        color: '#8b949e',
-        radius: 5,
-        label: '',
-        popup: { title: a.name, meta: a.location, employee: a.empCode },
-      });
-      fits.push({ lat: a.coords.lat, lng: a.coords.lng });
-    });
-
     if (data && data.length > 0) {
+      const liveByAuditor = new Map();
+
       data.forEach((rec) => {
-        if (!rec.location) return;
-        const parts = String(rec.location).split(/[,\s]+/).map(x => parseFloat(x)).filter(x => !isNaN(x));
+        if (!rec.name || !rec.location) return;
+        const key = String(rec.name).toLowerCase().trim();
+        const existing = liveByAuditor.get(key);
+        const recDate = rec.chooseDateKey || rec.dayKey || '';
+        const existingDate = existing?.chooseDateKey || existing?.dayKey || '';
+        if (!existing || recDate >= existingDate) {
+          liveByAuditor.set(key, rec);
+        }
+      });
+
+      auditorsMaster.forEach((a) => {
+        if (!a.coords) return;
+        const aKey = a.name.toLowerCase();
+        const isVisible = [...liveByAuditor.keys()].some(
+          (k) => k.includes(aKey) || aKey.includes(k),
+        );
+        if (!isVisible) return;
+        m.push({
+          id: `base-${a.name}`,
+          kind: 'base',
+          position: [a.coords.lat, a.coords.lng],
+          color: '#8b949e',
+          radius: 5,
+          label: '',
+          popup: { title: a.name, meta: a.location, employee: a.empCode },
+        });
+        fits.push({ lat: a.coords.lat, lng: a.coords.lng });
+      });
+
+      liveByAuditor.forEach((rec) => {
+        const parts = String(rec.location).split(/[,\s]+/).map((x) => parseFloat(x)).filter((x) => !Number.isNaN(x));
         if (parts.length < 2) return;
-        const auditor = auditorsMaster.find(x => x.name.toLowerCase() === (rec.name || '').toLowerCase());
+
+        const auditor = auditorsMaster.find(
+          (x) =>
+            x.name.toLowerCase().includes((rec.name || '').toLowerCase()) ||
+            (rec.name || '').toLowerCase().includes(x.name.toLowerCase()),
+        );
+
         const color = rec.isPresent ? '#3fb950' : '#f85149';
         m.push({
           id: `live-${rec.name}`,
@@ -230,11 +253,14 @@ const LeafletTravelMap = ({
           popup: {
             title: rec.name,
             meta: rec.isPresent ? 'On Field' : 'Offline',
-            employee: auditor?.empCode || '',
-            currentCity: findNearestCity(parts[0], parts[1]),
-            distance: auditor?.coords
-              ? getDistance(auditor.coords.lat, auditor.coords.lng, parts[0], parts[1])
-              : null,
+            employee: auditor?.empCode || rec.empCode || '',
+            currentCity: rec.currentCity || findNearestCity(parts[0], parts[1]),
+            distance:
+              rec.distanceFromBase != null && rec.distanceFromBase !== 'N/A'
+                ? rec.distanceFromBase
+                : auditor?.coords
+                  ? getDistance(auditor.coords.lat, auditor.coords.lng, parts[0], parts[1])
+                  : null,
           },
         });
         if (auditor?.coords) {
@@ -249,6 +275,20 @@ const LeafletTravelMap = ({
           });
         }
         fits.push({ lat: parts[0], lng: parts[1] });
+      });
+    } else {
+      auditorsMaster.forEach((a) => {
+        if (!a.coords) return;
+        m.push({
+          id: `base-${a.name}`,
+          kind: 'base',
+          position: [a.coords.lat, a.coords.lng],
+          color: '#8b949e',
+          radius: 5,
+          label: '',
+          popup: { title: a.name, meta: a.location, employee: a.empCode },
+        });
+        fits.push({ lat: a.coords.lat, lng: a.coords.lng });
       });
     }
     return { markers: m, polylines: p, fitPoints: fits };
@@ -428,4 +468,4 @@ const LeafletTravelMap = ({
   );
 };
 
-export default LeafletTravelMap;
+export default React.memo(LeafletTravelMap);

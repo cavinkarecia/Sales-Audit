@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v26-dropdown-fix
+          build: v27-perf-filters
         </span>
       </nav>
       <Routes>
