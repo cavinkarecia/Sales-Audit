@@ -103,7 +103,7 @@ export const consolidateLatestAttendance = (records) => {
 
   records.forEach((record, rowIndex) => {
     const name = String(record.name || '').trim();
-    const dateKey = toDayKey(record.date);
+    const dateKey = toDayKey(record.chooseDate ?? record.date);
     if (!name || !dateKey) return;
 
     const key = `${norm(name)}|${dateKey}`;
@@ -111,10 +111,12 @@ export const consolidateLatestAttendance = (records) => {
     const existing = byKey.get(key);
 
     if (!existing || sortKey >= existing._sortKey) {
+      const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
       byKey.set(key, {
         ...record,
         name,
-        date: parseLocalDate(record.date),
+        chooseDate,
+        date: chooseDate,
         isPresent: isFieldPresent(record.isPresentRaw ?? record.isPresent),
         _sortKey: sortKey,
         _rowIndex: rowIndex,

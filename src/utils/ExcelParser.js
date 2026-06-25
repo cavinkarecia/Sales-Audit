@@ -52,9 +52,12 @@ const pickChooseDate = (row) => {
 
 const parseExcelDate = (excelDate) => parseLocalDate(excelDate);
 
-const mapRowLetter = (row) => ({
-  id: row[LETTER_MAP.id],
-  date: parseExcelDate(row[LETTER_MAP.date]),
+const mapRowLetter = (row) => {
+  const chooseDate = parseExcelDate(row[LETTER_MAP.date]);
+  return {
+    id: row[LETTER_MAP.id],
+    chooseDate,
+    date: chooseDate,
   dateCollected: parseExcelDate(row[LETTER_MAP.dateCollected]),
   location: row[LETTER_MAP.location],
   name: row[LETTER_MAP.name],
@@ -70,11 +73,15 @@ const mapRowLetter = (row) => ({
   totalShops: parseInt(row[LETTER_MAP.totalShops], 10) || 0,
   submittedAt: parseExcelDate(row[LETTER_MAP.dateCollected]),
   rowIndex: row.__rowIndex,
-});
+};
+};
 
-const mapRowHeaders = (row) => ({
+const mapRowHeaders = (row) => {
+  const chooseDate = parseExcelDate(pickChooseDate(row));
+  return {
   id: row.id ?? row.ID,
-  date: parseExcelDate(pickChooseDate(row) ?? pickByHeaders(row, 'date')),
+  chooseDate,
+  date: chooseDate,
   dateCollected: parseExcelDate(pickByHeaders(row, 'dateCollected')),
   location: pickByHeaders(row, 'location'),
   name: pickByHeaders(row, 'name'),
@@ -90,7 +97,8 @@ const mapRowHeaders = (row) => ({
   totalShops: parseInt(pickByHeaders(row, 'totalShops'), 10) || 0,
   submittedAt: parseExcelDate(pickByHeaders(row, 'submittedAt') ?? pickByHeaders(row, 'dateCollected')),
   rowIndex: row.__rowIndex,
-});
+};
+};
 
 export const parseAttendanceExcel = async (file) => {
   return new Promise((resolve, reject) => {
@@ -116,7 +124,7 @@ export const parseAttendanceExcel = async (file) => {
             const withIdx = { ...row, __rowIndex: idx };
             return useHeaders ? mapRowHeaders(withIdx) : mapRowLetter(withIdx);
           })
-          .filter((item) => item.name && item.date)
+          .filter((item) => item.name && item.chooseDate)
           .map((item) => ({
             ...item,
             isPresent: isFieldPresent(item.isPresentRaw),

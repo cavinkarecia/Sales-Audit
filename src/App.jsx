@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v24-attendance-filters
+          build: v25-choose-date-filters
         </span>
       </nav>
       <Routes>

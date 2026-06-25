@@ -14,6 +14,7 @@ import {
   CheckCircle,
   TrendingUp,
   ChevronRight,
+  ChevronDown,
   Filter,
   Upload,
   Compass,
@@ -36,13 +37,73 @@ import { useAuditData } from '../context/AuditDataContext';
 const normalizeReportData = (data) =>
   (Array.isArray(data) ? data : [])
     .map((record) => {
-      const date = parseLocalDate(record.date);
+      const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
       return {
         ...record,
-        date,
+        chooseDate,
+        date: chooseDate,
       };
     })
-    .filter((record) => record.name && record.date);
+    .filter((record) => record.name && record.chooseDate);
+
+const dropdownPanelStyle = {
+  position: 'absolute',
+  top: 'calc(100% + 6px)',
+  left: 0,
+  zIndex: 120,
+  minWidth: '260px',
+  maxHeight: '280px',
+  overflowY: 'auto',
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border-main)',
+  borderRadius: '8px',
+  boxShadow: '0 12px 32px rgba(0,0,0,0.35)',
+  padding: '8px',
+};
+
+const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, children, minWidth = 220 }) => {
+  const ref = React.useRef(null);
+
+  React.useEffect(() => {
+    if (!isOpen) return undefined;
+    const onDocClick = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onClose();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [isOpen, onClose]);
+
+  return (
+    <div ref={ref} style={{ position: 'relative', minWidth }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          width: '100%',
+          background: 'var(--bg-secondary)',
+          color: '#fff',
+          border: '1px solid var(--border-main)',
+          padding: '7px 12px',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '0.78rem',
+          textAlign: 'left',
+        }}
+      >
+        {icon}
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+          <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{label}</span>
+          <span style={{ fontWeight: '600' }}>{summary}</span>
+        </span>
+        <ChevronDown size={14} style={{ marginLeft: 'auto', opacity: 0.7 }} />
+      </button>
+      {isOpen && <div style={{ ...dropdownPanelStyle, minWidth }}>{children}</div>}
+    </div>
+  );
+};
 
 const AttendanceDashboard = () => {
   const {
@@ -68,6 +129,8 @@ const AttendanceDashboard = () => {
   const [activePeriod, setActivePeriod] = useState(null);
   const [selectedDayKeys, setSelectedDayKeys] = useState([]);
   const [selectedWeekdays, setSelectedWeekdays] = useState([]);
+  const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
+  const [dayDropdownOpen, setDayDropdownOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
   const [isParsing, setIsParsing] = useState(false);
@@ -136,7 +199,7 @@ const AttendanceDashboard = () => {
       setExpandedKpi(null);
       setSelectedCluster(null);
 
-      const dayKeys = [...new Set(tagged.map((d) => toDayKey(d.date)).filter(Boolean))].sort();
+      const dayKeys = [...new Set(tagged.map((d) => toDayKey(d.chooseDate)).filter(Boolean))].sort();
       setSelectedDayKeys(dayKeys);
       setReportData(tagged);
       setAttendanceRecords(tagged);
@@ -279,10 +342,10 @@ const AttendanceDashboard = () => {
     if (activeReportData.length === 0) return [];
     return activeReportData
       .map((record) => {
-        const date = parseLocalDate(record.date);
-        if (!date || !record.name) return null;
+        const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
+        if (!chooseDate || !record.name) return null;
 
-        const dayKey = toDayKey(date);
+        const chooseDateKey = toDayKey(chooseDate);
         const masterInfo = auditorsMaster.find(
           (a) =>
             a.name.toLowerCase().includes(record.name.toLowerCase()) ||
@@ -312,30 +375,35 @@ const AttendanceDashboard = () => {
 
         return {
           ...record,
-          date,
+          chooseDate,
+          date: chooseDate,
           asmName: mappedAsmName,
           baseLocation: masterInfo?.location || 'Unknown',
           currentCity,
           distanceFromBase: distance,
           cluster: geoCluster || masterInfo?.cluster || 'Unknown',
           empCode: masterInfo?.empCode || 'N/A',
-          weekKey: format(startOfWeek(date, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-          monthKey: format(startOfMonth(date), 'yyyy-MM'),
-          dayKey,
-          weekday: weekdayFromDayKey(dayKey),
+          weekKey: format(startOfWeek(chooseDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
+          monthKey: format(startOfMonth(chooseDate), 'yyyy-MM'),
+          chooseDateKey,
+          dayKey: chooseDateKey,
+          weekday: weekdayFromDayKey(chooseDateKey),
         };
       })
       .filter(Boolean);
   }, [activeReportData]);
 
-  const availableDailyDates = useMemo(() => {
+  const allChooseDateOptions = useMemo(() => {
     if (processedData.length === 0) return [];
-    let keys = [...new Set(processedData.map((d) => d.dayKey).filter(Boolean))].sort();
-    if (selectedWeekdays.length > 0) {
-      keys = keys.filter((key) => selectedWeekdays.includes(weekdayFromDayKey(key)));
-    }
+    const keys = [...new Set(processedData.map((d) => d.chooseDateKey).filter(Boolean))].sort();
     return keys.map((key) => ({ key, label: formatDayLabel(key) }));
-  }, [processedData, selectedWeekdays]);
+  }, [processedData]);
+
+  const availableDailyDates = useMemo(() => {
+    if (allChooseDateOptions.length === 0) return [];
+    if (selectedWeekdays.length === 0) return allChooseDateOptions;
+    return allChooseDateOptions.filter((d) => selectedWeekdays.includes(weekdayFromDayKey(d.key)));
+  }, [allChooseDateOptions, selectedWeekdays]);
 
   const availablePeriods = useMemo(() => {
     if (processedData.length === 0) return [];
@@ -360,12 +428,12 @@ const AttendanceDashboard = () => {
   }, [processedData, timeFilter]);
 
   React.useEffect(() => {
-    if (timeFilter !== 'daily' || selectedDayKeys.length > 0 || processedData.length === 0) return;
-    setSelectedDayKeys([...new Set(processedData.map((d) => d.dayKey))].sort());
-  }, [processedData, timeFilter, selectedDayKeys.length]);
+    if (selectedDayKeys.length > 0 || allChooseDateOptions.length === 0) return;
+    setSelectedDayKeys(allChooseDateOptions.map((d) => d.key));
+  }, [allChooseDateOptions, selectedDayKeys.length]);
 
   React.useEffect(() => {
-    if (timeFilter !== 'daily') return;
+    if (selectedWeekdays.length === 0) return;
     setSelectedDayKeys(availableDailyDates.map((d) => d.key));
   }, [selectedWeekdays]);
 
@@ -383,7 +451,7 @@ const AttendanceDashboard = () => {
 
   const uploadSummary = useMemo(() => {
     if (processedData.length === 0) return null;
-    const dayKeys = [...new Set(processedData.map((d) => d.dayKey).filter(Boolean))].sort();
+    const dayKeys = [...new Set(processedData.map((d) => d.chooseDateKey).filter(Boolean))].sort();
     const monthKeys = [...new Set(processedData.map((d) => d.monthKey).filter(Boolean))].sort();
     return {
       records: processedData.length,
@@ -409,21 +477,46 @@ const AttendanceDashboard = () => {
     setExpandedKpi(null);
   };
 
+  const handleClearAllFilters = () => {
+    setSelectedWeekdays([]);
+    setSelectedDayKeys(allChooseDateOptions.map((d) => d.key));
+    setDateDropdownOpen(false);
+    setDayDropdownOpen(false);
+    setExpandedKpi(null);
+  };
+
+  const dateFilterSummary =
+    selectedDayKeys.length === 0
+      ? 'No dates'
+      : selectedDayKeys.length === allChooseDateOptions.length
+        ? `All (${allChooseDateOptions.length})`
+        : `${selectedDayKeys.length} selected`;
+
+  const dayFilterSummary =
+    selectedWeekdays.length === 0 ? 'All days' : selectedWeekdays.join(', ');
+
   const filteredData = useMemo(() => {
     if (processedData.length === 0) return [];
 
-    if (timeFilter === 'daily') {
-      if (selectedDayKeys.length === 0) return [];
-      return processedData.filter((item) => selectedDayKeys.includes(item.dayKey));
+    let rows = processedData;
+
+    if (selectedDayKeys.length > 0) {
+      rows = rows.filter((item) => selectedDayKeys.includes(item.chooseDateKey));
     }
 
-    if (!activePeriod) return [];
-    return processedData.filter((item) => {
-      if (timeFilter === 'weekly') return item.weekKey === activePeriod;
-      if (timeFilter === 'monthly') return item.monthKey === activePeriod;
-      return false;
-    });
-  }, [processedData, timeFilter, activePeriod, selectedDayKeys]);
+    if (selectedWeekdays.length > 0) {
+      rows = rows.filter((item) => selectedWeekdays.includes(item.weekday));
+    }
+
+    if (timeFilter === 'weekly' && activePeriod) {
+      rows = rows.filter((item) => item.weekKey === activePeriod);
+    }
+    if (timeFilter === 'monthly' && activePeriod) {
+      rows = rows.filter((item) => item.monthKey === activePeriod);
+    }
+
+    return rows;
+  }, [processedData, timeFilter, activePeriod, selectedDayKeys, selectedWeekdays]);
 
   const stats = useMemo(() => {
     if (filteredData.length === 0) return null;
@@ -736,217 +829,223 @@ const AttendanceDashboard = () => {
         </div>
       </header>
 
-      {/* Control Bar */}
-      <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px', padding: '12px 16px' }}>
-        <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            accept=".xlsx, .xls, .csv"
-            onChange={handleFileUpload}
-          />
+      {/* Filter bar: Upload | Choose Date dropdown | Day dropdown | Clear all */}
+      <div className="card" style={{ display: 'flex', gap: '12px', marginBottom: '24px', alignItems: 'center', padding: '12px 16px', flexWrap: 'wrap' }}>
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          accept=".xlsx, .xls, .csv"
+          onChange={handleFileUpload}
+        />
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isParsing}
+          style={{
+            background: isParsing ? 'rgba(88, 166, 255, 0.2)' : 'transparent',
+            border: '1px solid var(--border-main)',
+            color: 'var(--text-primary)',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            cursor: isParsing ? 'wait' : 'pointer',
+            fontSize: '0.78rem',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {isParsing ? (
+            <div
+              className="spinner-small"
+              style={{
+                width: '12px',
+                height: '12px',
+                border: '2px solid rgba(255,255,255,0.1)',
+                borderTop: '2px solid #fff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
+          ) : (
+            <Upload size={14} />
+          )}
+          {isParsing ? 'Processing...' : 'Upload attendance'}
+        </button>
+
+        <div style={{ width: '1px', height: '36px', background: 'var(--border-main)' }} />
+
+        <FilterDropdown
+          label="Choose Date"
+          summary={processedData.length === 0 ? 'Upload file first' : dateFilterSummary}
+          icon={<Calendar size={14} color="var(--accent-primary)" />}
+          isOpen={dateDropdownOpen}
+          onToggle={() => {
+            setDateDropdownOpen((v) => !v);
+            setDayDropdownOpen(false);
+          }}
+          onClose={() => setDateDropdownOpen(false)}
+          minWidth={280}
+        >
           <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isParsing}
+            type="button"
+            onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
             style={{
-              background: isParsing ? 'rgba(88, 166, 255, 0.2)' : 'transparent',
-              border: '1px solid var(--border-main)',
-              color: 'var(--text-primary)',
-              padding: '6px 12px',
+              width: '100%',
+              marginBottom: '8px',
+              padding: '6px 10px',
               borderRadius: '6px',
-              cursor: isParsing ? 'wait' : 'pointer',
-              fontSize: '0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
+              border: '1px solid var(--accent-primary)',
+              background: 'rgba(88, 166, 255, 0.12)',
+              color: 'var(--accent-primary)',
+              fontSize: '0.72rem',
+              fontWeight: '700',
+              cursor: 'pointer',
             }}
           >
-            {isParsing ? (
-              <div
-                className="spinner-small"
-                style={{
-                  width: '12px',
-                  height: '12px',
-                  border: '2px solid rgba(255,255,255,0.1)',
-                  borderTop: '2px solid #fff',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite',
-                }}
-              />
-            ) : (
-              <Upload size={14} />
-            )}
-            {isParsing ? 'Processing...' : 'Upload attendance'}
+            Select all
           </button>
+          {availableDailyDates.length === 0 ? (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '4px' }}>
+              No Choose Date values in upload
+            </span>
+          ) : (
+            availableDailyDates.map((d) => (
+              <label
+                key={d.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.78rem',
+                  padding: '5px 6px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  background: selectedDayKeys.includes(d.key) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedDayKeys.includes(d.key)}
+                  onChange={() => toggleDayKey(d.key)}
+                />
+                <span style={{ fontFamily: 'monospace' }}>{d.label}</span>
+              </label>
+            ))
+          )}
+        </FilterDropdown>
 
-          {uploadSummary && (
-            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+        <FilterDropdown
+          label="Day filter"
+          summary={dayFilterSummary}
+          icon={<Filter size={14} color="var(--accent-primary)" />}
+          isOpen={dayDropdownOpen}
+          onToggle={() => {
+            setDayDropdownOpen((v) => !v);
+            setDateDropdownOpen(false);
+          }}
+          onClose={() => setDayDropdownOpen(false)}
+          minWidth={180}
+        >
+          {WEEKDAY_OPTIONS.map((day) => (
+            <label
+              key={day}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '0.78rem',
+                padding: '5px 6px',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                background: selectedWeekdays.includes(day) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={selectedWeekdays.includes(day)}
+                onChange={() => toggleWeekday(day)}
+              />
+              <span>{day}</span>
+            </label>
+          ))}
+        </FilterDropdown>
+
+        {uploadSummary && (
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+            <div>
               <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.auditors}</strong> auditors ·{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.days}</strong> days · Choose Date{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.days}</strong> Choose Date days
+            </div>
+            <div>
               {uploadSummary.from === uploadSummary.to
                 ? formatDayLabel(uploadSummary.from)
                 : `${formatDayLabel(uploadSummary.from)} → ${formatDayLabel(uploadSummary.to)}`}
             </div>
-          )}
-
-          <div style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Filter size={12} /> <strong>{filteredData.length}</strong> Records
           </div>
+        )}
+
+        <button
+          type="button"
+          onClick={handleClearAllFilters}
+          disabled={processedData.length === 0}
+          style={{
+            marginLeft: 'auto',
+            padding: '8px 14px',
+            borderRadius: '8px',
+            border: '1px solid var(--border-main)',
+            background: 'transparent',
+            color: processedData.length === 0 ? 'var(--text-muted)' : 'var(--text-primary)',
+            fontSize: '0.75rem',
+            fontWeight: '600',
+            cursor: processedData.length === 0 ? 'not-allowed' : 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          Clear all
+        </button>
+
+        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+          <Filter size={12} /> <strong>{filteredData.length}</strong> records
         </div>
-
-        {timeFilter === 'daily' && processedData.length > 0 && (
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-              <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Day filter
-              </span>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                {WEEKDAY_OPTIONS.map((day) => {
-                  const active = selectedWeekdays.includes(day);
-                  return (
-                    <button
-                      key={day}
-                      type="button"
-                      onClick={() => toggleWeekday(day)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: '6px',
-                        border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-main)'}`,
-                        background: active ? 'rgba(88, 166, 255, 0.2)' : 'transparent',
-                        color: active ? '#fff' : 'var(--text-secondary)',
-                        fontSize: '0.72rem',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      {day}
-                    </button>
-                  );
-                })}
-                {selectedWeekdays.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setSelectedWeekdays([])}
-                    style={{
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      border: '1px solid var(--border-main)',
-                      background: 'transparent',
-                      color: 'var(--text-muted)',
-                      fontSize: '0.68rem',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    All days
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', flex: '1 1 280px', minWidth: '240px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
-                <span style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Calendar size={12} color="var(--accent-primary)" />
-                  Choose dates ({selectedDayKeys.length}/{availableDailyDates.length})
-                </span>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
-                    style={{ background: 'none', border: 'none', color: 'var(--accent-primary)', fontSize: '0.68rem', cursor: 'pointer', padding: 0 }}
-                  >
-                    Select all
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedDayKeys([])}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.68rem', cursor: 'pointer', padding: 0 }}
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-              <div
-                style={{
-                  maxHeight: '180px',
-                  overflowY: 'auto',
-                  border: '1px solid var(--border-main)',
-                  borderRadius: '8px',
-                  background: 'var(--bg-secondary)',
-                  padding: '6px 8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '2px',
-                }}
-              >
-                {availableDailyDates.length === 0 ? (
-                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '6px' }}>
-                    No dates match the day filter
-                  </span>
-                ) : (
-                  availableDailyDates.map((d) => (
-                    <label
-                      key={d.key}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '8px',
-                        fontSize: '0.78rem',
-                        padding: '4px 6px',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        background: selectedDayKeys.includes(d.key) ? 'rgba(88, 166, 255, 0.12)' : 'transparent',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedDayKeys.includes(d.key)}
-                        onChange={() => toggleDayKey(d.key)}
-                      />
-                      <span style={{ fontFamily: 'monospace', letterSpacing: '0.02em' }}>{d.label}</span>
-                    </label>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {timeFilter !== 'daily' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <Calendar size={14} color="var(--accent-primary)" />
-            <select
-              value={activePeriod || ''}
-              onChange={(e) => {
-                setActivePeriod(e.target.value);
-                setExpandedKpi(null);
-              }}
-              disabled={availablePeriods.length === 0}
-              style={{
-                background: 'var(--bg-secondary)',
-                color: '#fff',
-                border: '1px solid var(--border-main)',
-                padding: '4px 12px',
-                borderRadius: '6px',
-                cursor: availablePeriods.length === 0 ? 'not-allowed' : 'pointer',
-                fontSize: '0.8rem',
-                outline: 'none',
-              }}
-            >
-              {availablePeriods.length === 0 ? (
-                <option value="">No periods in upload</option>
-              ) : (
-                availablePeriods.map((p) => (
-                  <option key={p.key} value={p.key}>
-                    {p.label}
-                  </option>
-                ))
-              )}
-            </select>
-          </div>
-        )}
       </div>
+
+      {timeFilter !== 'daily' && processedData.length > 0 && (
+        <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', padding: '10px 16px' }}>
+          <Calendar size={14} color="var(--accent-primary)" />
+          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+            {timeFilter === 'weekly' ? 'Week (Choose Date)' : 'Month (Choose Date)'}
+          </span>
+          <select
+            value={activePeriod || ''}
+            onChange={(e) => {
+              setActivePeriod(e.target.value);
+              setExpandedKpi(null);
+            }}
+            disabled={availablePeriods.length === 0}
+            style={{
+              background: 'var(--bg-secondary)',
+              color: '#fff',
+              border: '1px solid var(--border-main)',
+              padding: '4px 12px',
+              borderRadius: '6px',
+              cursor: availablePeriods.length === 0 ? 'not-allowed' : 'pointer',
+              fontSize: '0.8rem',
+              outline: 'none',
+            }}
+          >
+            {availablePeriods.length === 0 ? (
+              <option value="">No periods</option>
+            ) : (
+              availablePeriods.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      )}
 
       {reportData.length === 0 && (
         <div
