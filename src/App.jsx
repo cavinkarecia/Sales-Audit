@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v29-black-screen-fix
+          build: v30-todaykey-fix
         </span>
       </nav>
       <Routes>

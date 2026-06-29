@@ -14,6 +14,7 @@ import L from 'leaflet';
 
 import { dayColor } from '../utils/travelMapUtils';
 import { findCityCoords, findNearestCity, getDistance } from '../utils/geoUtils';
+import { toDayKey } from '../utils/attendanceProcessor';
 
 /**
  * Build an HTML divIcon styled as a coloured map-pin. We use SVG so the
