@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useContext, useCallback, useEffect, useMemo, useState } from 'react';
 import { DEFAULT_EXPENSE_SHEET_URL } from '../utils/expenseVoucherParser.js';
+import { normalizeAttendanceRecords } from '../utils/attendanceProcessor.js';
 
 const STORAGE_KEYS = {
   attendance: 'sales_audit_report_data',
@@ -41,9 +42,13 @@ const loadJson = (key, fallback) => {
 const AuditDataContext = createContext(null);
 
 export const AuditDataProvider = ({ children }) => {
-  const [attendanceRecords, setAttendanceRecords] = useState(() =>
-    loadJson(STORAGE_KEYS.attendance, []),
+  const [attendanceRecords, setAttendanceRecordsRaw] = useState(() =>
+    normalizeAttendanceRecords(loadJson(STORAGE_KEYS.attendance, [])),
   );
+
+  const setAttendanceRecords = useCallback((data) => {
+    setAttendanceRecordsRaw(normalizeAttendanceRecords(data));
+  }, []);
   const [pjpRecords, setPjpRecords] = useState(() => loadJson(STORAGE_KEYS.pjp, []));
   const [pjpSheetSummary, setPjpSheetSummary] = useState(() =>
     loadJson(STORAGE_KEYS.pjpSummary, []),

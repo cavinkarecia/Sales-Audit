@@ -1,4 +1,4 @@
-import React from 'react';
+import { ATTENDANCE_META_KEY } from '../utils/attendanceProcessor';
 
 export class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -17,6 +17,7 @@ export class ErrorBoundary extends React.Component {
   handleReset = () => {
     try {
       localStorage.removeItem('sales_audit_report_data');
+      localStorage.removeItem(ATTENDANCE_META_KEY);
       localStorage.removeItem('sales_audit_pjp_v2');
       localStorage.removeItem('sales_audit_pjp_summary_v2');
     } catch {

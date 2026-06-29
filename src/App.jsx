@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v30-todaykey-fix
+          build: v31-attendance-persist
         </span>
       </nav>
       <Routes>

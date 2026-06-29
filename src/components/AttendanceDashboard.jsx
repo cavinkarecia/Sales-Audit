@@ -30,23 +30,11 @@ import {
 import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
 import { parseAttendanceExcel } from '../utils/ExcelParser';
-import { toDayKey, parseLocalDate, formatDayLabel, weekdayFromDayKey, WEEKDAY_OPTIONS } from '../utils/attendanceProcessor';
+import { toDayKey, parseLocalDate, formatDayLabel, weekdayFromDayKey, WEEKDAY_OPTIONS, filterLatestUploadBatch, loadAttendanceMeta, saveAttendanceMeta } from '../utils/attendanceProcessor';
 import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats } from '../utils/sheetFetcher';
 import { buildTravelLegs, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
-
-const normalizeReportData = (data) =>
-  (Array.isArray(data) ? data : [])
-    .map((record) => {
-      const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
-      return {
-        ...record,
-        chooseDate,
-        date: chooseDate,
-      };
-    })
-    .filter((record) => record.name && record.chooseDate);
 
 const dropdownPanelStyle = {
   position: 'fixed',
@@ -215,30 +203,18 @@ const AttendanceDashboard = () => {
     pjpSpreadsheetUrl: ctxPjpUrl,
     pjpSheetSummary: ctxPjpSummary,
   } = useAuditData();
-  const [reportData, setReportData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('sales_audit_report_data');
-      if (!saved) return [];
-      const parsed = JSON.parse(saved);
-      if (!Array.isArray(parsed)) return [];
-      if (parsed.length > 50000) {
-        console.warn('Attendance cache too large; ignoring localStorage batch.');
-        return [];
-      }
-      return normalizeReportData(parsed);
-    } catch (e) {
-      console.error('Error loading data from localStorage:', e);
-      try {
-        localStorage.removeItem('sales_audit_report_data');
-      } catch {
-        /* ignore */
-      }
-      return [];
-    }
-  });
+
+  const activeReportData = useMemo(
+    () => filterLatestUploadBatch(ctxAttendance),
+    [ctxAttendance],
+  );
+
   const [timeFilter, setTimeFilter] = useState('daily');
   const [activePeriod, setActivePeriod] = useState(null);
-  const [selectedDayKeys, setSelectedDayKeys] = useState([]);
+  const [selectedDayKeys, setSelectedDayKeys] = useState(() => {
+    const meta = loadAttendanceMeta();
+    return Array.isArray(meta?.chooseDateKeys) ? meta.chooseDateKeys : [];
+  });
   const [selectedWeekdays, setSelectedWeekdays] = useState([]);
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
   const [dayDropdownOpen, setDayDropdownOpen] = useState(false);
@@ -262,18 +238,6 @@ const AttendanceDashboard = () => {
   const [allAuditorsInsights, setAllAuditorsInsights] = useState('');
   
   const fileInputRef = React.useRef(null);
-
-  // Persist data to localStorage + shared context
-  React.useEffect(() => {
-    localStorage.setItem('sales_audit_report_data', JSON.stringify(reportData));
-    if (reportData.length) setAttendanceRecords(reportData);
-  }, [reportData, setAttendanceRecords]);
-
-  React.useEffect(() => {
-    if (ctxAttendance.length && reportData.length === 0) {
-      setReportData(normalizeReportData(ctxAttendance));
-    }
-  }, [ctxAttendance]);
 
   React.useEffect(() => {
     if (ctxPjp.length && historyData.length === 0) {
@@ -301,8 +265,8 @@ const AttendanceDashboard = () => {
       const uploadBatch = Date.now();
       const tagged = data.map((row) => ({ ...row, _uploadBatch: uploadBatch }));
 
-      localStorage.removeItem('sales_audit_report_data');
-      setAttendanceRecords([]);
+      const dayKeys = [...new Set(tagged.map((d) => toDayKey(d.chooseDate)).filter(Boolean))].sort();
+      saveAttendanceMeta({ uploadBatch, chooseDateKeys: dayKeys, savedAt: new Date().toISOString() });
 
       setTimeFilter('daily');
       setActivePeriod(null);
@@ -310,9 +274,7 @@ const AttendanceDashboard = () => {
       setExpandedKpi(null);
       setSelectedCluster(null);
 
-      const dayKeys = [...new Set(tagged.map((d) => toDayKey(d.chooseDate)).filter(Boolean))].sort();
       setSelectedDayKeys(dayKeys);
-      setReportData(tagged);
       setAttendanceRecords(tagged);
 
       const auditorCount = new Set(tagged.map((d) => d.name)).size;
@@ -404,24 +366,14 @@ const AttendanceDashboard = () => {
   };
 
   React.useEffect(() => {
-    if (reportData.length > 0) {
+    if (activeReportData.length > 0) {
       setExpandedKpi(null);
     }
-  }, [reportData]);
+  }, [activeReportData]);
 
   const toggleKpiExpand = (kpi) => {
     setExpandedKpi(expandedKpi === kpi ? null : kpi);
   };
-
-  const latestUploadBatch = useMemo(() => {
-    const batches = reportData.map((r) => r._uploadBatch).filter(Boolean);
-    return batches.length ? Math.max(...batches) : null;
-  }, [reportData]);
-
-  const activeReportData = useMemo(() => {
-    if (latestUploadBatch == null) return reportData;
-    return reportData.filter((r) => !r._uploadBatch || r._uploadBatch === latestUploadBatch);
-  }, [reportData, latestUploadBatch]);
 
   const processedData = useMemo(() => {
     if (activeReportData.length === 0) return [];
@@ -511,7 +463,23 @@ const AttendanceDashboard = () => {
   }, [processedData, timeFilter]);
 
   React.useEffect(() => {
+    const meta = loadAttendanceMeta();
+    if (meta?.uploadBatch && selectedDayKeys.length > 0) {
+      const valid = new Set(allChooseDateOptions.map((d) => d.key));
+      const kept = selectedDayKeys.filter((k) => valid.has(k));
+      if (kept.length > 0 && kept.length !== selectedDayKeys.length) {
+        setSelectedDayKeys(kept);
+        return;
+      }
+    }
     if (selectedDayKeys.length > 0 || allChooseDateOptions.length === 0) return;
+    const fromMeta = meta?.chooseDateKeys?.filter((k) =>
+      allChooseDateOptions.some((d) => d.key === k),
+    );
+    if (fromMeta?.length) {
+      setSelectedDayKeys(fromMeta);
+      return;
+    }
     setSelectedDayKeys(allChooseDateOptions.map((d) => d.key));
   }, [allChooseDateOptions, selectedDayKeys.length]);
 
@@ -562,7 +530,10 @@ const AttendanceDashboard = () => {
 
   const handleClearAllFilters = () => {
     setSelectedWeekdays([]);
-    setSelectedDayKeys(allChooseDateOptions.map((d) => d.key));
+    const keys = allChooseDateOptions.map((d) => d.key);
+    setSelectedDayKeys(keys);
+    const meta = loadAttendanceMeta();
+    if (meta) saveAttendanceMeta({ ...meta, chooseDateKeys: keys });
     setDateDropdownOpen(false);
     setDayDropdownOpen(false);
     setExpandedKpi(null);
@@ -1150,7 +1121,7 @@ const AttendanceDashboard = () => {
         </div>
       )}
 
-      {reportData.length === 0 && (
+      {activeReportData.length === 0 && (
         <div
           className="card"
           style={{

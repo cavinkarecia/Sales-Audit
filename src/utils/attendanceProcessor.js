@@ -78,6 +78,47 @@ export const formatDayLabel = (dayKey) => {
 
 export const WEEKDAY_OPTIONS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
+export const ATTENDANCE_META_KEY = 'sales_audit_attendance_meta';
+
+/** Normalize stored rows so Choose Date is always the canonical date field. */
+export const normalizeAttendanceRecords = (data) =>
+  (Array.isArray(data) ? data : [])
+    .map((record) => {
+      const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
+      return {
+        ...record,
+        chooseDate,
+        date: chooseDate,
+      };
+    })
+    .filter((record) => record.name && record.chooseDate);
+
+export const loadAttendanceMeta = () => {
+  try {
+    const raw = localStorage.getItem(ATTENDANCE_META_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveAttendanceMeta = (meta) => {
+  try {
+    localStorage.setItem(ATTENDANCE_META_KEY, JSON.stringify(meta));
+  } catch {
+    /* ignore */
+  }
+};
+
+/** Keep only the latest upload batch — never mix old months with a new file. */
+export const filterLatestUploadBatch = (records) => {
+  const normalized = normalizeAttendanceRecords(records);
+  const batches = normalized.map((r) => r._uploadBatch).filter(Boolean);
+  if (!batches.length) return normalized;
+  const latest = Math.max(...batches);
+  return normalized.filter((r) => r._uploadBatch === latest);
+};
+
 const entrySortKey = (record, rowIndex) => {
   if (record.submittedAt) {
     const t = new Date(record.submittedAt).getTime();
