@@ -415,7 +415,7 @@ const AttendanceDashboard = () => {
     if (activeReportData.length === 0) return [];
     return activeReportData
       .map((record) => {
-        const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
+        const chooseDate = parseLocalDate(record.chooseDate);
         if (!chooseDate || !record.name) return null;
 
         const chooseDateKey = toDayKey(chooseDate);
@@ -455,7 +455,6 @@ const AttendanceDashboard = () => {
           weekKey: format(startOfWeek(chooseDate, { weekStartsOn: 1 }), 'yyyy-MM-dd'),
           monthKey: format(startOfMonth(chooseDate), 'yyyy-MM'),
           chooseDateKey,
-          dayKey: chooseDateKey,
           weekday: weekdayFromDayKey(chooseDateKey),
         };
       })
@@ -640,17 +639,20 @@ const AttendanceDashboard = () => {
   const trendData = useMemo(() => {
     if (filteredData.length === 0 || timeFilter === 'daily') return [];
     const dayGroups = filteredData.reduce((acc, curr) => {
-      const day = curr.dayKey;
-      if (!acc[day]) acc[day] = { date: day, present: 0, total: 0 };
-      acc[day].total++;
-      if (curr.isPresent) acc[day].present++;
+      const chooseDateKey = curr.chooseDateKey;
+      if (!chooseDateKey) return acc;
+      if (!acc[chooseDateKey]) acc[chooseDateKey] = { chooseDateKey, present: 0, total: 0 };
+      acc[chooseDateKey].total++;
+      if (curr.isPresent) acc[chooseDateKey].present++;
       return acc;
     }, {});
-    return Object.values(dayGroups).sort((a, b) => new Date(a.date) - new Date(b.date)).map(d => ({
-      ...d,
-      label: format(new Date(d.date), 'dd MMM'),
-      rate: Math.round((d.present / d.total) * 100)
-    }));
+    return Object.values(dayGroups)
+      .sort((a, b) => a.chooseDateKey.localeCompare(b.chooseDateKey))
+      .map((d) => ({
+        ...d,
+        label: formatDayLabel(d.chooseDateKey).split(' | ')[0],
+        rate: Math.round((d.present / d.total) * 100),
+      }));
   }, [filteredData, timeFilter]);
 
   const auditorPerformanceData = useMemo(() => {
@@ -730,17 +732,21 @@ const AttendanceDashboard = () => {
   const churnTrendData = useMemo(() => {
     if (filteredData.length === 0) return [];
     const dayGroups = filteredData.reduce((acc, curr) => {
-      const day = curr.dayKey;
-      if (!day) return acc;
-      if (!acc[day]) acc[day] = { date: day, additions: 0, cancellations: 0 };
-      acc[day].additions += (curr.distAdditions || 0);
-      acc[day].cancellations += (curr.distCancellations || 0);
+      const chooseDateKey = curr.chooseDateKey;
+      if (!chooseDateKey) return acc;
+      if (!acc[chooseDateKey]) {
+        acc[chooseDateKey] = { chooseDateKey, additions: 0, cancellations: 0 };
+      }
+      acc[chooseDateKey].additions += curr.distAdditions || 0;
+      acc[chooseDateKey].cancellations += curr.distCancellations || 0;
       return acc;
     }, {});
-    return Object.values(dayGroups).sort((a, b) => new Date(a.date) - new Date(b.date)).map(d => ({
-      ...d,
-      label: format(new Date(d.date), 'dd MMM')
-    }));
+    return Object.values(dayGroups)
+      .sort((a, b) => a.chooseDateKey.localeCompare(b.chooseDateKey))
+      .map((d) => ({
+        ...d,
+        label: formatDayLabel(d.chooseDateKey).split(' | ')[0],
+      }));
   }, [filteredData]);
 
   const CHART_COLORS = ['#58a6ff', '#3fb950', '#f85149', '#d29922', '#bc8cff'];
@@ -869,9 +875,11 @@ const AttendanceDashboard = () => {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-main)' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800', background: 'linear-gradient(to right, #fff, #58a6ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Field Intelligence Dashboard
+            Attendance
           </h1>
-          <p style={{ fontSize: '0.85rem', margin: '4px 0 0' }}>Monitoring {stats?.total || 0} active field auditors</p>
+          <p style={{ fontSize: '0.85rem', margin: '4px 0 0' }}>
+            Monitoring {stats?.total || 0} auditors · all views use <strong>Choose Date</strong> from upload
+          </p>
         </div>
         
         <div style={{ display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '8px', border: '1px solid var(--border-main)' }}>

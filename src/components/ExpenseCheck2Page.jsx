@@ -481,9 +481,9 @@ const ExpenseCheck2Page = () => {
             fontSize: '0.85rem',
           }}
         >
-          <ArrowLeft size={16} /> Full Dashboard
+          <ArrowLeft size={16} /> Attendance
         </Link>
-        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Expense Check 2</h1>
+        <h1 style={{ margin: 0, fontSize: '1.35rem' }}>Expense Check</h1>
         {liveBuild && (
           <span style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
             Server build: {liveBuild}
@@ -560,7 +560,7 @@ const ExpenseCheck2Page = () => {
             color: 'var(--text-secondary)',
           }}
         >
-          Load attendance and PJP on Full Dashboard for stronger cross-checks (optional but recommended).
+          Load attendance and PJP on Attendance for stronger cross-checks (optional but recommended).
         </div>
       )}
 

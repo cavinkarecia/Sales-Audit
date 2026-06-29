@@ -139,6 +139,6 @@ export const parseLocationCoords = (locationStr) => {
 
 export const getAttendanceForAuditorDate = (attendanceRecords, auditorName, dateKey) => {
   return attendanceRecords.find(
-    (r) => namesMatch(r.name, auditorName) && toDayKey(r.date) === dateKey,
+    (r) => namesMatch(r.name, auditorName) && toDayKey(r.chooseDate ?? r.date) === dateKey,
   );
 };

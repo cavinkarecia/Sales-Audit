@@ -207,8 +207,8 @@ const LeafletTravelMap = ({
         if (!rec.name || !rec.location) return;
         const key = String(rec.name).toLowerCase().trim();
         const existing = liveByAuditor.get(key);
-        const recDate = rec.chooseDateKey || rec.dayKey || '';
-        const existingDate = existing?.chooseDateKey || existing?.dayKey || '';
+        const recDate = rec.chooseDateKey || toDayKey(rec.chooseDate) || '';
+        const existingDate = existing?.chooseDateKey || toDayKey(existing?.chooseDate) || '';
         if (!existing || recDate >= existingDate) {
           liveByAuditor.set(key, rec);
         }

@@ -12,13 +12,13 @@ function App() {
       <nav className="app-nav">
         <span className="app-brand">Sales Audit 2.0</span>
         <NavLink to="/" end className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-          <Map size={16} /> Full Dashboard
+          <Map size={16} /> Attendance
         </NavLink>
         <NavLink
           to="/expense-check-2"
           className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
         >
-          <Receipt size={16} /> Expense Check 2
+          <Receipt size={16} /> Expense Check
         </NavLink>
         <span
           style={{
@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v27-perf-filters
+          build: v28-attendance-rename
         </span>
       </nav>
       <Routes>
