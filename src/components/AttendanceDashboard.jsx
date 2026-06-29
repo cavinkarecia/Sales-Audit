@@ -218,9 +218,21 @@ const AttendanceDashboard = () => {
   const [reportData, setReportData] = useState(() => {
     try {
       const saved = localStorage.getItem('sales_audit_report_data');
-      return saved ? normalizeReportData(JSON.parse(saved)) : [];
+      if (!saved) return [];
+      const parsed = JSON.parse(saved);
+      if (!Array.isArray(parsed)) return [];
+      if (parsed.length > 50000) {
+        console.warn('Attendance cache too large; ignoring localStorage batch.');
+        return [];
+      }
+      return normalizeReportData(parsed);
     } catch (e) {
       console.error('Error loading data from localStorage:', e);
+      try {
+        localStorage.removeItem('sales_audit_report_data');
+      } catch {
+        /* ignore */
+      }
       return [];
     }
   });
@@ -415,7 +427,7 @@ const AttendanceDashboard = () => {
     if (activeReportData.length === 0) return [];
     return activeReportData
       .map((record) => {
-        const chooseDate = parseLocalDate(record.chooseDate);
+        const chooseDate = parseLocalDate(record.chooseDate ?? record.date);
         if (!chooseDate || !record.name) return null;
 
         const chooseDateKey = toDayKey(chooseDate);
@@ -874,7 +886,7 @@ const AttendanceDashboard = () => {
       <section className="attendance-section" aria-label="Attendance dashboard">
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid var(--border-main)' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800', background: 'linear-gradient(to right, #fff, #58a6ff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+          <h1 style={{ margin: 0, fontSize: '1.6rem', fontWeight: '800', color: '#f0f6fc' }}>
             Attendance
           </h1>
           <p style={{ fontSize: '0.85rem', margin: '4px 0 0' }}>

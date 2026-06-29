@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v28-attendance-rename
+          build: v29-black-screen-fix
         </span>
       </nav>
       <Routes>

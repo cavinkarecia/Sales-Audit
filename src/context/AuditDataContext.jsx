@@ -24,8 +24,16 @@ const STORAGE_KEYS = {
 const loadJson = (key, fallback) => {
   try {
     const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 50000) return fallback;
+    return parsed;
   } catch {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
     return fallback;
   }
 };
