@@ -682,8 +682,6 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
-});
-
 /** State-aware online geocoding via OpenStreetMap Nominatim (India). */
 app.get('/api/geocode', async (req, res) => {
   const town = String(req.query.town || '').trim();
