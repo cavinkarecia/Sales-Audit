@@ -1,5 +1,5 @@
 /** Canonical Indian state names for geocoding queries. */
-import auditorsMaster from '../data/auditors.json';
+import { AUDITOR_BASE_TOWNS } from './knownTownCoords.js';
 export const STATE_CANONICAL = {
   'tn': 'Tamil Nadu',
   'tamilnadu': 'Tamil Nadu',
@@ -57,12 +57,16 @@ export const CLUSTER_TO_STATE = {
   tn: 'Tamil Nadu',
   ap: 'Andhra Pradesh',
   ts: 'Telangana',
+  rapt: 'Andhra Pradesh',
+  kar: 'Karnataka',
   ka: 'Karnataka',
   kl: 'Kerala',
   mh: 'Maharashtra',
+  west: 'Maharashtra',
   gj: 'Gujarat',
   mp: 'Madhya Pradesh',
   up: 'Uttar Pradesh',
+  north: 'Uttar Pradesh',
   rj: 'Rajasthan',
   wb: 'West Bengal',
   hr: 'Haryana',
@@ -72,6 +76,7 @@ export const CLUSTER_TO_STATE = {
   cg: 'Chhattisgarh',
   od: 'Odisha',
   as: 'Assam',
+  jobc: 'Bihar',
 };
 
 const normKey = (s) =>
@@ -134,45 +139,9 @@ const buildKnownTownCoords = () => {
     }
   };
 
-  try {
-    for (const a of auditorsMaster) {
-      if (a.location && a.coords?.lat != null && a.coords?.lng != null) {
-        const st = CLUSTER_TO_STATE[String(a.cluster || '').toLowerCase()] || '';
-        add(a.location, a.coords.lat, a.coords.lng, st);
-      }
-    }
-  } catch {
-    /* ignore */
+  for (const t of AUDITOR_BASE_TOWNS) {
+    add(t.name, t.lat, t.lng, t.state);
   }
-
-  // Small TN/AP towns often missing from cities.json
-  add('Tindivanam', 12.234, 79.655, 'Tamil Nadu');
-  add('Oddanchatram', 10.487, 77.754, 'Tamil Nadu');
-  add('Kangeyam', 11.006, 77.561, 'Tamil Nadu');
-  add('Nambiyur', 11.358, 77.329, 'Tamil Nadu');
-  add('Perambalur', 11.234, 78.882, 'Tamil Nadu');
-  add('Alwarthirunagari', 8.601, 77.939, 'Tamil Nadu');
-  add('Karur', 10.961, 78.081, 'Tamil Nadu');
-  add('Nuzvid', 16.788, 80.846, 'Andhra Pradesh');
-  add('Tuni', 17.359, 82.546, 'Andhra Pradesh');
-  add('Nandyal', 15.478, 78.484, 'Andhra Pradesh');
-  add('Kadapa', 14.467, 78.824, 'Andhra Pradesh');
-  add('Sivakasi', 9.453, 77.798, 'Tamil Nadu');
-  add('Rajapalayam', 9.452, 77.553, 'Tamil Nadu');
-  add('Theni', 10.011, 77.477, 'Tamil Nadu');
-  add('Dindigul', 10.362, 77.969, 'Tamil Nadu');
-  add('Pollachi', 10.659, 77.008, 'Tamil Nadu');
-  add('Namakkal', 11.219, 78.167, 'Tamil Nadu');
-  add('Erode', 11.341, 77.717, 'Tamil Nadu');
-  add('Tiruppur', 11.108, 77.341, 'Tamil Nadu');
-  add('Hosur', 12.741, 77.825, 'Tamil Nadu');
-  add('Vellore', 12.916, 79.133, 'Tamil Nadu');
-  add('Cuddalore', 11.748, 79.771, 'Tamil Nadu');
-  add('Nagapattinam', 10.767, 79.842, 'Tamil Nadu');
-  add('Thoothukudi', 8.764, 78.134, 'Tamil Nadu');
-  add('Tuticorin', 8.764, 78.134, 'Tamil Nadu');
-  add('Kanchipuram', 12.834, 79.704, 'Tamil Nadu');
-  add('Kanchi', 12.834, 79.704, 'Tamil Nadu');
 
   return map;
 };
