@@ -831,14 +831,24 @@ const AttendanceDashboard = () => {
 
   React.useEffect(() => {
     setTravelMap(travelMapBase);
-    if (!travelMapBase.unmappedTowns?.length) {
+
+    const candidates =
+      travelMapBase.geocodeCandidates?.length > 0
+        ? travelMapBase.geocodeCandidates
+        : (travelMapBase.unmappedTowns || []).map((u) => ({
+            town: u.town,
+            state: u.state,
+            pincode: u.pincode || '',
+          }));
+
+    if (!candidates.length) {
       setGeocodeProgress(null);
       return undefined;
     }
 
     let cancelled = false;
     (async () => {
-      setGeocodeProgress({ done: 0, total: travelMapBase.unmappedTowns.length });
+      setGeocodeProgress({ done: 0, total: candidates.length });
       const enriched = await enrichTravelLegsOnline(
         travelMapBase,
         auditorsMaster,

@@ -1,5 +1,6 @@
 import { geocodeTown, getDistance } from './geoUtils';
-import { geocodeTownsBatch } from './onlineGeocoder';
+import { geocodeTownsBatch, geocodeCacheKey } from './onlineGeocoder';
+import { normalizeStateForGeocode, CLUSTER_TO_STATE, sanitizeTownInput, isBlankGeoField } from './geocodeProviders';
 
 /**
  * Convert a dd-MM-yyyy string into a real Date for sorting / labelling.
@@ -31,8 +32,26 @@ const pickPincode = (record) =>
 const pickPlannedRS = (record) =>
   record.plannedRSName || record['Planned RS Name'] || record['Planned Retail Store'] || '';
 
+const inferState = (record, auditorsMaster) => {
+  const fromSheet = record.state || record['State'] || '';
+  if (!isBlankGeoField(fromSheet)) {
+    return normalizeStateForGeocode(fromSheet);
+  }
+  const empName = record.employeeName || record['Employee Name'] || '';
+  const auditor = findAuditor(auditorsMaster, empName);
+  if (auditor?.cluster && CLUSTER_TO_STATE[String(auditor.cluster).toLowerCase()]) {
+    return CLUSTER_TO_STATE[String(auditor.cluster).toLowerCase()];
+  }
+  return '';
+};
+
 const resolveCoords = (town, state, pincode, onlineLookup) => {
-  const local = geocodeTown(town, state, pincode);
+  const cleanTown = sanitizeTownInput(town);
+  if (!cleanTown && !/^\d{6}$/.test(String(pincode || '').trim())) {
+    return { coords: null, matchedCity: null, mapped: false, source: null };
+  }
+
+  const local = geocodeTown(cleanTown || town, state, pincode);
   if (local.mapped) {
     return {
       coords: { lat: local.lat, lng: local.lng },
@@ -42,7 +61,7 @@ const resolveCoords = (town, state, pincode, onlineLookup) => {
     };
   }
 
-  const key = `${String(pincode || '').trim()}|${String(town || '').trim().toLowerCase()}|${String(state || '').trim().toLowerCase()}`;
+  const key = geocodeCacheKey(cleanTown || town, state, pincode);
   const online = onlineLookup?.get(key);
   if (online?.mapped) {
     return {
@@ -61,7 +80,7 @@ const buildLegFromRecord = (record, idx, dayIndexByDate, auditorsMaster, onlineL
   const dateStr = record.date || record['Date'] || '';
   const fromTown = record.fromTown || record['From Town Name'] || record['From Town'] || '';
   const toTown = record.toTown || record['To Town Name'] || record['To Town'] || '';
-  const state = record.state || record['State'] || '';
+  const state = inferState(record, auditorsMaster);
   const pincode = pickPincode(record);
   const plannedRSName = pickPlannedRS(record);
   const reportedKmsRaw = record.kms !== undefined ? record.kms : record['Kms Travelled'];
@@ -114,13 +133,40 @@ const buildLegFromRecord = (record, idx, dayIndexByDate, auditorsMaster, onlineL
   };
 };
 
+/** Towns that still need online geocoding (local cities.json miss). */
+export const collectGeocodeCandidates = (records, auditorsMaster) => {
+  const seen = new Set();
+  const out = [];
+
+  for (const record of records) {
+    const state = inferState(record, auditorsMaster);
+    const pincode = pickPincode(record);
+    const towns = [
+      { town: record.fromTown || record['From Town Name'] || '', pincode: '' },
+      { town: record.toTown || record['To Town Name'] || '', pincode },
+    ];
+
+    for (const { town, pincode: pc } of towns) {
+      const clean = sanitizeTownInput(town);
+      if (!clean) continue;
+      if (geocodeTown(clean, state, pc).mapped) continue;
+      const key = geocodeCacheKey(clean, state, pc);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ town: clean, state, pincode: pc });
+    }
+  }
+
+  return out;
+};
+
 const collectUnmapped = (legs) => {
   const unmappedMap = new Map();
   const note = (town, state, pincode, employeeName) => {
-    const key = `${(town || '').toLowerCase().trim()}|${(state || '').toLowerCase().trim()}|${pincode || ''}`;
-    if (!town || key === '|') return;
+    const key = `${sanitizeTownInput(town).toLowerCase()}|${(state || '').toLowerCase().trim()}|${pincode || ''}`;
+    if (!sanitizeTownInput(town)) return;
     if (!unmappedMap.has(key)) {
-      unmappedMap.set(key, { town: town || '', state: state || '', pincode: pincode || '', count: 0, employees: new Set() });
+      unmappedMap.set(key, { town: sanitizeTownInput(town), state: state || '', pincode: pincode || '', count: 0, employees: new Set() });
     }
     const entry = unmappedMap.get(key);
     entry.count += 1;
@@ -128,10 +174,7 @@ const collectUnmapped = (legs) => {
   };
 
   legs.forEach((leg) => {
-    if (!leg.fromCoords && leg.fromTown && leg.fromGeocodeSource !== 'online') {
-      note(leg.fromTown, leg.fromState, '', leg.employeeName);
-    }
-    if (!leg.toCoords && leg.toTown && leg.toGeocodeSource !== 'online') {
+    if (!leg.toCoords && sanitizeTownInput(leg.toTown)) {
       note(leg.toTown, leg.toState, leg.pincode, leg.employeeName);
     }
   });
@@ -141,18 +184,8 @@ const collectUnmapped = (legs) => {
     .sort((a, b) => b.count - a.count);
 };
 
-/**
- * Build a chronologically-ordered list of travel legs for plotting on the
- * live map. Each leg has resolved coordinates, day index, route label and
- * kilometres (taken from the sheet when present, otherwise computed from
- * Haversine on the resolved coordinates).
- */
-export const buildTravelLegs = (records, auditorsMaster) => {
-  if (!records || records.length === 0) {
-    return { legs: [], unmappedTowns: [], dayKeys: [] };
-  }
-
-  const sorted = [...records].sort((a, b) => {
+const sortRecords = (records) =>
+  [...records].sort((a, b) => {
     const da = parseDdMmYyyy(a.date);
     const db = parseDdMmYyyy(b.date);
     if (!da && !db) return 0;
@@ -161,6 +194,7 @@ export const buildTravelLegs = (records, auditorsMaster) => {
     return da - db;
   });
 
+const buildDayIndex = (sorted) => {
   const dayIndexByDate = new Map();
   let nextDayIdx = 0;
   for (const r of sorted) {
@@ -169,12 +203,25 @@ export const buildTravelLegs = (records, auditorsMaster) => {
       dayIndexByDate.set(r.date, nextDayIdx);
     }
   }
+  return dayIndexByDate;
+};
+
+/**
+ * Build a chronologically-ordered list of travel legs for plotting on the map.
+ */
+export const buildTravelLegs = (records, auditorsMaster) => {
+  if (!records || records.length === 0) {
+    return { legs: [], unmappedTowns: [], dayKeys: [], geocodeCandidates: [] };
+  }
+
+  const sorted = sortRecords(records);
+  const dayIndexByDate = buildDayIndex(sorted);
 
   const legs = sorted.map((record, idx) =>
     buildLegFromRecord(record, idx, dayIndexByDate, auditorsMaster, null),
   );
 
-  const unmappedTowns = collectUnmapped(legs);
+  const geocodeCandidates = collectGeocodeCandidates(records, auditorsMaster);
 
   const dayKeys = Array.from(dayIndexByDate.entries()).map(([date, dayIndex]) => ({
     key: date,
@@ -182,54 +229,49 @@ export const buildTravelLegs = (records, auditorsMaster) => {
     dayIndex,
   }));
 
-  return { legs, unmappedTowns, dayKeys };
+  return {
+    legs,
+    unmappedTowns: collectUnmapped(legs),
+    dayKeys,
+    geocodeCandidates,
+  };
 };
 
 /**
- * Re-resolve legs using online geocoding for towns that cities.json missed.
- * Uses state from the sheet; pincode when the column is present (future-ready).
+ * Re-resolve legs using online geocoding (Photon) for towns cities.json missed.
  */
 export const enrichTravelLegsOnline = async (travelMap, auditorsMaster, onProgress) => {
-  if (!travelMap?.unmappedTowns?.length) return travelMap;
+  const candidates = travelMap.geocodeCandidates?.length
+    ? travelMap.geocodeCandidates
+    : collectGeocodeCandidates(
+      travelMap.legs.map((l) => l.record).filter(Boolean),
+      auditorsMaster,
+    );
 
-  const onlineResults = await geocodeTownsBatch(
-    travelMap.unmappedTowns.map((u) => ({ town: u.town, state: u.state, pincode: u.pincode })),
-    onProgress,
-  );
+  if (!candidates.length) return travelMap;
 
-  const sorted = [...(travelMap.legs.map((l) => l.record))].sort((a, b) => {
-    const da = parseDdMmYyyy(a.date);
-    const db = parseDdMmYyyy(b.date);
-    if (!da && !db) return 0;
-    if (!da) return 1;
-    if (!db) return -1;
-    return da - db;
-  });
+  const onlineResults = await geocodeTownsBatch(candidates, onProgress);
 
-  const dayIndexByDate = new Map();
-  let nextDayIdx = 0;
-  for (const r of sorted) {
-    if (!dayIndexByDate.has(r.date)) {
-      nextDayIdx += 1;
-      dayIndexByDate.set(r.date, nextDayIdx);
-    }
-  }
+  const sorted = sortRecords(travelMap.legs.map((l) => l.record).filter(Boolean));
+  const dayIndexByDate = buildDayIndex(sorted);
 
   const legs = sorted.map((record, idx) =>
     buildLegFromRecord(record, idx, dayIndexByDate, auditorsMaster, onlineResults),
   );
 
+  const unmappedTowns = collectUnmapped(legs);
+
   return {
     legs,
-    unmappedTowns: collectUnmapped(legs),
+    unmappedTowns,
     dayKeys: travelMap.dayKeys,
-    onlineResolved: travelMap.unmappedTowns.length - collectUnmapped(legs).length,
+    geocodeCandidates: collectGeocodeCandidates(sorted, auditorsMaster),
+    onlineResolved: candidates.length - unmappedTowns.length,
   };
 };
 
 /**
- * Simple deterministic colour per day index, so each travel day shows up
- * with its own hue on the map.
+ * Simple deterministic colour per day index.
  */
 export const dayColor = (dayIndex) => {
   const palette = [

@@ -1,4 +1,5 @@
 import cities from '../data/cities.json';
+import { sanitizeTownInput, normalizeStateForGeocode, STATE_CANONICAL, lookupKnownTown } from './geocodeProviders.js';
 
 /**
  * Haversine formula to calculate distance in KM between two points.
@@ -104,43 +105,39 @@ const TOWN_ALIASES = {
   'gr noida': 'Greater Noida',
   'noida ext': 'Noida',
   'kolhapur city': 'Kolhapur',
+  // Tamil Nadu field towns (small places not always in cities.json as city names)
+  'virudhunagar': 'Rajapalayam',
+  'sivakasi': 'Sivakasi',
+  'theni allinagaram': 'Theni-Allinagaram',
+  'theni': 'Theni-Allinagaram',
+  'oddanchatram': 'Oddanchatram',
+  'kangeyam': 'Kangeyam',
+  'perambalur': 'Perambalur',
+  'alwarthirunagari': 'Alwarthirunagari',
+  'nambiyur': 'Nambiyur',
+  'tuni': 'Tuni',
+  'kadapa': 'Kadapa',
+  'cuddapah': 'Kadapa',
+  'nandyal': 'Nandyal',
+  'vijayapura': 'Vijayapura',
+  'bijapur': 'Vijayapura',
+  'belgaum': 'Belagavi',
+  'tumkur': 'Tumkur',
+  'tumakuru': 'Tumkur',
+  'bilaspur': 'Bilaspur',
+  'etawah': 'Etawah',
+  'kannauj': 'Kannauj',
+  'bhilwara': 'Bhilwara',
+  'bikaner': 'Bikaner',
+  'sahibganj': 'Sahebganj',
+  'kokrajhar': 'Kokrajhar',
+  'durg': 'Durg',
 };
 
 /**
  * State aliases / abbreviations to canonical names used in cities.json.
  */
-const STATE_ALIASES = {
-  'tn': 'Tamil Nadu',
-  'tamilnadu': 'Tamil Nadu',
-  'ap': 'Andhra Pradesh',
-  'andhra': 'Andhra Pradesh',
-  'andhrapradesh': 'Andhra Pradesh',
-  'ts': 'Telangana',
-  'telengana': 'Telangana',
-  'ka': 'Karnataka',
-  'kar': 'Karnataka',
-  'kl': 'Kerala',
-  'mh': 'Maharashtra',
-  'maha': 'Maharashtra',
-  'gj': 'Gujarat',
-  'mp': 'Madhya Pradesh',
-  'up': 'Uttar Pradesh',
-  'uk': 'Uttarakhand',
-  'rj': 'Rajasthan',
-  'pb': 'Punjab',
-  'hr': 'Haryana',
-  'wb': 'West Bengal',
-  'jk': 'Jammu and Kashmir',
-  'odisha': 'Odisha',
-  'orissa': 'Odisha',
-  'cg': 'Chhattisgarh',
-  'chattisgarh': 'Chhattisgarh',
-  'jh': 'Jharkhand',
-  'br': 'Bihar',
-  'as': 'Assam',
-  'goa': 'Goa',
-  'hp': 'Himachal Pradesh',
-};
+const STATE_ALIASES = STATE_CANONICAL;
 
 /**
  * Normalize a free-form town/state string for matching:
@@ -151,28 +148,13 @@ const STATE_ALIASES = {
  *  - drop punctuation except hyphens (some place names contain them)
  */
 const normalizeName = (raw) => {
-  if (!raw) return '';
-  let s = String(raw).toLowerCase().trim();
-  if (!s || s === 'n/a' || s === 'na' || s === '-' || s === '--') return '';
-
-  s = s.replace(/\([^)]*\)/g, ' ');
-  s = s.replace(/[.,_/\\]+/g, ' ');
-  s = s.replace(/\s+/g, ' ').trim();
-
-  const suffixes = [' town', ' city', ' dist', ' district', ' tehsil', ' taluk', ' taluka', ' mandal'];
-  for (const suf of suffixes) {
-    if (s.endsWith(suf)) {
-      s = s.slice(0, -suf.length).trim();
-    }
-  }
-  return s;
+  const cleaned = sanitizeTownInput(raw);
+  return cleaned ? cleaned.toLowerCase() : '';
 };
 
 const canonicalStateName = (state) => {
-  const n = normalizeName(state);
-  if (!n) return '';
-  if (STATE_ALIASES[n]) return STATE_ALIASES[n];
-  return n;
+  const canonical = normalizeStateForGeocode(state);
+  return canonical ? canonical.toLowerCase() : '';
 };
 
 /**
@@ -191,6 +173,23 @@ const buildCityIndex = () => {
 };
 
 const CITY_INDEX = buildCityIndex();
+
+/** district (normalized) → largest city record in that district (for a given state). */
+const buildDistrictIndex = () => {
+  const byDistrict = new Map();
+  for (const c of cities) {
+    const dKey = `${normalizeName(c.state)}|${normalizeName(c.district)}`;
+    if (!dKey.endsWith('|') && c.district) {
+      const existing = byDistrict.get(dKey);
+      if (!existing || (c.population || 0) > (existing.population || 0)) {
+        byDistrict.set(dKey, c);
+      }
+    }
+  }
+  return byDistrict;
+};
+
+const DISTRICT_INDEX = buildDistrictIndex();
 
 /**
  * Try to resolve a town name to a city record from cities.json.
@@ -253,8 +252,12 @@ const resolveCity = (rawTown, rawState) => {
     if (inState.length === 1) return inState[0];
   }
 
-  // Match against district name within the stated state (e.g. "Kurnool" district vs city)
+  // Match district name → largest town in that district (e.g. "Virudhunagar" → Rajapalayam)
   if (stateNorm) {
+    const dKey = `${stateNorm}|${town}`;
+    const districtCity = DISTRICT_INDEX.get(dKey);
+    if (districtCity) return districtCity;
+
     const districtHits = cities.filter(
       (c) => stateMatches(c) && normalizeName(c.district) === town,
     );
@@ -287,19 +290,34 @@ export const findCityCoords = (cityName, stateHint) => {
  */
 export const geocodeTown = (cityName, stateHint, _pincode) => {
   const c = resolveCity(cityName, stateHint);
-  if (!c) {
+  if (c) {
     return {
-      mapped: false,
+      mapped: true,
+      lat: c.latitude,
+      lng: c.longitude,
+      matchedCity: c.city,
+      matchedState: c.state,
       rawTown: cityName || '',
       rawState: stateHint || '',
     };
   }
+
+  const known = lookupKnownTown(cityName, stateHint);
+  if (known?.mapped) {
+    return {
+      mapped: true,
+      lat: known.lat,
+      lng: known.lng,
+      matchedCity: known.matchedCity,
+      matchedState: known.matchedState || stateHint || '',
+      rawTown: cityName || '',
+      rawState: stateHint || '',
+      source: 'known',
+    };
+  }
+
   return {
-    mapped: true,
-    lat: c.latitude,
-    lng: c.longitude,
-    matchedCity: c.city,
-    matchedState: c.state,
+    mapped: false,
     rawTown: cityName || '',
     rawState: stateHint || '',
   };

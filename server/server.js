@@ -6,6 +6,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import XLSX from 'xlsx';
 import { syncExpenseWorkbook } from './expenseSync.js';
+import { geocodeOnlineMulti } from '../src/utils/geocodeProviders.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -682,7 +683,7 @@ app.post('/api/ai/chat', async (req, res) => {
   }
 });
 
-/** State-aware online geocoding via OpenStreetMap Nominatim (India). */
+/** State-aware online geocoding (Photon + Nominatim fallback). */
 app.get('/api/geocode', async (req, res) => {
   const town = String(req.query.town || '').trim();
   const state = String(req.query.state || '').trim();
@@ -692,57 +693,9 @@ app.get('/api/geocode', async (req, res) => {
     return res.status(400).json({ mapped: false, error: 'town or pincode required' });
   }
 
-  let query = '';
-  if (/^\d{6}$/.test(pincode)) {
-    query = `${pincode}, India`;
-  } else if (town && state) {
-    query = `${town}, ${state}, India`;
-  } else if (town) {
-    query = `${town}, India`;
-  }
-
   try {
-    const url = new URL('https://nominatim.openstreetmap.org/search');
-    url.searchParams.set('q', query);
-    url.searchParams.set('format', 'json');
-    url.searchParams.set('limit', '1');
-    url.searchParams.set('countrycodes', 'in');
-    url.searchParams.set('addressdetails', '1');
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        'User-Agent': 'SalesAudit/2.0 (field-audit travel map; contact: sales-audit@render.com)',
-        Accept: 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      return res.status(502).json({ mapped: false, rawTown: town, rawState: state });
-    }
-
-    const rows = await response.json();
-    if (!Array.isArray(rows) || rows.length === 0) {
-      return res.json({ mapped: false, rawTown: town, rawState: state });
-    }
-
-    const hit = rows[0];
-    const lat = parseFloat(hit.lat);
-    const lng = parseFloat(hit.lon);
-    if (Number.isNaN(lat) || Number.isNaN(lng)) {
-      return res.json({ mapped: false, rawTown: town, rawState: state });
-    }
-
-    const addr = hit.address || {};
-    res.json({
-      mapped: true,
-      lat,
-      lng,
-      matchedCity: addr.city || addr.town || addr.village || addr.county || town,
-      matchedState: addr.state || state,
-      rawTown: town,
-      rawState: state,
-      source: 'nominatim',
-    });
+    const result = await geocodeOnlineMulti(town, state, pincode);
+    res.json(result);
   } catch (err) {
     res.status(502).json({ mapped: false, rawTown: town, rawState: state, error: String(err?.message || err) });
   }

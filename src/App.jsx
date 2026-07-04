@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v33-hotfix-server
+          build: v34-geocode-photon
         </span>
       </nav>
       <Routes>
