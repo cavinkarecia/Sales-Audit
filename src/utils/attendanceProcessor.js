@@ -113,8 +113,14 @@ export const saveAttendanceMeta = (meta) => {
 /** Keep only the latest upload batch — never mix old months with a new file. */
 export const filterLatestUploadBatch = (records) => {
   const normalized = normalizeAttendanceRecords(records);
+  const meta = loadAttendanceMeta();
+
+  if (meta?.uploadBatch) {
+    return normalized.filter((r) => r._uploadBatch === meta.uploadBatch);
+  }
+
   const batches = normalized.map((r) => r._uploadBatch).filter(Boolean);
-  if (!batches.length) return normalized;
+  if (!batches.length) return [];
   const latest = Math.max(...batches);
   return normalized.filter((r) => r._uploadBatch === latest);
 };

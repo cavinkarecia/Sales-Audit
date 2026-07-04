@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v31-attendance-persist
+          build: v32-fresh-cache
         </span>
       </nav>
       <Routes>

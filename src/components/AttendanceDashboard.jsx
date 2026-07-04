@@ -240,6 +240,23 @@ const AttendanceDashboard = () => {
   const fileInputRef = React.useRef(null);
 
   React.useEffect(() => {
+    if (!activeReportData.length) {
+      if (selectedDayKeys.length) setSelectedDayKeys([]);
+      return;
+    }
+    const dataKeys = [...new Set(activeReportData.map((d) => toDayKey(d.chooseDate)).filter(Boolean))].sort();
+    const meta = loadAttendanceMeta();
+    const fromMeta = Array.isArray(meta?.chooseDateKeys)
+      ? meta.chooseDateKeys.filter((k) => dataKeys.includes(k))
+      : [];
+    const nextKeys = fromMeta.length ? fromMeta : dataKeys;
+    const same =
+      nextKeys.length === selectedDayKeys.length &&
+      nextKeys.every((k, i) => k === selectedDayKeys[i]);
+    if (!same) setSelectedDayKeys(nextKeys);
+  }, [activeReportData]);
+
+  React.useEffect(() => {
     if (ctxPjp.length && historyData.length === 0) {
       setHistoryData(ctxPjp);
       if (ctxPjpSummary.length) setHistorySheetsSummary(ctxPjpSummary);
