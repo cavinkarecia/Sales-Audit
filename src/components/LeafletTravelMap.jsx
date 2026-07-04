@@ -21,26 +21,28 @@ import { toDayKey } from '../utils/attendanceProcessor';
  * pin is sharp at any zoom level and avoids Leaflet's default icon-path
  * problem when bundled with Vite.
  */
-const buildPinIcon = (fill, label, opts = {}) => {
-  const { size = 28, badge = '' } = opts;
+const buildPinIcon = (fill, opts = {}) => {
+  const { size = 28, badge = '', topLabel = '', belowLabel = '' } = opts;
   const w = size;
   const h = Math.round(size * 1.25);
   const html = `
-    <div class="lf-pin" style="position:relative;width:${w}px;height:${h}px;">
-      <svg viewBox="0 0 24 30" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
+    <div class="lf-pin" style="position:relative;width:${w}px;height:${h + (topLabel ? 16 : 0)}px;">
+      ${topLabel ? `<div style="position:absolute;left:50%;top:0;transform:translateX(-50%);background:rgba(13,17,23,0.95);color:#fff;font-family:Inter,sans-serif;font-size:9px;font-weight:800;line-height:1;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid rgba(255,255,255,0.2);z-index:2;">${topLabel}</div>` : ''}
+      <svg viewBox="0 0 24 30" width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg" style="position:absolute;left:0;bottom:0;filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
         <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 18 12 18s12-9 12-18C24 5.37 18.63 0 12 0z" fill="${fill}" stroke="#fff" stroke-width="1.5"/>
         <circle cx="12" cy="12" r="4.5" fill="#fff"/>
       </svg>
-      ${badge ? `<div style="position:absolute;top:-4px;right:-4px;background:${fill};color:#fff;font-family:Inter,sans-serif;font-size:9px;font-weight:800;line-height:1;padding:2px 4px;border-radius:8px;border:1px solid #fff;min-width:14px;text-align:center;">${badge}</div>` : ''}
-      ${label ? `<div style="position:absolute;left:50%;top:${h + 2}px;transform:translateX(-50%);background:rgba(13,17,23,0.95);color:#fff;font-family:Inter,sans-serif;font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid rgba(255,255,255,0.15);">${label}</div>` : ''}
+      ${badge ? `<div style="position:absolute;bottom:2px;right:-4px;background:${fill};color:#fff;font-family:Inter,sans-serif;font-size:8px;font-weight:800;line-height:1;padding:2px 4px;border-radius:8px;border:1px solid #fff;min-width:12px;text-align:center;">${badge}</div>` : ''}
+      ${belowLabel ? `<div style="position:absolute;left:50%;bottom:-18px;transform:translateX(-50%);background:rgba(13,17,23,0.95);color:#fff;font-family:Inter,sans-serif;font-size:9px;font-weight:700;padding:2px 6px;border-radius:6px;white-space:nowrap;border:1px solid rgba(255,255,255,0.15);max-width:120px;overflow:hidden;text-overflow:ellipsis;">${belowLabel}</div>` : ''}
     </div>
   `;
+  const iconH = h + (topLabel ? 16 : 0) + (belowLabel ? 18 : 0);
   return L.divIcon({
     className: 'lf-pin-wrapper',
     html,
-    iconSize: [w, h],
-    iconAnchor: [w / 2, h],
-    popupAnchor: [0, -h],
+    iconSize: [w, iconH],
+    iconAnchor: [w / 2, h + (topLabel ? 16 : 0)],
+    popupAnchor: [0, -(h + (topLabel ? 16 : 0))],
   });
 };
 
@@ -96,9 +98,10 @@ const LeafletTravelMap = ({
     const fits = [];
 
     if (isLegMode) {
-      const seenMarker = new Set();
+      const seenFrom = new Set();
       travelLegs.forEach((leg) => {
         const color = dayColor(leg.dayIndex);
+        const baseKms = leg.kmsFromBase ?? leg.computedKms ?? leg.kms;
 
         if (leg.fromCoords && leg.toCoords) {
           p.push({
@@ -108,7 +111,7 @@ const LeafletTravelMap = ({
               [leg.fromCoords.lat, leg.fromCoords.lng],
               [leg.toCoords.lat, leg.toCoords.lng],
             ],
-            tooltip: `Day ${leg.dayIndex} • ${leg.date}\n${leg.fromTown} → ${leg.toTown}\n${leg.kms != null ? Math.round(leg.kms) + ' km' : ''}`,
+            tooltip: `Day ${leg.dayIndex} • ${leg.date}\n${leg.fromTown} → ${leg.toTown}\n${baseKms != null ? Math.round(baseKms) + ' km from base' : ''}${leg.plannedRSName ? `\nRS: ${leg.plannedRSName}` : ''}`,
           });
           fits.push({ lat: leg.fromCoords.lat, lng: leg.fromCoords.lng });
           fits.push({ lat: leg.toCoords.lat, lng: leg.toCoords.lng });
@@ -118,31 +121,57 @@ const LeafletTravelMap = ({
           fits.push({ lat: leg.toCoords.lat, lng: leg.toCoords.lng });
         }
 
-        const pushMarker = (kind, town, coords, matched) => {
-          if (!coords) return;
-          const key = `${kind}-${(town || '').toLowerCase()}-${coords.lat.toFixed(3)}-${coords.lng.toFixed(3)}`;
-          if (seenMarker.has(key)) return;
-          seenMarker.add(key);
+        if (leg.fromCoords) {
+          const fromKey = `${leg.fromCoords.lat.toFixed(4)}-${leg.fromCoords.lng.toFixed(4)}`;
+          if (!seenFrom.has(fromKey)) {
+            seenFrom.add(fromKey);
+            m.push({
+              id: `m-from-${leg.id}`,
+              markerRole: 'base',
+              kind: 'leg',
+              position: [leg.fromCoords.lat, leg.fromCoords.lng],
+              color: '#3fb950',
+              pinSize: 28,
+              belowLabel: leg.fromTown || leg.fromMatchedCity || 'Base',
+              popup: {
+                title: leg.fromTown || leg.fromMatchedCity || 'Base Location',
+                meta: 'Base location',
+                employee: leg.employeeName,
+                matched: leg.fromMatchedCity,
+              },
+            });
+          }
+        }
+
+        if (leg.toCoords) {
           m.push({
-            id: `m-${kind}-${leg.id}`,
+            id: `m-to-${leg.id}`,
+            markerRole: 'destination',
             kind: 'leg',
-            position: [coords.lat, coords.lng],
+            position: [leg.toCoords.lat, leg.toCoords.lng],
             color,
-            label: town || matched || '?',
-            badge: `D${leg.dayIndex}`,
+            pinSize: 22,
+            topLabel: `Day ${leg.dayIndex}`,
+            belowLabel: leg.toTown || leg.toMatchedCity || '',
+            hoverTooltip: [
+              `Day ${leg.dayIndex} • ${leg.date}`,
+              leg.toTown || leg.toMatchedCity || 'Destination',
+              baseKms != null ? `${Math.round(baseKms)} km from base` : null,
+              leg.plannedRSName ? `RS: ${leg.plannedRSName}` : null,
+              leg.employeeName ? `Auditor: ${leg.employeeName}` : null,
+            ].filter(Boolean).join('\n'),
             popup: {
-              title: town || matched || 'Travel Point',
+              title: leg.toTown || leg.toMatchedCity || 'Destination',
               meta: `Day ${leg.dayIndex} • ${leg.date}`,
               employee: leg.employeeName,
-              matched: (matched && town && matched.toLowerCase() !== town.toLowerCase()) ? matched : null,
-              kms: leg.kms != null ? Math.round(leg.kms) : null,
+              matched: leg.toMatchedCity,
+              kms: baseKms != null ? Math.round(baseKms) : null,
+              plannedRSName: leg.plannedRSName,
               fromTown: leg.fromTown,
               toTown: leg.toTown,
             },
           });
-        };
-        pushMarker('from', leg.fromTown, leg.fromCoords, leg.fromMatchedCity);
-        pushMarker('to', leg.toTown, leg.toCoords, leg.toMatchedCity);
+        }
       });
       return { markers: m, polylines: p, fitPoints: fits };
     }
@@ -226,7 +255,7 @@ const LeafletTravelMap = ({
           id: `base-${a.name}`,
           kind: 'base',
           position: [a.coords.lat, a.coords.lng],
-          color: '#8b949e',
+          color: '#3fb950',
           radius: 5,
           label: '',
           popup: { title: a.name, meta: a.location, employee: a.empCode },
@@ -284,7 +313,7 @@ const LeafletTravelMap = ({
           id: `base-${a.name}`,
           kind: 'base',
           position: [a.coords.lat, a.coords.lng],
-          color: '#8b949e',
+          color: '#3fb950',
           radius: 5,
           label: '',
           popup: { title: a.name, meta: a.location, employee: a.empCode },
@@ -371,8 +400,20 @@ const LeafletTravelMap = ({
             <Marker
               key={mk.id}
               position={mk.position}
-              icon={buildPinIcon(mk.color, mk.label, { size: 26, badge: mk.badge })}
+              icon={buildPinIcon(mk.color, {
+                size: mk.pinSize || 26,
+                badge: mk.badge,
+                topLabel: mk.topLabel || '',
+                belowLabel: mk.belowLabel || mk.label || '',
+              })}
             >
+              {mk.hoverTooltip && (
+                <Tooltip direction="top" sticky opacity={0.95}>
+                  <div style={{ whiteSpace: 'pre-line', fontSize: '0.72rem', lineHeight: 1.35 }}>
+                    {mk.hoverTooltip}
+                  </div>
+                </Tooltip>
+              )}
               <Popup>
                 <div style={{ fontFamily: 'Inter, sans-serif', minWidth: '200px' }}>
                   <div style={{ fontWeight: '800', fontSize: '0.9rem', marginBottom: '4px' }}>{mk.popup.title}</div>
@@ -385,11 +426,14 @@ const LeafletTravelMap = ({
                   {mk.popup.matched && (
                     <div style={{ fontSize: '0.72rem', color: '#586069' }}>Matched: {mk.popup.matched}</div>
                   )}
+                  {mk.popup.plannedRSName && (
+                    <div style={{ fontSize: '0.72rem', color: '#444' }}>RS: {mk.popup.plannedRSName}</div>
+                  )}
                   {mk.popup.currentCity && (
                     <div style={{ fontSize: '0.72rem', color: '#444' }}>Current city: {mk.popup.currentCity}</div>
                   )}
                   {mk.popup.kms != null && mk.popup.kms !== '' && (
-                    <div style={{ fontSize: '0.72rem', color: '#444' }}>Distance on this leg: {mk.popup.kms} km</div>
+                    <div style={{ fontSize: '0.72rem', color: '#444' }}>Distance from base: {mk.popup.kms} km</div>
                   )}
                   {mk.popup.distance != null && (
                     <div style={{ fontSize: '0.72rem', color: '#444' }}>Distance from base: {mk.popup.distance} km</div>

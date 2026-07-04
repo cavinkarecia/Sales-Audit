@@ -118,6 +118,7 @@ const CANDIDATES = {
   asmName: ['asmname', 'asm', 'areasalesmanager'],
   hotelStay: ['hotelstayyesno', 'hotelstay', 'hotel', 'stay', 'overnight'],
   plannedRSName: ['plannedrsname', 'plannedrs', 'plannedretailstore', 'planneddistributor', 'plannedshop'],
+  pincode: ['pincode', 'pincodeofdestination', 'topincode', 'destinationpincode', 'pin', 'postalcode', 'zipcode'],
   channel: ['channel', 'channelname'],
 };
 
@@ -236,6 +237,7 @@ export const fetchAllSheets = async (url) => {
       const asmName = pickField(acc, 'asmName');
       const hotelStay = pickField(acc, 'hotelStay');
       const plannedRSName = pickField(acc, 'plannedRSName');
+      const pincode = pickField(acc, 'pincode');
       const channel = pickField(acc, 'channel');
 
       let parsedKms = 0;
@@ -260,6 +262,7 @@ export const fetchAllSheets = async (url) => {
         asmName: cleanValue(asmName),
         hotelStay: cleanValue(hotelStay),
         plannedRSName: cleanValue(plannedRSName),
+        pincode: cleanValue(String(pincode || '').replace(/\D/g, '').slice(0, 6)),
         channel: cleanValue(channel),
         sheetName,
         isWorkingDay: !!cleanValue(workType),

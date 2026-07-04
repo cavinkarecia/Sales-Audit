@@ -32,7 +32,7 @@ import { getDistance, findNearestCity } from '../utils/geoUtils';
 import { parseAttendanceExcel } from '../utils/ExcelParser';
 import { toDayKey, parseLocalDate, formatDayLabel, weekdayFromDayKey, WEEKDAY_OPTIONS, filterLatestUploadBatch, loadAttendanceMeta, saveAttendanceMeta } from '../utils/attendanceProcessor';
 import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats } from '../utils/sheetFetcher';
-import { buildTravelLegs, dayColor } from '../utils/travelMapUtils';
+import { buildTravelLegs, enrichTravelLegsOnline, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
 
@@ -819,12 +819,43 @@ const AttendanceDashboard = () => {
   }, [historyData, selectedHistoryAuditor, selectedHistoryMonth]);
 
   // Date-wise travel legs (built from filtered history records, sorted chronologically)
-  const travelMap = useMemo(() => {
+  const travelMapBase = useMemo(() => {
     if (!filteredHistoryRecords || filteredHistoryRecords.length === 0) {
       return { legs: [], unmappedTowns: [], dayKeys: [] };
     }
     return buildTravelLegs(filteredHistoryRecords, auditorsMaster);
   }, [filteredHistoryRecords]);
+
+  const [travelMap, setTravelMap] = useState({ legs: [], unmappedTowns: [], dayKeys: [] });
+  const [geocodeProgress, setGeocodeProgress] = useState(null);
+
+  React.useEffect(() => {
+    setTravelMap(travelMapBase);
+    if (!travelMapBase.unmappedTowns?.length) {
+      setGeocodeProgress(null);
+      return undefined;
+    }
+
+    let cancelled = false;
+    (async () => {
+      setGeocodeProgress({ done: 0, total: travelMapBase.unmappedTowns.length });
+      const enriched = await enrichTravelLegsOnline(
+        travelMapBase,
+        auditorsMaster,
+        (done, total) => {
+          if (!cancelled) setGeocodeProgress({ done, total });
+        },
+      );
+      if (!cancelled) {
+        setTravelMap(enriched);
+        setGeocodeProgress(null);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [travelMapBase]);
 
   const historyStats = useMemo(() => {
     if (historyData.length === 0) return null;
@@ -1547,6 +1578,11 @@ const AttendanceDashboard = () => {
               <div className="card" style={{ padding: '16px', background: 'rgba(0,0,0,0.2)' }}>
                 <h3 style={{ fontSize: '0.85rem', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <MapPin size={16} color="var(--accent-primary)" /> Auditor Travel Footprint Map — Date-wise Routes
+                  {geocodeProgress && (
+                    <span style={{ fontSize: '0.65rem', color: '#8b949e', fontWeight: 400 }}>
+                      Resolving towns online ({geocodeProgress.done}/{geocodeProgress.total})…
+                    </span>
+                  )}
                 </h3>
                 <LeafletTravelMap
                   data={[]}
@@ -1633,7 +1669,7 @@ const AttendanceDashboard = () => {
                   <AlertTriangle size={16} /> Unmapped Towns ({travelMap.unmappedTowns.length})
                 </h3>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '4px 0 12px' }}>
-                  These town names did not match anything in <code>cities.json</code>. Add aliases in <code>src/utils/geoUtils.js</code> (the <code>TOWN_ALIASES</code> map) or correct them in the spreadsheet so they plot accurately.
+                  These towns could not be plotted even after matching by state online. Fix the spelling in the spreadsheet, or add an alias in <code>src/utils/geoUtils.js</code>. When pincode is added to the sheet, it will be used automatically for exact placement.
                 </p>
                 <div className="table-container" style={{ maxHeight: '220px', overflowY: 'auto' }}>
                   <table className="data-table">

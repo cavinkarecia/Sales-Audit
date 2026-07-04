@@ -253,6 +253,18 @@ const resolveCity = (rawTown, rawState) => {
     if (inState.length === 1) return inState[0];
   }
 
+  // Match against district name within the stated state (e.g. "Kurnool" district vs city)
+  if (stateNorm) {
+    const districtHits = cities.filter(
+      (c) => stateMatches(c) && normalizeName(c.district) === town,
+    );
+    if (districtHits.length === 1) return districtHits[0];
+    if (districtHits.length > 1) {
+      districtHits.sort((a, b) => (b.population || 0) - (a.population || 0));
+      return districtHits[0];
+    }
+  }
+
   return null;
 };
 
@@ -270,8 +282,10 @@ export const findCityCoords = (cityName, stateHint) => {
  * Richer geocoding result with the matched city/state and a confidence flag.
  *   { lat, lng, matchedCity, matchedState, mapped: true }
  * Returns { mapped: false, rawTown, rawState } if no match.
+ *
+ * Pincode is accepted for API compatibility; online geocoder uses it when local match fails.
  */
-export const geocodeTown = (cityName, stateHint) => {
+export const geocodeTown = (cityName, stateHint, _pincode) => {
   const c = resolveCity(cityName, stateHint);
   if (!c) {
     return {
