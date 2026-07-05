@@ -31,7 +31,7 @@ import { format, startOfWeek, startOfMonth } from 'date-fns';
 import { getDistance, findNearestCity } from '../utils/geoUtils';
 import { parseAttendanceExcel } from '../utils/ExcelParser';
 import { toDayKey, parseLocalDate, formatDayLabel, weekdayFromDayKey, WEEKDAY_OPTIONS, filterLatestUploadBatch, loadAttendanceMeta, saveAttendanceMeta } from '../utils/attendanceProcessor';
-import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats } from '../utils/sheetFetcher';
+import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats, derivePjpMonthLabel } from '../utils/sheetFetcher';
 import { buildTravelLegs, enrichTravelLegsOnline, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
@@ -226,6 +226,7 @@ const AttendanceDashboard = () => {
   const [historyUrl, setHistoryUrl] = useState('');
   const [historyData, setHistoryData] = useState([]);
   const [historySheetsSummary, setHistorySheetsSummary] = useState([]);
+  const [pjpWorkbookTitle, setPjpWorkbookTitle] = useState('');
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [selectedHistoryAuditor, setSelectedHistoryAuditor] = useState('');
   const [selectedHistoryMonth, setSelectedHistoryMonth] = useState('');
@@ -319,6 +320,7 @@ const AttendanceDashboard = () => {
       const result = await fetchAllSheets(historyUrl);
       setHistoryData(result.records);
       setHistorySheetsSummary(result.sheetSummary);
+      setPjpWorkbookTitle(result.workbookTitle || '');
 
       if (result.records.length > 0) {
         const firstRecord = result.records[0];
@@ -757,6 +759,12 @@ const AttendanceDashboard = () => {
     return groupByMonth(historyData);
   }, [historyData]);
 
+  const pjpSectionTitle = useMemo(() => {
+    const base = 'Permanent Journey Plan - Month Wise';
+    const monthLabel = derivePjpMonthLabel(historyData, pjpWorkbookTitle);
+    return monthLabel ? `${base} (${monthLabel})` : base;
+  }, [historyData, pjpWorkbookTitle]);
+
   const filteredHistoryRecords = useMemo(() => {
     if (historyData.length === 0) return [];
     return historyData.filter(record => {
@@ -1190,7 +1198,7 @@ const AttendanceDashboard = () => {
             borderLeft: '3px solid var(--accent-primary)',
           }}
         >
-          No attendance loaded yet — use <strong>Upload attendance</strong> above, then sync PJP below.
+          No attendance loaded yet — use <strong>Upload attendance</strong> above, then sync Permanent Journey Plan below.
         </div>
       )}
 
@@ -1370,13 +1378,13 @@ const AttendanceDashboard = () => {
       </section>
 
       {/* Part 2 — PJP sync (independent filters; not affected by Choose Date above) */}
-      <section className="pjp-section" aria-label="PJP sync">
-      {/* Auditor's Geographic Footprint - History Section */}
+      <section className="pjp-section" aria-label={pjpSectionTitle}>
+      {/* Permanent Journey Plan — month from synced workbook / row dates */}
       <div className="card" style={{ marginTop: '40px', padding: '24px', background: 'rgba(88, 166, 255, 0.02)', border: '1px solid var(--border-main)', borderRadius: '16px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h2 style={{ fontSize: '1.45rem', fontWeight: '800', margin: 0, display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Compass size={28} color="var(--accent-primary)" /> PJP sync (From, To, Kms)
+              <Compass size={28} color="var(--accent-primary)" /> {pjpSectionTitle}
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginTop: '4px' }}>Paste PJP Google Sheet — fetches all auditor tabs automatically</p>
           </div>

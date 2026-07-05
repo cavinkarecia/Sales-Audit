@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v37-no-workbook-total
+          build: v38-pjp-section-title
         </span>
       </nav>
       <Routes>

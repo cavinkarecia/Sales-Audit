@@ -166,6 +166,7 @@ export const fetchAllSheets = async (url) => {
   const { buffer } = await downloadSpreadsheetXlsx(url);
   const data = new Uint8Array(buffer);
   const workbook = XLSX.read(data, { type: 'array' });
+  const workbookTitle = String(workbook.Props?.Title || workbook.Props?.Subject || '').trim();
 
   const allRecords = [];
   const sheetSummary = [];
@@ -310,6 +311,7 @@ export const fetchAllSheets = async (url) => {
     totalLoadedSheets: loadedSheets.length,
     totalSkippedSheets: skippedSheets.length,
     totalRecords: allRecords.length,
+    workbookTitle,
   };
 };
 
@@ -358,6 +360,62 @@ export const groupByMonth = (records) => {
   });
   
   return Object.values(grouped).sort((a, b) => a.key.localeCompare(b.key));
+};
+
+const MONTH_NAME_TO_INDEX = {
+  january: 0, jan: 0, february: 1, feb: 1, march: 2, mar: 2, april: 3, apr: 3,
+  may: 4, june: 5, jun: 5, july: 6, jul: 6, august: 7, aug: 7,
+  september: 8, sep: 8, sept: 8, october: 9, oct: 9, november: 10, nov: 10,
+  december: 11, dec: 11,
+};
+
+const MONTH_DISPLAY = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/** Pull "April 2026" (etc.) from a spreadsheet / file title when present. */
+export const extractMonthLabelFromWorkbookTitle = (title) => {
+  const raw = String(title || '').trim();
+  if (!raw) return '';
+
+  const named = raw.match(
+    /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b(?:\s*[-_/.' ]*\s*(')?(\d{2}|\d{4}))?/i,
+  );
+  if (named) {
+    const monthIdx = MONTH_NAME_TO_INDEX[named[1].toLowerCase()];
+    if (monthIdx != null) {
+      let year = named[3] ? Number(named[3].replace(/^'/, '')) : null;
+      if (year != null && year < 100) year = year < 50 ? 2000 + year : 1900 + year;
+      if (year == null) {
+        const yearElsewhere = raw.match(/\b(20\d{2}|19\d{2})\b/);
+        year = yearElsewhere ? Number(yearElsewhere[1]) : null;
+      }
+      return year ? `${MONTH_DISPLAY[monthIdx]} ${year}` : MONTH_DISPLAY[monthIdx];
+    }
+  }
+
+  const numeric = raw.match(/\b(0?[1-9]|1[0-2])[\s\-_/](20\d{2}|19\d{2})\b/);
+  if (numeric) {
+    const mIdx = Number(numeric[1]) - 1;
+    return `${MONTH_DISPLAY[mIdx]} ${numeric[2]}`;
+  }
+
+  return '';
+};
+
+/** Month label for the PJP section title — workbook name first, then row dates. */
+export const derivePjpMonthLabel = (records, workbookTitle = '') => {
+  const fromTitle = extractMonthLabelFromWorkbookTitle(workbookTitle);
+  if (fromTitle) return fromTitle;
+
+  const months = groupByMonth(records || []);
+  if (months.length === 1) return months[0].label;
+  if (months.length > 1) {
+    if (months.length <= 3) return months.map((m) => m.label).join(', ');
+    return `${months[0].label} – ${months[months.length - 1].label}`;
+  }
+  return '';
 };
 
 /**
