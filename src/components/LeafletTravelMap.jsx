@@ -6,7 +6,6 @@ import {
   Polyline,
   Popup,
   CircleMarker,
-  Tooltip,
   useMap,
   ZoomControl,
 } from 'react-leaflet';
@@ -111,7 +110,6 @@ const LeafletTravelMap = ({
               [leg.fromCoords.lat, leg.fromCoords.lng],
               [leg.toCoords.lat, leg.toCoords.lng],
             ],
-            tooltip: `Day ${leg.dayIndex} • ${leg.date}\n${leg.fromTown} → ${leg.toTown}\n${baseKms != null ? Math.round(baseKms) + ' km from base' : ''}${leg.plannedRSName ? `\nRS: ${leg.plannedRSName}` : ''}`,
           });
           fits.push({ lat: leg.fromCoords.lat, lng: leg.fromCoords.lng });
           fits.push({ lat: leg.toCoords.lat, lng: leg.toCoords.lng });
@@ -153,13 +151,6 @@ const LeafletTravelMap = ({
             pinSize: 22,
             topLabel: `Day ${leg.dayIndex}`,
             belowLabel: leg.toTown || leg.toMatchedCity || '',
-            hoverTooltip: [
-              `Day ${leg.dayIndex} • ${leg.date}`,
-              leg.toTown || leg.toMatchedCity || 'Destination',
-              baseKms != null ? `${Math.round(baseKms)} km from base` : null,
-              leg.plannedRSName ? `RS: ${leg.plannedRSName}` : null,
-              leg.employeeName ? `Auditor: ${leg.employeeName}` : null,
-            ].filter(Boolean).join('\n'),
             popup: {
               title: leg.toTown || leg.toMatchedCity || 'Destination',
               meta: `Day ${leg.dayIndex} • ${leg.date}`,
@@ -201,7 +192,6 @@ const LeafletTravelMap = ({
               [fromCoords.lat, fromCoords.lng],
               [toCoords.lat, toCoords.lng],
             ],
-            tooltip: `${dateVal}\n${fromTown} → ${toTown}`,
           });
         }
         if (fromCoords) {
@@ -366,13 +356,7 @@ const LeafletTravelMap = ({
               opacity: 0.85,
               dashArray: pl.dashed ? '6 4' : null,
             }}
-          >
-            {pl.tooltip && (
-              <Tooltip direction="center" sticky opacity={0.95}>
-                <div style={{ whiteSpace: 'pre-line', fontSize: '0.7rem' }}>{pl.tooltip}</div>
-              </Tooltip>
-            )}
-          </Polyline>
+          />
         ))}
 
         {markers.map((mk) => {
@@ -407,13 +391,6 @@ const LeafletTravelMap = ({
                 belowLabel: mk.belowLabel || mk.label || '',
               })}
             >
-              {mk.hoverTooltip && (
-                <Tooltip direction="top" sticky opacity={0.95}>
-                  <div style={{ whiteSpace: 'pre-line', fontSize: '0.72rem', lineHeight: 1.35 }}>
-                    {mk.hoverTooltip}
-                  </div>
-                </Tooltip>
-              )}
               <Popup>
                 <div style={{ fontFamily: 'Inter, sans-serif', minWidth: '200px' }}>
                   <div style={{ fontWeight: '800', fontSize: '0.9rem', marginBottom: '4px' }}>{mk.popup.title}</div>
