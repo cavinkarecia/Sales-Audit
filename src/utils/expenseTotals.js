@@ -63,6 +63,14 @@ export const computeAuditorAmounts = (voucher) => {
 
   const issues = [];
 
+  if (Array.isArray(voucher?.headerCorrected) && voucher.headerCorrected.length) {
+    issues.push({
+      severity: 'orange',
+      code: 'HEADER_AUTO_CORRECT',
+      message: `Header amounts adjusted: ${voucher.headerCorrected.join('; ')}`,
+    });
+  }
+
   if (header.declared > 0 && !checks.headerPartsOk) {
     issues.push({
       severity: 'red',
@@ -156,13 +164,17 @@ export const computeWorkbookTotals = (vouchers) => {
     fuelOk: near(acc.header.fuel, acc.fromDates.fuel, TOL.fuel * vouchers.length),
     ticketsOk: near(acc.header.ticketsLocal, acc.fromDates.ticketsLocal, TOL.tickets * vouchers.length),
     stayOk: near(acc.header.stay, acc.fromDates.stay, TOL.stay * vouchers.length),
-    grandOk: near(acc.header.declared, acc.fromDates.grand, TOL.grand * vouchers.length),
+    grandOk: near(acc.headerPartsSum, acc.fromDates.grand, TOL.grand * vouchers.length),
   };
 
   return acc;
 };
 
-export const fmtRs = (n) => (Number(n) > 0 ? `₹${roundRs(n)}` : '—');
+export const fmtRs = (n) => {
+  const v = roundRs(n);
+  if (v <= 0) return '—';
+  return `₹${v.toLocaleString('en-IN')}`;
+};
 
 export const diffLabel = (a, b) => {
   const d = roundRs(a) - roundRs(b);

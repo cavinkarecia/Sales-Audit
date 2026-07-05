@@ -5,6 +5,26 @@ import { extractSpreadsheetId } from './spreadsheetUrl.js';
 const pad = (n) => String(n).padStart(2, '0');
 export const PETROL_KM_RATE = 4;
 
+/** Reject employee IDs / phone numbers mistaken for rupee amounts in header cells. */
+export const MAX_HEADER_LINE_RS = 500_000;
+export const MAX_VOUCHER_TOTAL_RS = 1_000_000;
+
+export const sanitizeExpenseAmount = (raw, { kind = 'line', employeeNo = '' } = {}) => {
+  const n = Math.round(parseMoney(raw));
+  if (n <= 0) return 0;
+
+  const empDigits = String(employeeNo || '').replace(/\D/g, '');
+  const asStr = String(n);
+
+  if (empDigits && asStr === empDigits) return 0;
+  if (asStr.length >= 8 && n > 999_999) return 0;
+
+  const cap = kind === 'total' ? MAX_VOUCHER_TOTAL_RS : MAX_HEADER_LINE_RS;
+  if (n > cap) return 0;
+
+  return n;
+};
+
 /** Travel + local for one bus/train day — excludes petrol, fuel, and stay. */
 export const ticketsLocalForBlock = (block) => {
   if (!block) return 0;
@@ -72,18 +92,19 @@ const valueAfterLabel = (hit) => {
   return '';
 };
 
-const amountAfterLabel = (hit) => {
+const amountAfterLabel = (hit, options = {}) => {
   if (!hit?.row) return 0;
-  const direct = parseMoney(hit.row[3]);
-  if (direct > 0) return direct;
+
+  if (hit.c <= 2 && hit.row.length > 3) {
+    const fromColD = sanitizeExpenseAmount(hit.row[3], options);
+    if (fromColD > 0) return fromColD;
+  }
+
   for (let i = hit.c + 1; i < hit.row.length; i++) {
-    const n = parseMoney(hit.row[i]);
+    const n = sanitizeExpenseAmount(hit.row[i], options);
     if (n > 0) return n;
   }
-  for (let i = 0; i < hit.row.length; i++) {
-    const n = parseMoney(hit.row[i]);
-    if (n > 0) return n;
-  }
+
   return 0;
 };
 
@@ -583,11 +604,7 @@ export const parseVoucherSheet = (matrix, sheetName) => {
     (requestedBy ? valueAfterLabel(requestedBy) : '') || (sheetName || '').trim();
   const employeeNo = employeeNoHit ? valueAfterLabel(employeeNoHit) : '';
 
-  const fuelTotal = fuelRow ? amountAfterLabel(fuelRow) : 0;
-  const ticketsTotal = ticketRow ? amountAfterLabel(ticketRow) : 0;
-  const accommodationTotal = accommodationRow ? amountAfterLabel(accommodationRow) : 0;
-  const declaredTotal = totalRow ? amountAfterLabel(totalRow) : 0;
-
+  const amtOpts = { employeeNo };
   const dateBlocks = parseDateWiseBlocks(matrix);
   const petrolDays = dateBlocks.filter((b) => b.isPetrolDay);
   const busDays = dateBlocks.filter((b) => !b.isPetrolDay);
@@ -597,6 +614,42 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const dateWiseAccommodationSum = dateBlocks.reduce((s, b) => s + b.accommodation, 0);
   const dateWiseGrandSum = dateBlocks.reduce((s, b) => s + b.grandTotal, 0);
   const dateWiseBusTrainSum = dateBlocks.reduce((s, b) => s + b.ticketsSubtotal, 0);
+
+  let fuelTotal = fuelRow ? amountAfterLabel(fuelRow, { ...amtOpts, kind: 'line' }) : 0;
+  let ticketsTotal = ticketRow ? amountAfterLabel(ticketRow, { ...amtOpts, kind: 'line' }) : 0;
+  let accommodationTotal = accommodationRow
+    ? amountAfterLabel(accommodationRow, { ...amtOpts, kind: 'line' })
+    : 0;
+  let declaredTotal = totalRow ? amountAfterLabel(totalRow, { ...amtOpts, kind: 'total' }) : 0;
+
+  const headerCorrected = [];
+  if (!fuelTotal && dateWisePetrolSum > 0) {
+    fuelTotal = dateWisePetrolSum;
+    headerCorrected.push('fuel from date rows');
+  } else if (
+    fuelTotal > 0 &&
+    dateWisePetrolSum > 0 &&
+    Math.abs(fuelTotal - dateWisePetrolSum) > 50 &&
+    fuelTotal > dateWisePetrolSum * 2
+  ) {
+    headerCorrected.push(`fuel header ₹${fuelTotal} looked wrong — using date sum ₹${dateWisePetrolSum}`);
+    fuelTotal = dateWisePetrolSum;
+  }
+
+  if (!ticketsTotal && dateWiseTicketsSum > 0) {
+    ticketsTotal = dateWiseTicketsSum;
+    headerCorrected.push('tickets+local from date rows');
+  }
+
+  if (!accommodationTotal && dateWiseAccommodationSum > 0) {
+    accommodationTotal = dateWiseAccommodationSum;
+    headerCorrected.push('stay from date rows');
+  }
+
+  const headerPartsSum = fuelTotal + ticketsTotal + accommodationTotal;
+  if (!declaredTotal && headerPartsSum > 0) {
+    declaredTotal = headerPartsSum;
+  }
 
   const voucherMode =
     petrolDays.length && busDays.length
@@ -621,6 +674,8 @@ export const parseVoucherSheet = (matrix, sheetName) => {
     dateWisePetrolSum,
     dateWiseAccommodationSum,
     dateWiseGrandSum,
+    headerPartsSum,
+    headerCorrected,
     voucherMode,
     mapLegs,
   };

@@ -286,6 +286,8 @@ const WorkbookTotalsPanel = ({ vouchers }) => {
   const wb = computeWorkbookTotals(vouchers);
   if (!wb.auditors) return null;
 
+  const headerGrand = wb.headerPartsSum;
+
   return (
     <div
       className="glass-card"
@@ -297,9 +299,10 @@ const WorkbookTotalsPanel = ({ vouchers }) => {
     >
       <h3 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>Workbook total — all {wb.auditors} auditor pages</h3>
       <p style={{ margin: '0 0 12px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-        Sums every tab in the workbook. Each column should match between header totals and date-row totals.
+        <strong>Header</strong> = top of each auditor tab (Fuel + Tickets&amp;Local + Stay = Total).{' '}
+        <strong>Date splits</strong> = sum of every date row in column A. Both should match per page and in total.
       </p>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: 480 }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: 520 }}>
         <thead>
           <tr style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>
             <th style={{ padding: 8, textAlign: 'left' }} />
@@ -311,24 +314,44 @@ const WorkbookTotalsPanel = ({ vouchers }) => {
         </thead>
         <tbody>
           <tr style={{ borderTop: '1px solid var(--border-main)' }}>
-            <td style={{ padding: 8, color: 'var(--text-secondary)' }}>All pages — header entered</td>
+            <td style={{ padding: 8, color: 'var(--text-secondary)' }}>1. Header entered (all pages)</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmtRs(wb.header.fuel)}</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmtRs(wb.header.ticketsLocal)}</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmtRs(wb.header.stay)}</td>
-            <td style={{ padding: 8, textAlign: 'right', fontWeight: 800, color: '#58a6ff' }}>{fmtRs(wb.header.declared)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 800, color: '#58a6ff' }}>{fmtRs(headerGrand)}</td>
+          </tr>
+          <tr style={{ borderTop: '1px dashed var(--border-main)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+            <td style={{ padding: '4px 8px' }}>↳ Total row on sheets (declared)</td>
+            <td colSpan={3} />
+            <td style={{ padding: '4px 8px', textAlign: 'right' }}>
+              {fmtRs(wb.header.declared)}
+              {!wb.checks.headerPartsOk && wb.header.declared > 0 && (
+                <span style={{ color: '#f85149' }}> ≠ parts sum</span>
+              )}
+            </td>
           </tr>
           <tr>
-            <td style={{ padding: 8, color: 'var(--text-secondary)' }}>All pages — sum of date rows</td>
+            <td style={{ padding: 8, color: 'var(--text-secondary)' }}>2. Sum of all date rows</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: wb.checks.fuelOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.fuel)}</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: wb.checks.ticketsOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.ticketsLocal)}</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: wb.checks.stayOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.stay)}</td>
             <td style={{ padding: 8, textAlign: 'right', fontWeight: 800, color: wb.checks.grandOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.grand)}</td>
           </tr>
         </tbody>
+        <tfoot>
+          <tr style={{ borderTop: '2px solid var(--accent-primary)', fontSize: '0.72rem' }}>
+            <td colSpan={5} style={{ padding: '8px', color: 'var(--text-secondary)' }}>
+              Formula: Grand = Fuel + Tickets&amp;Local + Stay · Header grand {fmtRs(headerGrand)} vs date splits {fmtRs(wb.fromDates.grand)}
+              {!wb.checks.grandOk && (
+                <span style={{ color: '#f85149' }}> — gap {fmtRs(Math.abs(headerGrand - wb.fromDates.grand))}</span>
+              )}
+            </td>
+          </tr>
+        </tfoot>
       </table>
       {wb.mismatchAuditors > 0 && (
         <p style={{ margin: '10px 0 0', fontSize: '0.75rem', color: '#f85149' }}>
-          {wb.mismatchAuditors} auditor page{wb.mismatchAuditors === 1 ? '' : 's'} have a mismatch between header and date totals — see details below each name.
+          {wb.mismatchAuditors} page{wb.mismatchAuditors === 1 ? '' : 's'} still mismatch — expand each auditor below for the exact split.
         </p>
       )}
     </div>

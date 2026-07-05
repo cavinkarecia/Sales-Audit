@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v35-expense-totals
+          build: v36-expense-header-fix
         </span>
       </nav>
       <Routes>
