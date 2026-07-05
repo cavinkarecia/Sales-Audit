@@ -1,7 +1,6 @@
 import { PETROL_KM_RATE } from './expenseVoucherParser.js';
 import { PETROL_ROUND_RATE } from './expenseDayCheck.js';
-
-const near = (a, b, tol = 5) => Math.abs(a - b) <= tol;
+import { computeAuditorAmounts, near, TOL } from './expenseTotals.js';
 
 /** Validate one date block — used for every date on every auditor tab. */
 export const validateDateBlock = (block) => {
@@ -95,20 +94,29 @@ export const auditVoucherDates = (voucher) => {
   const okCount = perDate.reduce((s, d) => s + d.ok.length, 0);
 
   const headerIssues = [];
+  const amounts = computeAuditorAmounts(voucher);
+  amounts.issues.forEach((issue) => {
+    headerIssues.push({ code: issue.code, message: issue.message });
+  });
+
   if (voucher.fuelTotal > 0 && voucher.dateWisePetrolSum > 0) {
-    if (!near(voucher.fuelTotal, voucher.dateWisePetrolSum, 50)) {
-      headerIssues.push({
-        code: 'FUEL_HEADER_MISMATCH',
-        message: `Fuel header ₹${voucher.fuelTotal} ≠ date petrol sum ₹${voucher.dateWisePetrolSum}`,
-      });
+    if (!near(voucher.fuelTotal, voucher.dateWisePetrolSum, TOL.fuel)) {
+      if (!headerIssues.some((h) => h.code === 'FUEL_MISMATCH')) {
+        headerIssues.push({
+          code: 'FUEL_HEADER_MISMATCH',
+          message: `Fuel header ₹${voucher.fuelTotal} ≠ date petrol sum ₹${voucher.dateWisePetrolSum}`,
+        });
+      }
     }
   }
   if (voucher.ticketsTotal > 0 && voucher.dateWiseTicketsSum > 0) {
-    if (!near(voucher.ticketsTotal, voucher.dateWiseTicketsSum, 10)) {
-      headerIssues.push({
-        code: 'TICKETS_HEADER_MISMATCH',
-        message: `Tickets+Local header ₹${voucher.ticketsTotal} ≠ date sum ₹${voucher.dateWiseTicketsSum}`,
-      });
+    if (!near(voucher.ticketsTotal, voucher.dateWiseTicketsSum, TOL.tickets)) {
+      if (!headerIssues.some((h) => h.code === 'TICKETS_MISMATCH')) {
+        headerIssues.push({
+          code: 'TICKETS_HEADER_MISMATCH',
+          message: `Tickets+Local header ₹${voucher.ticketsTotal} ≠ date sum ₹${voucher.dateWiseTicketsSum}`,
+        });
+      }
     }
   }
 

@@ -11,6 +11,14 @@ import {
 } from '../utils/expenseVerifier';
 import { analyzeExpenseWithAI } from '../utils/deepseekAgent';
 import { analyzeExpenseDay, sumDaySplits } from '../utils/expenseDayCheck';
+import {
+  computeAuditorAmounts,
+  computeWorkbookTotals,
+  fmtRs,
+  diffLabel,
+  near,
+  TOL,
+} from '../utils/expenseTotals';
 
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
@@ -26,18 +34,18 @@ const splitLabel = (d) => {
   return '—';
 };
 
-const fmtRs = (n) => (Number(n) > 0 ? `₹${n}` : '—');
-const isMismatch = (a, b, tol = 10) => Math.abs((a || 0) - (b || 0)) > tol;
+const isMismatch = (a, b, tol = 10) => !near(a, b, tol);
 
-const DateWiseSplitTable = ({ dateResults, ticketsHeader }) => {
+const DateWiseSplitTable = ({ dateResults, amounts }) => {
   const totals = sumDaySplits(dateResults);
+  const ticketsHeader = amounts?.header?.ticketsLocal || 0;
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <p style={{ margin: '0 0 8px', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
-        <strong>Travel</strong> = bus/train ticket amount · <strong>Local</strong> = local allowance ·{' '}
-        <strong>Petrol</strong> = fuel (km × ₹4 one-way, km × ₹8 round trip) · <strong>Stay</strong> = accommodation ·{' '}
-        <strong>Day total</strong> = Travel + Local + Petrol + Stay
+        <strong>Travel</strong> = bus/train ticket · <strong>Local</strong> = local allowance ·{' '}
+        <strong>Petrol</strong> = fuel (km × ₹4 one-way, × ₹8 round trip) · <strong>Stay</strong> = accommodation ·{' '}
+        <strong>Day total</strong> = Travel + Local + Petrol + Stay for that date
       </p>
       <table style={{ width: '100%', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
         <thead>
@@ -125,19 +133,23 @@ const DateWiseSplitTable = ({ dateResults, ticketsHeader }) => {
           </tr>
           <tr style={{ background: 'rgba(88,166,255,0.04)', fontSize: '0.68rem' }}>
             <td colSpan={9} style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
-              Tickets + Local (bus/train days only):{' '}
-              <strong
-                style={{
-                  color: !isMismatch(ticketsHeader, totals.ticketsLocal, 10) ? '#3fb950' : '#f85149',
-                }}
-              >
-                {fmtRs(totals.ticketsLocal)}
+              <strong>Page totals from dates:</strong>{' '}
+              Fuel {fmtRs(amounts?.fromDates?.fuel ?? totals.petrol)} ·{' '}
+              Tickets+Local {fmtRs(amounts?.fromDates?.ticketsLocal ?? totals.ticketsLocal)}
+              {ticketsHeader > 0 && (
+                <span style={{ color: !isMismatch(ticketsHeader, amounts?.fromDates?.ticketsLocal ?? totals.ticketsLocal, TOL.tickets) ? '#3fb950' : '#f85149' }}>
+                  {' '}(header {fmtRs(ticketsHeader)})
+                </span>
+              )}
+              {' · '}Stay {fmtRs(amounts?.fromDates?.stay ?? totals.stay)} ·{' '}
+              <strong style={{ color: '#58a6ff' }}>
+                Grand {fmtRs(amounts?.fromDates?.grand ?? totals.daySplitTotal)}
               </strong>
-              {ticketsHeader > 0 && ` (header ₹${ticketsHeader})`}
-              {' · '}
-              Fuel from dates: <strong>{fmtRs(totals.petrol)}</strong>
-              {' · '}
-              Stay from dates: <strong>{fmtRs(totals.stay)}</strong>
+              {amounts?.header?.declared > 0 && (
+                <span style={{ color: amounts.checks.grandOk ? '#3fb950' : '#f85149' }}>
+                  {' '}(sheet total {fmtRs(amounts.header.declared)} — {diffLabel(amounts.header.declared, amounts.fromDates.grand)})
+                </span>
+              )}
             </td>
           </tr>
         </tfoot>
@@ -158,7 +170,13 @@ const CmpCell = ({ value, match, bold }) => (
   </td>
 );
 
-const sumDateResults = (rows) => sumDaySplits(rows);
+const voucherBySheet = (vouchers) => {
+  const map = new Map();
+  for (const v of vouchers || []) {
+    map.set(v.sheetName, v);
+  }
+  return map;
+};
 
 const SplitAmount = ({ amount, match }) => (
   <span
@@ -172,23 +190,8 @@ const SplitAmount = ({ amount, match }) => (
 );
 
 const AuditorTotalSummary = ({ voucher }) => {
-  const dt = sumDateResults(voucher.dateBlocks || []);
-
-  const headerFuel = voucher.fuelTotal || 0;
-  const headerTickets = voucher.ticketsTotal || 0;
-  const headerStay = voucher.accommodationTotal || 0;
-  const headerTotal = voucher.declaredTotal || headerFuel + headerTickets + headerStay;
-
-  const dayFuel = voucher.dateWisePetrolSum || dt.petrol || 0;
-  const dayTickets = voucher.dateWiseTicketsSum ?? dt.ticketsLocal ?? 0;
-  const dayStay = voucher.dateWiseAccommodationSum || dt.stay || 0;
-  const dayTotal = dt.daySplitTotal || dayFuel + dayTickets + dayStay;
-
-  const fuelOk = !isMismatch(headerFuel, dayFuel, 50);
-  const ticketsOk = !isMismatch(headerTickets, dayTickets, 10);
-  const stayOk = !isMismatch(headerStay, dayStay, 10);
-  const totalOk = !isMismatch(headerTotal, dayTotal, 15);
-  const allOk = fuelOk && ticketsOk && stayOk && totalOk;
+  const amounts = computeAuditorAmounts(voucher);
+  const { header, fromDates, checks, headerPartsSum, declaredUsed } = amounts;
 
   const thStyle = {
     padding: '8px 10px',
@@ -212,61 +215,120 @@ const AuditorTotalSummary = ({ voucher }) => {
         padding: '12px 14px',
         borderRadius: 8,
         background: 'rgba(88,166,255,0.06)',
-        border: `1px solid ${allOk ? 'var(--border-main)' : 'rgba(248,81,73,0.4)'}`,
+        border: `1px solid ${checks.allOk ? 'var(--border-main)' : 'rgba(248,81,73,0.4)'}`,
         overflowX: 'auto',
       }}
     >
-      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 420 }}>
+      <p style={{ margin: '0 0 10px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+        <strong>How totals are checked:</strong> Sheet header (top of tab) is compared to the sum of all date rows.
+        Grand total = Fuel + Tickets&amp;Local + Stay.
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
             <th style={{ ...thStyle, textAlign: 'left' }} />
             <th style={thStyle}>Fuel</th>
             <th style={thStyle}>Tickets + Local</th>
-            <th style={thStyle}>Accommodation</th>
-            <th style={{ ...thStyle, fontWeight: 800 }}>Total</th>
+            <th style={thStyle}>Stay</th>
+            <th style={{ ...thStyle, fontWeight: 800 }}>Grand total</th>
           </tr>
         </thead>
         <tbody>
           <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
             <td style={labelStyle}>1. Auditor entered (sheet header)</td>
-            <td style={amtStyle}>
-              <SplitAmount amount={headerFuel} />
-            </td>
-            <td style={amtStyle}>
-              <SplitAmount amount={headerTickets} />
-            </td>
-            <td style={amtStyle}>
-              <SplitAmount amount={headerStay} />
-            </td>
-            <td style={amtStyle}>
-              <SplitAmount amount={headerTotal} />
-            </td>
+            <td style={amtStyle}><SplitAmount amount={header.fuel} /></td>
+            <td style={amtStyle}><SplitAmount amount={header.ticketsLocal} /></td>
+            <td style={amtStyle}><SplitAmount amount={header.stay} /></td>
+            <td style={amtStyle}><SplitAmount amount={declaredUsed} /></td>
+          </tr>
+          <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
+            <td style={labelStyle}>2. Sum of all date rows</td>
+            <td style={amtStyle}><SplitAmount amount={fromDates.fuel} match={checks.fuelOk} /></td>
+            <td style={amtStyle}><SplitAmount amount={fromDates.ticketsLocal} match={checks.ticketsOk} /></td>
+            <td style={amtStyle}><SplitAmount amount={fromDates.stay} match={checks.stayOk} /></td>
+            <td style={amtStyle}><SplitAmount amount={fromDates.grand} match={checks.grandOk} /></td>
           </tr>
           <tr>
-            <td style={labelStyle}>2. Date-wise splits total (all days)</td>
-            <td style={amtStyle}>
-              <SplitAmount amount={dayFuel} match={fuelOk} />
+            <td style={labelStyle}>3. Header parts check (Fuel + Tickets + Stay)</td>
+            <td colSpan={3} style={{ ...amtStyle, textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+              {fmtRs(header.fuel)} + {fmtRs(header.ticketsLocal)} + {fmtRs(header.stay)} ={' '}
+              <strong>{fmtRs(headerPartsSum)}</strong>
+              {!checks.headerPartsOk && declaredUsed > 0 && (
+                <span style={{ color: '#f85149' }}> ≠ declared {fmtRs(declaredUsed)}</span>
+              )}
             </td>
             <td style={amtStyle}>
-              <SplitAmount amount={dayTickets} match={ticketsOk} />
-            </td>
-            <td style={amtStyle}>
-              <SplitAmount amount={dayStay} match={stayOk} />
-            </td>
-            <td style={amtStyle}>
-              <SplitAmount amount={dayTotal} match={totalOk} />
+              <SplitAmount amount={headerPartsSum} match={checks.headerPartsOk} />
             </td>
           </tr>
         </tbody>
       </table>
-      {!allOk && (
-        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: '#f85149' }}>
-          Red = date-wise total does not match what auditor entered in header.
-        </p>
+      {!checks.allOk && (
+        <div style={{ marginTop: 10, fontSize: '0.72rem', color: '#f85149' }}>
+          <strong>What is wrong:</strong>
+          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+            {amounts.issues.map((issue) => (
+              <li key={issue.code} style={{ marginBottom: 4 }}>{issue.message}</li>
+            ))}
+          </ul>
+        </div>
       )}
       {voucher.imageAnalysis?.note && (
-        <p style={{ margin: '6px 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
           {voucher.imageAnalysis.note}
+        </p>
+      )}
+    </div>
+  );
+};
+
+const WorkbookTotalsPanel = ({ vouchers }) => {
+  const wb = computeWorkbookTotals(vouchers);
+  if (!wb.auditors) return null;
+
+  return (
+    <div
+      className="glass-card"
+      style={{
+        padding: '1rem 1.25rem',
+        marginBottom: '1rem',
+        border: `1px solid ${wb.mismatchAuditors === 0 ? 'var(--border-main)' : 'rgba(248,81,73,0.35)'}`,
+      }}
+    >
+      <h3 style={{ margin: '0 0 8px', fontSize: '0.95rem' }}>Workbook total — all {wb.auditors} auditor pages</h3>
+      <p style={{ margin: '0 0 12px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+        Sums every tab in the workbook. Each column should match between header totals and date-row totals.
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', minWidth: 480 }}>
+        <thead>
+          <tr style={{ color: 'var(--text-secondary)', textAlign: 'right' }}>
+            <th style={{ padding: 8, textAlign: 'left' }} />
+            <th style={{ padding: 8 }}>Fuel</th>
+            <th style={{ padding: 8 }}>Tickets + Local</th>
+            <th style={{ padding: 8 }}>Stay</th>
+            <th style={{ padding: 8, fontWeight: 800 }}>Grand total</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style={{ borderTop: '1px solid var(--border-main)' }}>
+            <td style={{ padding: 8, color: 'var(--text-secondary)' }}>All pages — header entered</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmtRs(wb.header.fuel)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmtRs(wb.header.ticketsLocal)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 700 }}>{fmtRs(wb.header.stay)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 800, color: '#58a6ff' }}>{fmtRs(wb.header.declared)}</td>
+          </tr>
+          <tr>
+            <td style={{ padding: 8, color: 'var(--text-secondary)' }}>All pages — sum of date rows</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: wb.checks.fuelOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.fuel)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: wb.checks.ticketsOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.ticketsLocal)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 700, color: wb.checks.stayOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.stay)}</td>
+            <td style={{ padding: 8, textAlign: 'right', fontWeight: 800, color: wb.checks.grandOk ? '#3fb950' : '#f85149' }}>{fmtRs(wb.fromDates.grand)}</td>
+          </tr>
+        </tbody>
+      </table>
+      {wb.mismatchAuditors > 0 && (
+        <p style={{ margin: '10px 0 0', fontSize: '0.75rem', color: '#f85149' }}>
+          {wb.mismatchAuditors} auditor page{wb.mismatchAuditors === 1 ? '' : 's'} have a mismatch between header and date totals — see details below each name.
         </p>
       )}
     </div>
@@ -275,7 +337,7 @@ const AuditorTotalSummary = ({ voucher }) => {
 
 const collectAuditorMistakes = (result, tabAudit) => {
   const v = result.voucher;
-  const dt = sumDateResults(v.dateBlocks || []);
+  const amounts = computeAuditorAmounts(v);
   const items = [];
 
   const add = (severity, message) => {
@@ -284,33 +346,19 @@ const collectAuditorMistakes = (result, tabAudit) => {
     items.push({ severity, message: msg });
   };
 
-  const dayFuel = v.dateWisePetrolSum || dt.petrol || 0;
-  const dayTickets = v.dateWiseTicketsSum ?? dt.ticketsLocal ?? 0;
-  const dayStay = v.dateWiseAccommodationSum || dt.stay || 0;
-  const checkedTotal = dt.daySplitTotal || dayFuel + dayTickets + dayStay;
-
-  if (v.fuelTotal > 0 && isMismatch(v.fuelTotal, dayFuel, 50)) {
-    add('red', `Fuel: header ₹${v.fuelTotal} ≠ date-wise sum ₹${dayFuel}`);
-  }
-  if (v.ticketsTotal > 0 && isMismatch(v.ticketsTotal, dayTickets, 10)) {
-    add('red', `Tickets + Local: header ₹${v.ticketsTotal} ≠ date-wise sum ₹${dayTickets}`);
-  }
-  if (v.accommodationTotal > 0 && isMismatch(v.accommodationTotal, dayStay, 10)) {
-    add('red', `Stay: header ₹${v.accommodationTotal} ≠ date-wise sum ₹${dayStay}`);
-  }
-  if (v.declaredTotal > 0 && isMismatch(v.declaredTotal, checkedTotal, 15)) {
-    add('red', `Total: declared ₹${v.declaredTotal} ≠ checked ₹${checkedTotal}`);
-  }
+  amounts.issues.forEach((issue) => add(issue.severity, issue.message));
 
   (tabAudit?.headerIssues || []).forEach((h) => add('red', h.message));
+
+  (tabAudit?.perDate || []).forEach((d) => {
+    d.issues?.forEach((issue) => add('red', issue.message));
+  });
 
   result.flags
     .filter(
       (f) =>
         (f.severity === 'red' || f.severity === 'orange') &&
-        f.code !== 'CORRECT_TOTAL_MISMATCH' &&
-        f.code !== 'PETROL_CALC' &&
-        f.code !== 'TOTAL_FORMULA',
+        !['CORRECT_TOTAL_MISMATCH', 'PETROL_CALC', 'TOTAL_FORMULA', 'TICKETS_VS_DATE_SUM', 'FUEL_VS_DATE_SUM', 'DECLARED_VS_DAY_SPLIT', 'HEADER_TOTAL_MISMATCH'].includes(f.code),
     )
     .forEach((f) => add(f.severity, f.message));
 
@@ -448,6 +496,8 @@ const ExpenseCheck2Page = () => {
     if (filter === 'all') return verification.results;
     return verification.results.filter((r) => r.summary.status === filter);
   }, [verification, filter]);
+
+  const voucherMap = useMemo(() => voucherBySheet(expenseVouchers), [expenseVouchers]);
 
   const loadedSheetCount = useMemo(
     () => expenseSheetSummary.filter((s) => s.status === 'loaded').length,
@@ -597,21 +647,31 @@ const ExpenseCheck2Page = () => {
                     <th style={{ padding: 8 }}>Requested By</th>
                     <th style={{ padding: 8 }}>Emp No</th>
                     <th style={{ padding: 8 }}>Date rows</th>
+                    <th style={{ padding: 8 }}>Declared total</th>
+                    <th style={{ padding: 8 }}>Totals OK?</th>
                     <th style={{ padding: 8 }}>Status</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {expenseSheetSummary.map((s) => (
+                  {expenseSheetSummary.map((s) => {
+                    const v = voucherMap.get(s.sheetName);
+                    const amt = v ? computeAuditorAmounts(v) : null;
+                    return (
                     <tr key={s.sheetName} style={{ borderTop: '1px solid var(--border-main)' }}>
                       <td style={{ padding: 8 }}>{s.sheetName}</td>
-                      <td style={{ padding: 8 }}>{s.auditorName || '—'}</td>
-                      <td style={{ padding: 8 }}>{s.employeeNo || '—'}</td>
-                      <td style={{ padding: 8 }}>{s.dateRows ?? '—'}</td>
+                      <td style={{ padding: 8 }}>{s.auditorName || v?.auditorName || '—'}</td>
+                      <td style={{ padding: 8 }}>{s.employeeNo || v?.employeeNo || '—'}</td>
+                      <td style={{ padding: 8 }}>{s.dateRows ?? v?.dateBlocks?.length ?? '—'}</td>
+                      <td style={{ padding: 8 }}>{amt ? fmtRs(amt.declaredUsed) : '—'}</td>
+                      <td style={{ padding: 8, color: amt ? (amt.checks.allOk ? '#3fb950' : '#f85149') : 'var(--text-secondary)' }}>
+                        {amt ? (amt.checks.allOk ? 'OK' : 'Mismatch') : '—'}
+                      </td>
                       <td style={{ padding: 8, color: s.status === 'loaded' ? '#3fb950' : '#f85149' }}>
                         {s.status}
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -621,6 +681,8 @@ const ExpenseCheck2Page = () => {
 
       {verification && (
         <>
+          <WorkbookTotalsPanel vouchers={expenseVouchers} />
+
           <div
             style={{
               display: 'grid',
@@ -695,6 +757,7 @@ const ExpenseCheck2Page = () => {
                   a.sheetName === result.voucher.sheetName ||
                   a.auditorName === result.voucher.auditorName,
               );
+              const amounts = computeAuditorAmounts(result.voucher);
               return (
               <div
                 key={result.id}
@@ -714,8 +777,11 @@ const ExpenseCheck2Page = () => {
                   <div>
                     <h3 style={{ margin: 0, fontSize: '1rem' }}>{result.voucher.auditorName}</h3>
                     <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                      Emp No: {result.voucher.employeeNo || '—'} · Tab: {result.voucher.sheetName} · Total ₹
-                      {result.voucher.declaredTotal}
+                      Emp No: {result.voucher.employeeNo || '—'} · Tab: {result.voucher.sheetName} ·{' '}
+                      Declared {fmtRs(amounts.declaredUsed)} · Checked {fmtRs(amounts.fromDates.grand)}
+                      {!amounts.checks.grandOk && (
+                        <span style={{ color: '#f85149' }}> ({diffLabel(amounts.declaredUsed, amounts.fromDates.grand)})</span>
+                      )}
                       {tabAudit && (
                         <span>
                           {' '}
@@ -809,7 +875,7 @@ const ExpenseCheck2Page = () => {
                         >
                           <DateWiseSplitTable
                             dateResults={result.dateResults}
-                            ticketsHeader={result.voucher.ticketsTotal || 0}
+                            amounts={amounts}
                           />
                         </div>
                       )}

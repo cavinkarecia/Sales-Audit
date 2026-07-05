@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v34-hotfix-server
+          build: v35-expense-totals
         </span>
       </nav>
       <Routes>
