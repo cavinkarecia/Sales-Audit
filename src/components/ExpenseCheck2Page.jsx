@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Bot, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
+import { ArrowLeft, Bot, ChevronDown, ChevronUp, Loader2, Users } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
 import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
@@ -171,10 +172,130 @@ const CmpCell = ({ value, match, bold }) => (
 
 const voucherBySheet = (vouchers) => {
   const map = new Map();
-  for (const v of vouchers || []) {
-    map.set(v.sheetName, v);
-  }
+  vouchers.forEach((v) => map.set(v.sheetName, v));
   return map;
+};
+
+const dropdownPanelStyle = {
+  position: 'fixed',
+  zIndex: 10000,
+  minWidth: '260px',
+  maxHeight: '320px',
+  overflowY: 'auto',
+  background: 'var(--bg-secondary)',
+  border: '1px solid var(--border-main)',
+  borderRadius: '8px',
+  boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
+  padding: '8px',
+};
+
+const selectAllBtnStyle = {
+  width: '100%',
+  marginBottom: '8px',
+  padding: '6px 10px',
+  borderRadius: '6px',
+  border: '1px solid var(--accent-primary)',
+  background: 'rgba(88, 166, 255, 0.12)',
+  color: 'var(--accent-primary)',
+  fontSize: '0.72rem',
+  fontWeight: '700',
+  cursor: 'pointer',
+};
+
+const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, children, minWidth = 220 }) => {
+  const triggerRef = useRef(null);
+  const panelRef = useRef(null);
+  const [panelPos, setPanelPos] = useState({ top: 0, left: 0, width: minWidth });
+  const rafRef = useRef(0);
+
+  const updatePanelPos = useCallback(() => {
+    if (!triggerRef.current) return;
+    const rect = triggerRef.current.getBoundingClientRect();
+    setPanelPos({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: Math.max(rect.width, minWidth),
+    });
+  }, [minWidth]);
+
+  const schedulePanelPos = useCallback(() => {
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(updatePanelPos);
+  }, [updatePanelPos]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    updatePanelPos();
+    window.addEventListener('scroll', schedulePanelPos, true);
+    window.addEventListener('resize', schedulePanelPos);
+    return () => {
+      window.removeEventListener('scroll', schedulePanelPos, true);
+      window.removeEventListener('resize', schedulePanelPos);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [isOpen, updatePanelPos, schedulePanelPos]);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const onDocClick = (e) => {
+      if (triggerRef.current?.contains(e.target)) return;
+      if (panelRef.current?.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [isOpen, onClose]);
+
+  const ChevronIcon = isOpen ? ChevronUp : ChevronDown;
+
+  const panel =
+    isOpen &&
+    createPortal(
+      <div
+        ref={panelRef}
+        style={{
+          ...dropdownPanelStyle,
+          top: panelPos.top,
+          left: panelPos.left,
+          minWidth: panelPos.width,
+        }}
+      >
+        {children}
+      </div>,
+      document.body,
+    );
+
+  return (
+    <div ref={triggerRef} style={{ position: 'relative', minWidth }}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          width: '100%',
+          background: 'var(--bg-secondary)',
+          color: '#fff',
+          border: '1px solid var(--border-main)',
+          padding: '7px 12px',
+          borderRadius: '8px',
+          cursor: 'pointer',
+          fontSize: '0.78rem',
+          textAlign: 'left',
+        }}
+      >
+        {icon}
+        <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', lineHeight: 1.2 }}>
+          <span style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', textTransform: 'uppercase' }}>{label}</span>
+          <span style={{ fontWeight: '600' }}>{summary}</span>
+        </span>
+        <ChevronIcon size={14} style={{ marginLeft: 'auto', opacity: 0.85, flexShrink: 0 }} />
+      </button>
+      {panel}
+    </div>
+  );
 };
 
 const SplitAmount = ({ amount, match }) => (
@@ -363,6 +484,8 @@ const ExpenseCheck2Page = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [syncError, setSyncError] = useState(null);
   const [filter, setFilter] = useState('all');
+  const [selectedAuditorIds, setSelectedAuditorIds] = useState(() => new Set());
+  const [auditorFilterOpen, setAuditorFilterOpen] = useState(false);
   const [aiReport, setAiReport] = useState('');
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
@@ -437,11 +560,66 @@ const ExpenseCheck2Page = () => {
     return verifyAllExpenseVouchers(expenseVouchers, attendanceRecords, pjpRecords);
   }, [expenseVouchers, attendanceRecords, pjpRecords]);
 
+  const auditorOptions = useMemo(() => {
+    if (!verification?.results?.length) return [];
+    return verification.results
+      .map((r) => ({
+        id: r.id,
+        name: r.voucher.auditorName || r.voucher.sheetName,
+        sheetName: r.voucher.sheetName,
+        status: r.summary.status,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+  }, [verification]);
+
+  const auditorIdsKey = useMemo(
+    () => auditorOptions.map((a) => a.id).join('\0'),
+    [auditorOptions],
+  );
+
+  useEffect(() => {
+    if (!auditorOptions.length) {
+      setSelectedAuditorIds(new Set());
+      return;
+    }
+    setSelectedAuditorIds(new Set(auditorOptions.map((a) => a.id)));
+  }, [auditorIdsKey, auditorOptions]);
+
+  const auditorFilterSummary = useMemo(() => {
+    if (!auditorOptions.length) return 'No auditors loaded';
+    if (selectedAuditorIds.size === 0) return 'None selected';
+    if (selectedAuditorIds.size === auditorOptions.length) {
+      return `All ${auditorOptions.length} auditors`;
+    }
+    return `${selectedAuditorIds.size} of ${auditorOptions.length} selected`;
+  }, [auditorOptions, selectedAuditorIds]);
+
+  const toggleAuditorSelection = (id) => {
+    setSelectedAuditorIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllAuditors = () => {
+    setSelectedAuditorIds(new Set(auditorOptions.map((a) => a.id)));
+  };
+
   const filtered = useMemo(() => {
     if (!verification) return [];
-    if (filter === 'all') return verification.results;
-    return verification.results.filter((r) => r.summary.status === filter);
-  }, [verification, filter]);
+    let rows = verification.results;
+    if (filter !== 'all') {
+      rows = rows.filter((r) => r.summary.status === filter);
+    }
+    if (selectedAuditorIds.size > 0) {
+      rows = rows.filter((r) => selectedAuditorIds.has(r.id));
+    } else {
+      rows = [];
+    }
+    return rows;
+  }, [verification, filter, selectedAuditorIds]);
 
   const voucherMap = useMemo(() => voucherBySheet(expenseVouchers), [expenseVouchers]);
 
@@ -650,6 +828,70 @@ const ExpenseCheck2Page = () => {
             ))}
           </div>
 
+          <div
+            className="glass-card"
+            style={{
+              padding: '12px 16px',
+              marginBottom: '1rem',
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 12,
+            }}
+          >
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>
+              Filter
+            </div>
+            <FilterDropdown
+              label="Auditors"
+              summary={auditorFilterSummary}
+              icon={<Users size={14} color="var(--accent-primary)" />}
+              isOpen={auditorFilterOpen}
+              onToggle={() => setAuditorFilterOpen((v) => !v)}
+              onClose={() => setAuditorFilterOpen(false)}
+              minWidth={300}
+            >
+              <button type="button" onClick={selectAllAuditors} style={selectAllBtnStyle}>
+                Select all
+              </button>
+              {auditorOptions.map((a) => (
+                <label
+                  key={a.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.78rem',
+                    padding: '5px 6px',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    background: selectedAuditorIds.has(a.id) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedAuditorIds.has(a.id)}
+                    onChange={() => toggleAuditorSelection(a.id)}
+                  />
+                  <span style={{ flex: 1 }}>{a.name}</span>
+                  <span
+                    style={{
+                      fontSize: '0.62rem',
+                      textTransform: 'uppercase',
+                      color:
+                        a.status === 'pass' ? '#3fb950' : a.status === 'review' ? '#d29922' : '#f85149',
+                    }}
+                  >
+                    {a.status}
+                  </span>
+                </label>
+              ))}
+            </FilterDropdown>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+              Showing {filtered.length} of {verification.results.length} auditor card(s)
+            </span>
+          </div>
+
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
             {['all', 'pass', 'review', 'flag'].map((f) => (
               <button
@@ -828,6 +1070,14 @@ const ExpenseCheck2Page = () => {
               </div>
             );
             })}
+            {!filtered.length && (
+              <div
+                className="glass-card"
+                style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-secondary)', fontSize: '0.85rem' }}
+              >
+                No auditors match the current filters. Use <strong>Select all</strong> in the auditor filter or change the status filter.
+              </div>
+            )}
           </div>
 
           {aiReport && (
