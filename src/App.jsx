@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v40-expense-auditor-filter
+          build: v41-fresh-cache
         </span>
       </nav>
       <Routes>

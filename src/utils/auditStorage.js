@@ -1,7 +1,7 @@
 import { ATTENDANCE_META_KEY } from './attendanceProcessor.js';
 
 /** Bump when stored browser data must be reset (fresh start, no old uploads). */
-export const STORAGE_SCHEMA_VERSION = '32';
+export const STORAGE_SCHEMA_VERSION = '33';
 
 export const STORAGE_VERSION_KEY = 'sales_audit_storage_version';
 
