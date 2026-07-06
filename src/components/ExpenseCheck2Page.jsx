@@ -31,6 +31,7 @@ const splitLabel = (d) => {
   if (d.splitType === 'bus_train' || d.hasBusTrainHint) return 'Bus/Train';
   if (d.splitType === 'mixed') return 'Mixed';
   if (d.splitType === 'stay') return 'Stay';
+  if (d.splitType === 'da') return 'DA only';
   return '—';
 };
 

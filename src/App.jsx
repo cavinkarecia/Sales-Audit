@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v42-expense-total-errors-only
+          build: v43-bills-date-parser
         </span>
       </nav>
       <Routes>
