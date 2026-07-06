@@ -53,16 +53,11 @@ export const validateDateBlock = (block) => {
   }
 
   if (isBus && !isPetrol) {
-    const expected = tickets + stay;
-    if (grand > 0 && !near(expected, grand)) {
+    const partsSum = travel + local + stay;
+    if (grand > 0 && !near(partsSum, grand, TOL.dayGrand)) {
       issues.push({
         code: 'BUS_SUM_MISMATCH',
-        message: `${block.date}: travel ₹${travel} + local ₹${local} + stay ₹${stay} ≠ grand ₹${grand}`,
-      });
-    } else if (grand > 0) {
-      ok.push({
-        code: 'BUS_OK',
-        message: `${block.date}: travel ₹${travel} + local ₹${local}${stay ? ` + stay ₹${stay}` : ''} = ₹${grand} ✓`,
+        message: `${block.date}: day total mismatch — sum ₹${partsSum} ≠ grand ₹${grand}`,
       });
     }
   }

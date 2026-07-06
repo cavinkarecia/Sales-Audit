@@ -403,8 +403,7 @@ const AuditorTotalSummary = ({ voucher }) => {
 };
 
 const collectAuditorMistakes = (result, tabAudit) => {
-  const v = result.voucher;
-  const amounts = computeAuditorAmounts(v);
+  const amounts = computeAuditorAmounts(result.voucher);
   const items = [];
 
   const add = (severity, message) => {
@@ -413,21 +412,14 @@ const collectAuditorMistakes = (result, tabAudit) => {
     items.push({ severity, message: msg });
   };
 
+  // Page-level total mismatches only (declared vs header vs date sums)
   amounts.issues.forEach((issue) => add(issue.severity, issue.message));
 
-  (tabAudit?.headerIssues || []).forEach((h) => add('red', h.message));
-
-  (tabAudit?.perDate || []).forEach((d) => {
-    d.issues?.forEach((issue) => add('red', issue.message));
+  (tabAudit?.headerIssues || []).forEach((h) => {
+    if (!amounts.issues.some((i) => i.message === h.message)) {
+      add('red', h.message);
+    }
   });
-
-  result.flags
-    .filter(
-      (f) =>
-        (f.severity === 'red' || f.severity === 'orange') &&
-        !['CORRECT_TOTAL_MISMATCH', 'PETROL_CALC', 'TOTAL_FORMULA', 'TICKETS_VS_DATE_SUM', 'FUEL_VS_DATE_SUM', 'DECLARED_VS_DAY_SPLIT', 'HEADER_TOTAL_MISMATCH'].includes(f.code),
-    )
-    .forEach((f) => add(f.severity, f.message));
 
   return items;
 };

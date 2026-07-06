@@ -91,26 +91,15 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
         );
       }
     } else {
-      const sumMismatch = Math.abs(block.ticketsSubtotal - (block.grandTotal - block.accommodation)) > 5;
-      if (sumMismatch && block.grandTotal > 0 && block.accommodation === 0) {
+      const partsSum = block.travel + block.localConveyance + block.accommodation;
+      if (block.grandTotal > 0 && Math.abs(partsSum - block.grandTotal) > 5) {
         dayFlags.push(
           flag(
             'red',
             'DATE_SUM_MISMATCH',
-            `${block.date}: travel ₹${block.travel} + local ₹${block.localConveyance} ≠ grand total ₹${block.grandTotal}`,
+            `${block.date}: day total mismatch — sum ₹${partsSum} ≠ grand ₹${block.grandTotal}`,
           ),
         );
-      } else if (block.accommodation > 0 && block.grandTotal > 0) {
-        const expected = block.ticketsSubtotal + block.accommodation;
-        if (Math.abs(expected - block.grandTotal) > 5) {
-          dayFlags.push(
-            flag(
-              'orange',
-              'DATE_BREAKDOWN_MISMATCH',
-              `${block.date}: travel ₹${block.travel} + local ₹${block.localConveyance} + stay ₹${block.accommodation} ≠ grand total ₹${block.grandTotal}`,
-            ),
-          );
-        }
       }
     }
 

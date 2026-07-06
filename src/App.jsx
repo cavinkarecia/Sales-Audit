@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v41-fresh-cache
+          build: v42-expense-total-errors-only
         </span>
       </nav>
       <Routes>
