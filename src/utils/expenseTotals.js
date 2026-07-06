@@ -184,6 +184,8 @@ export const getAuditorColumnFlags = (voucher) => {
     stay: (voucher?.accommodationTotal || 0) > 0 || hasBlock((b) => (b.accommodation || 0) > 0),
   };
 };
+
+export const fmtRs = (n) => {
   const v = roundRs(n);
   if (v <= 0) return '—';
   return `₹${v.toLocaleString('en-IN')}`;
