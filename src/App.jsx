@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v45-da-and-april-dates
+          build: v46-parse-syntax-fix
         </span>
       </nav>
       <Routes>

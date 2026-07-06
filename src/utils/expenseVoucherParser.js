@@ -336,6 +336,7 @@ const parseDateCell = (cell, dateContext = {}) => {
   if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(s)) {
     const parsed = parseSlashDate(s, dateContext);
     if (parsed) return parsed;
+  }
 
   return null;
 };
