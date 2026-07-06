@@ -16,6 +16,8 @@ export const expectedPetrolForDay = (day) => {
 export const analyzeExpenseDay = (day) => {
   const travel = day.travel || 0;
   const local = day.localConveyance || 0;
+  const conveyance = day.conveyance || 0;
+  const cash = day.cash || 0;
   const stay = day.accommodation || 0;
   const petrolEntered = day.petrolTravel || 0;
 
@@ -28,7 +30,9 @@ export const analyzeExpenseDay = (day) => {
       day.splitType === 'bus_train' ||
       day.splitType === 'mixed' ||
       travel > 0 ||
-      local > 0);
+      local > 0 ||
+      conveyance > 0 ||
+      cash > 0);
 
   let petrolCheck = '—';
   let petrolExpected = petrolEntered;
@@ -50,7 +54,7 @@ export const analyzeExpenseDay = (day) => {
     petrolMatch = true;
   }
 
-  const daySplitTotal = travel + local + petrolEntered + stay;
+  const daySplitTotal = travel + local + conveyance + cash + petrolEntered + stay;
   const sheetGrand = day.grandTotal || 0;
 
   let rowCheck = '';
@@ -63,11 +67,11 @@ export const analyzeExpenseDay = (day) => {
     rowExpected = 0;
     rowCheck = 'DA only — ₹0';
   } else if (isBus) {
-    rowExpected = travel + local + stay + (petrolEntered > 0 ? petrolEntered : 0);
+    rowExpected = travel + local + conveyance + cash + stay + (petrolEntered > 0 ? petrolEntered : 0);
     rowCheck =
       stay > 0
-        ? 'Travel (tickets) + Local allowance + Stay'
-        : 'Travel (tickets) + Local allowance';
+        ? 'Travel + Local + Cash + Stay'
+        : 'Travel + Local + Cash';
     if (petrolEntered > 0) rowCheck += ' + Petrol';
   } else if (stay > 0) {
     rowExpected = stay;
@@ -87,6 +91,8 @@ export const analyzeExpenseDay = (day) => {
   return {
     travel,
     local,
+    conveyance,
+    cash,
     stay,
     petrolEntered,
     petrolExpected,
@@ -111,11 +117,15 @@ export const sumDaySplits = (days) =>
       return {
         travel: acc.travel + a.travel,
         local: acc.local + a.local,
+        conveyance: acc.conveyance + a.conveyance,
+        cash: acc.cash + a.cash,
         petrol: acc.petrol + a.petrolEntered,
         stay: acc.stay + a.stay,
-        ticketsLocal: acc.ticketsLocal + (a.isBus ? a.travel + a.local : 0),
+        ticketsLocal:
+          acc.ticketsLocal +
+          (a.isBus ? a.travel + a.local + a.conveyance + a.cash : 0),
         daySplitTotal: acc.daySplitTotal + a.daySplitTotal,
       };
     },
-    { travel: 0, local: 0, petrol: 0, stay: 0, ticketsLocal: 0, daySplitTotal: 0 },
+    { travel: 0, local: 0, conveyance: 0, cash: 0, petrol: 0, stay: 0, ticketsLocal: 0, daySplitTotal: 0 },
   );

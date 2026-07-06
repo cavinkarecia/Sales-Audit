@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v46-parse-syntax-fix
+          build: v47-all-sheets-date-totals
         </span>
       </nav>
       <Routes>

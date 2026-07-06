@@ -47,7 +47,7 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
       flag(
         'red',
         'NO_DATE_ROWS',
-        'No date-wise expense rows found (dates in column A with travel/local/grand total anywhere in row)',
+        'No date-wise expense rows found (look for dates like "1 April" or 01/04/2026 with Travel/Local/cash/Conveyance rows)',
       ),
     );
   }

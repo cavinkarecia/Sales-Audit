@@ -28,10 +28,12 @@ export const computeAuditorAmounts = (voucher) => {
 
   const fromDates = {
     fuel: roundRs(blocks.reduce((s, b) => s + (b.petrolTravel || 0), 0)),
+    conveyance: roundRs(blocks.reduce((s, b) => s + (b.conveyance || 0), 0)),
     ticketsLocal: roundRs(computeDateWiseTicketsLocalSum(blocks)),
     stay: roundRs(blocks.reduce((s, b) => s + (b.accommodation || 0), 0)),
     travel: roundRs(splits.travel),
     local: roundRs(splits.local),
+    cash: roundRs(splits.cash),
     daySplitTotal: roundRs(splits.daySplitTotal),
   };
 
@@ -170,7 +172,18 @@ export const computeWorkbookTotals = (vouchers) => {
   return acc;
 };
 
-export const fmtRs = (n) => {
+export const getAuditorColumnFlags = (voucher) => {
+  const blocks = voucher?.dateBlocks || [];
+  const hasBlock = (fn) => blocks.some(fn);
+  return {
+    fuel: (voucher?.fuelTotal || 0) > 0 || hasBlock((b) => (b.petrolTravel || 0) > 0),
+    conveyance: hasBlock((b) => (b.conveyance || 0) > 0),
+    ticketsLocal:
+      (voucher?.ticketsTotal || 0) > 0 ||
+      hasBlock((b) => (b.travel || 0) + (b.localConveyance || 0) + (b.cash || 0) > 0),
+    stay: (voucher?.accommodationTotal || 0) > 0 || hasBlock((b) => (b.accommodation || 0) > 0),
+  };
+};
   const v = roundRs(n);
   if (v <= 0) return '—';
   return `₹${v.toLocaleString('en-IN')}`;

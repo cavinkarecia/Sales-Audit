@@ -18,6 +18,7 @@ import {
   diffLabel,
   near,
   TOL,
+  getAuditorColumnFlags,
 } from '../utils/expenseTotals';
 
 const severityColor = (s) =>
@@ -40,13 +41,17 @@ const isMismatch = (a, b, tol = 10) => !near(a, b, tol);
 const DateWiseSplitTable = ({ dateResults, amounts }) => {
   const totals = sumDaySplits(dateResults);
   const ticketsHeader = amounts?.header?.ticketsLocal || 0;
+  const showConveyance = dateResults.some((d) => (d.conveyance || 0) > 0);
+  const showCash = dateResults.some((d) => (d.cash || 0) > 0);
 
   return (
     <div style={{ overflowX: 'auto' }}>
       <p style={{ margin: '0 0 8px', fontSize: '0.68rem', color: 'var(--text-secondary)' }}>
         <strong>Travel</strong> = bus/train ticket · <strong>Local</strong> = local allowance ·{' '}
+        {showConveyance && <><strong>Conveyance</strong> = local transport · </>}
+        {showCash && <><strong>Cash</strong> = cash expenses (in Tickets+Local) · </>}
         <strong>Petrol</strong> = fuel (km × ₹4 one-way, × ₹8 round trip) · <strong>Stay</strong> = accommodation ·{' '}
-        <strong>Day total</strong> = Travel + Local + Petrol + Stay for that date
+        <strong>Day total</strong> = all columns for that date
       </p>
       <table style={{ width: '100%', fontSize: '0.72rem', borderCollapse: 'collapse' }}>
         <thead>
@@ -55,6 +60,8 @@ const DateWiseSplitTable = ({ dateResults, amounts }) => {
             <th style={{ padding: 6 }}>Date</th>
             <th style={{ padding: 6 }}>Travel (tickets)</th>
             <th style={{ padding: 6 }}>Local allowance</th>
+            {showConveyance && <th style={{ padding: 6 }}>Conveyance</th>}
+            {showCash && <th style={{ padding: 6 }}>Cash</th>}
             <th style={{ padding: 6 }}>Petrol</th>
             <th style={{ padding: 6 }}>Stay</th>
             <th style={{ padding: 6 }}>Day total</th>
@@ -82,6 +89,8 @@ const DateWiseSplitTable = ({ dateResults, amounts }) => {
                 </td>
                 <td style={{ padding: 6 }}>{fmtRs(a.travel)}</td>
                 <td style={{ padding: 6 }}>{fmtRs(a.local)}</td>
+                {showConveyance && <td style={{ padding: 6 }}>{fmtRs(a.conveyance)}</td>}
+                {showCash && <td style={{ padding: 6 }}>{fmtRs(a.cash)}</td>}
                 <td style={{ padding: 6 }}>
                   {fmtRs(a.petrolEntered)}
                   {a.petrolCheck !== '—' && (
@@ -127,15 +136,18 @@ const DateWiseSplitTable = ({ dateResults, amounts }) => {
             </td>
             <td style={{ padding: 8 }}>{fmtRs(totals.travel)}</td>
             <td style={{ padding: 8 }}>{fmtRs(totals.local)}</td>
+            {showConveyance && <td style={{ padding: 8 }}>{fmtRs(totals.conveyance)}</td>}
+            {showCash && <td style={{ padding: 8 }}>{fmtRs(totals.cash)}</td>}
             <td style={{ padding: 8 }}>{fmtRs(totals.petrol)}</td>
             <td style={{ padding: 8 }}>{fmtRs(totals.stay)}</td>
             <td style={{ padding: 8, color: '#58a6ff' }}>{fmtRs(totals.daySplitTotal)}</td>
             <td colSpan={2} style={{ padding: 8 }} />
           </tr>
           <tr style={{ background: 'rgba(88,166,255,0.04)', fontSize: '0.68rem' }}>
-            <td colSpan={9} style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
+            <td colSpan={9 + (showConveyance ? 1 : 0) + (showCash ? 1 : 0)} style={{ padding: '6px 8px', color: 'var(--text-secondary)' }}>
               <strong>Page totals from dates:</strong>{' '}
               Fuel {fmtRs(amounts?.fromDates?.fuel ?? totals.petrol)} ·{' '}
+              {showConveyance && <>Conveyance {fmtRs(amounts?.fromDates?.conveyance ?? totals.conveyance)} · </>}
               Tickets+Local {fmtRs(amounts?.fromDates?.ticketsLocal ?? totals.ticketsLocal)}
               {ticketsHeader > 0 && (
                 <span style={{ color: !isMismatch(ticketsHeader, amounts?.fromDates?.ticketsLocal ?? totals.ticketsLocal, TOL.tickets) ? '#3fb950' : '#f85149' }}>
@@ -313,6 +325,35 @@ const SplitAmount = ({ amount, match }) => (
 const AuditorTotalSummary = ({ voucher }) => {
   const amounts = computeAuditorAmounts(voucher);
   const { header, fromDates, checks, headerPartsSum, declaredUsed } = amounts;
+  const cols = getAuditorColumnFlags(voucher);
+  const activeCols = [
+    cols.fuel && { key: 'fuel', label: 'Fuel', header: header.fuel, dates: fromDates.fuel, ok: checks.fuelOk },
+    cols.conveyance && {
+      key: 'conveyance',
+      label: 'Conveyance',
+      header: 0,
+      dates: fromDates.conveyance,
+      ok: true,
+    },
+    cols.ticketsLocal && {
+      key: 'ticketsLocal',
+      label: 'Tickets + Local',
+      header: header.ticketsLocal,
+      dates: fromDates.ticketsLocal,
+      ok: checks.ticketsOk,
+    },
+    cols.stay && { key: 'stay', label: 'Stay', header: header.stay, dates: fromDates.stay, ok: checks.stayOk },
+  ].filter(Boolean);
+
+  if (!activeCols.length) {
+    activeCols.push({
+      key: 'ticketsLocal',
+      label: 'Tickets + Local',
+      header: header.ticketsLocal,
+      dates: fromDates.ticketsLocal,
+      ok: checks.ticketsOk,
+    });
+  }
 
   const thStyle = {
     padding: '8px 10px',
@@ -348,30 +389,34 @@ const AuditorTotalSummary = ({ voucher }) => {
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
             <th style={{ ...thStyle, textAlign: 'left' }} />
-            <th style={thStyle}>Fuel</th>
-            <th style={thStyle}>Tickets + Local</th>
-            <th style={thStyle}>Stay</th>
+            {activeCols.map((col) => (
+              <th key={col.key} style={thStyle}>{col.label}</th>
+            ))}
             <th style={{ ...thStyle, fontWeight: 800 }}>Grand total</th>
           </tr>
         </thead>
         <tbody>
           <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
             <td style={labelStyle}>1. Auditor entered (sheet header)</td>
-            <td style={amtStyle}><SplitAmount amount={header.fuel} /></td>
-            <td style={amtStyle}><SplitAmount amount={header.ticketsLocal} /></td>
-            <td style={amtStyle}><SplitAmount amount={header.stay} /></td>
+            {activeCols.map((col) => (
+              <td key={col.key} style={amtStyle}>
+                <SplitAmount amount={col.header} />
+              </td>
+            ))}
             <td style={amtStyle}><SplitAmount amount={declaredUsed} /></td>
           </tr>
           <tr style={{ borderBottom: '1px solid var(--border-main)' }}>
             <td style={labelStyle}>2. Sum of all date rows</td>
-            <td style={amtStyle}><SplitAmount amount={fromDates.fuel} match={checks.fuelOk} /></td>
-            <td style={amtStyle}><SplitAmount amount={fromDates.ticketsLocal} match={checks.ticketsOk} /></td>
-            <td style={amtStyle}><SplitAmount amount={fromDates.stay} match={checks.stayOk} /></td>
+            {activeCols.map((col) => (
+              <td key={col.key} style={amtStyle}>
+                <SplitAmount amount={col.dates} match={col.ok} />
+              </td>
+            ))}
             <td style={amtStyle}><SplitAmount amount={fromDates.grand} match={checks.grandOk} /></td>
           </tr>
           <tr>
             <td style={labelStyle}>3. Header parts check (Fuel + Tickets + Stay)</td>
-            <td colSpan={3} style={{ ...amtStyle, textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+            <td colSpan={Math.max(1, activeCols.length)} style={{ ...amtStyle, textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
               {fmtRs(header.fuel)} + {fmtRs(header.ticketsLocal)} + {fmtRs(header.stay)} ={' '}
               <strong>{fmtRs(headerPartsSum)}</strong>
               {!checks.headerPartsOk && declaredUsed > 0 && (

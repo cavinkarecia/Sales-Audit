@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');
-const BUILD_ID = '2026-06-03-v46-parse-syntax-fix';
+const BUILD_ID = '2026-06-03-v47-all-sheets-date-totals';
 
 const assetsDir = path.join(dist, 'assets');
 let js = '';
@@ -35,3 +35,16 @@ await writeFile(
 );
 
 console.log(`Build OK: ${BUILD_ID}`);
+
+try {
+  const { spawnSync } = await import('node:child_process');
+  const validate = spawnSync(process.execPath, ['scripts/validate-expense-parsers.mjs'], {
+    cwd: root,
+    stdio: 'inherit',
+  });
+  if (validate.status !== 0) {
+    process.exit(validate.status || 1);
+  }
+} catch (e) {
+  console.warn('Parser validation skipped:', e.message);
+}

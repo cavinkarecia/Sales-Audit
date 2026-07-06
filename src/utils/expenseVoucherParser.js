@@ -25,18 +25,22 @@ export const sanitizeExpenseAmount = (raw, { kind = 'line', employeeNo = '' } = 
   return n;
 };
 
-/** Travel + local for one bus/train day — excludes petrol, fuel, and stay. */
+/** Travel + local + cash + conveyance for one bus/train day — excludes petrol, fuel, and stay. */
 export const ticketsLocalForBlock = (block) => {
   if (!block) return 0;
   if (block.isKmPetrolDay || block.splitType === 'petrol_km') return 0;
   if (block.isPetrolDay && block.splitType === 'petrol') return 0;
-  if (block.splitType === 'stay' && !(block.travel || block.localConveyance)) return 0;
+  if (block.splitType === 'stay' && !(block.travel || block.localConveyance || block.cash || block.conveyance)) {
+    return 0;
+  }
 
   const travel = block.travel || 0;
   const local = block.localConveyance || 0;
+  const cash = block.cash || 0;
+  const conveyance = block.conveyance || 0;
   const stay = block.accommodation || 0;
   const grand = block.grandTotal || 0;
-  let amount = travel + local;
+  let amount = travel + local + cash + conveyance;
 
   if (amount <= 0 && grand > stay) {
     if (block.hasBusTrainHint || block.splitType === 'bus_train' || block.splitType === 'mixed') {
@@ -306,7 +310,7 @@ const parseExcelSerialDate = (serial) => {
 
 const parseDateCell = (cell, dateContext = {}) => {
   if (cell === null || cell === undefined || cell === '') return null;
-  const s = String(cell).trim();
+  const s = String(cell).replace(/\u00a0/g, ' ').trim();
   if (!s || s.length > 28) return null;
   if (/\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\s*[-–to]/i.test(s)) return null;
 
@@ -364,7 +368,8 @@ const findDateInRow = (row, dateContext = {}) => {
 
 const isTravelLabel = (n) =>
   (n === 'travel' || (n.startsWith('travel') && !n.includes('rs') && !n.includes('km'))) &&
-  !n.includes('expense');
+  !n.includes('expense') &&
+  !isLocalTravelLabel(n);
 
 const isTicketsLabel = (n) => n.startsWith('ticket');
 const isTicketsLocalCombinedLabel = (n) =>
@@ -375,7 +380,10 @@ const isBusTrainLabel = (n) =>
   (n === 'bus' || n === 'train' || n === 'busticket' || n === 'trainticket') && !n.includes('business');
 const isAutoLabel = (n) => n === 'auto' || n.startsWith('auto') || n.includes('rickshaw') || n.includes('rapido');
 const isParkingLabel = (n) => n.includes('parking') || n.includes('helmet');
-const isLocalLabel = (n) => n.includes('localconv') || n === 'local';
+const isLocalTravelLabel = (n) =>
+  n.includes('localtravel') || n.includes('localconv') || (n.includes('local') && n.includes('travel'));
+const isLocalLabel = (n) => isLocalTravelLabel(n) || n === 'local';
+const isCashLabel = (n) => n === 'cash';
 const isAccLabel = (n) => n.includes('accom');
 const isGrandLabel = (n) => n.includes('grandtotal');
 const isDayTotalLabel = (n) => n === 'total' || (n.startsWith('total') && !n.includes('thousand'));
@@ -396,8 +404,18 @@ const findCellAnywhere = (matrix, needle, minRow = 0) => {
   return null;
 };
 
+const getVoucherSummaryTotalRow = (matrix) => {
+  const exact = findLabelInHeader(matrix, /^total$/i);
+  if (exact) return exact;
+  for (let r = 0; r < Math.min(22, matrix.length); r++) {
+    const row = matrix[r] || [];
+    if (/^total$/i.test(String(row[0] ?? '').trim())) return { r, c: 0, row };
+  }
+  return findCellInHeader(matrix, 'total');
+};
+
 const getDateScanStartRow = (matrix) => {
-  const totalHit = findCellInHeader(matrix, 'total');
+  const totalHit = getVoucherSummaryTotalRow(matrix);
   if (totalHit) return totalHit.r + 2;
   const cashier = findCellAnywhere(matrix, 'cashier');
   if (cashier) return cashier.r + 1;
@@ -509,10 +527,15 @@ const scanBlockTextFallback = (matrix, startR, endR) => {
     }
   }
 
-  const petrolLine = text.match(/\bpetrol\b[^\d]{0,20}(\d+(?:\.\d+)?)/i);
+  const petrolLine = text.match(/\b(?:petrol|fuel)\b[^\d]{0,20}(\d+(?:\.\d+)?)/i);
   if (petrolLine && !out.petrolTravel) {
     out.petrolTravel = parseFloat(petrolLine[1]);
   }
+
+  const fuelAll = [...text.matchAll(/\bfuel\s*[-–:\s]+([\d,]+(?:\.\d+)?)/gi)];
+  fuelAll.forEach((m) => {
+    out.petrolTravel = Math.max(out.petrolTravel || 0, parseMoney(m[1]));
+  });
 
   const convAll = [...text.matchAll(/conveyance\s*[-–:\s]+([\d,]+(?:\.\d+)?)/gi)];
   convAll.forEach((m) => {
@@ -546,6 +569,8 @@ const scanEmbeddedExpenseLabels = (matrix, startR, endR) => {
   const out = {
     travel: 0,
     localConveyance: 0,
+    conveyance: 0,
+    cash: 0,
     petrolTravel: 0,
     dayTotal: 0,
     accommodation: 0,
@@ -569,7 +594,7 @@ const scanEmbeddedExpenseLabels = (matrix, startR, endR) => {
       }
 
       const conv = raw.match(/conveyance\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
-      if (conv) out.localConveyance = Math.max(out.localConveyance, parseMoney(conv[1]));
+      if (conv) out.conveyance = Math.max(out.conveyance, parseMoney(conv[1]));
 
       const ticketsLocal = raw.match(
         /tickets?\s*\+\s*local\s*conveyance?\s*[-–:\s]*([\d,]+(?:\.\d+)?)/i,
@@ -628,6 +653,72 @@ const scanEmbeddedExpenseLabels = (matrix, startR, endR) => {
   return out;
 };
 
+const amountBesideLabel = (row, labelCol) => {
+  const labelRaw = String(row[labelCol] ?? '').trim();
+  let amt = extractInlineAmount(labelRaw);
+  if (amt > 0) return amt;
+  for (let j = labelCol + 1; j < Math.min(labelCol + 5, row.length); j++) {
+    amt = parseAmountFromCell(row[j]);
+    if (amt > 0) return amt;
+  }
+  return 0;
+};
+
+/**
+ * Table layout used by many tabs: label in col A, amount in col B
+ * (Travel / Local Travel / cash / Conveyance / Total).
+ */
+const parseLabelValueRows = (matrix, startR, endR) => {
+  const out = {
+    travel: 0,
+    localConveyance: 0,
+    conveyance: 0,
+    cash: 0,
+    accommodation: 0,
+    dayTotal: 0,
+    petrolTravel: 0,
+    isDaOnly: false,
+  };
+
+  for (let rr = startR; rr < endR; rr++) {
+    const row = matrix[rr] || [];
+    if (!row.some((c) => String(c ?? '').trim())) continue;
+
+    for (let c = 0; c < Math.min(5, row.length); c++) {
+      const labelRaw = String(row[c] ?? '').trim();
+      const label = norm(labelRaw);
+      if (!label) continue;
+
+      if (/^only\s*da$/i.test(labelRaw) || label === 'onlyda') {
+        out.isDaOnly = true;
+        const daAmt = extractInlineAmount(labelRaw);
+        if (daAmt > 0) out.localConveyance = Math.max(out.localConveyance, daAmt);
+        continue;
+      }
+
+      const amt = amountBesideLabel(row, c);
+      if (amt <= 0) continue;
+
+      if (isTravelLabel(label)) out.travel += amt;
+      else if (isLocalTravelLabel(label) || isLocalLabel(label)) {
+        out.localConveyance = Math.max(out.localConveyance, amt);
+      } else if (isCashLabel(label)) out.cash = Math.max(out.cash, amt);
+      else if (isConveyanceLabel(label)) out.conveyance = Math.max(out.conveyance, amt);
+      else if (isTicketsLabel(label)) out.travel += amt;
+      else if (isCabLabel(label) || isBusTrainLabel(label)) out.travel += amt;
+      else if (isAutoLabel(label) || isParkingLabel(label)) {
+        out.localConveyance = Math.max(out.localConveyance, amt);
+      } else if (isAccLabel(label)) out.accommodation = Math.max(out.accommodation, amt);
+      else if (isPetrolLabel(label)) out.petrolTravel = Math.max(out.petrolTravel, amt);
+      else if (isDayTotalLabel(label) && !label.includes('thousand')) {
+        out.dayTotal = Math.max(out.dayTotal, amt);
+      }
+    }
+  }
+
+  return out;
+};
+
 const parseDateWiseBlocks = (matrix, dateContext = {}) => {
   const blocks = [];
   const scanStart = getDateScanStartRow(matrix);
@@ -651,6 +742,8 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
 
     let travel = 0;
     let localConveyance = 0;
+    let conveyance = 0;
+    let cash = 0;
     let accommodation = 0;
     let grandTotal = 0;
     let petrolTravel = 0;
@@ -662,6 +755,20 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
     let dayTotal = 0;
 
     let petrolFromLabel = false;
+    let isDaOnly = false;
+
+    const tableRows = parseLabelValueRows(matrix, r + 1, endR);
+    if (tableRows.travel > 0) travel = Math.max(travel, tableRows.travel);
+    if (tableRows.localConveyance > 0) localConveyance = Math.max(localConveyance, tableRows.localConveyance);
+    if (tableRows.conveyance > 0) conveyance = Math.max(conveyance, tableRows.conveyance);
+    if (tableRows.cash > 0) cash = Math.max(cash, tableRows.cash);
+    if (tableRows.accommodation > 0) accommodation = Math.max(accommodation, tableRows.accommodation);
+    if (tableRows.dayTotal > 0) dayTotal = Math.max(dayTotal, tableRows.dayTotal);
+    if (tableRows.petrolTravel > 0) {
+      petrolTravel = Math.max(petrolTravel, tableRows.petrolTravel);
+      petrolFromLabel = true;
+    }
+    if (tableRows.isDaOnly) isDaOnly = true;
 
     const kmHit = findLabeledValueInBlock(matrix, r + 1, endR, isKmLabel, (cell, raw) => ({
       ...parseKmFromCell(cell),
@@ -686,17 +793,17 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
     const travelBlk = findLabeledValueInBlock(matrix, r + 1, endR, isTravelLabel, (cell) =>
       parseAmountFromCell(cell),
     );
-    if (travelBlk > 0) travel = travelBlk;
+    if (travelBlk > 0) travel = Math.max(travel, travelBlk);
 
     const localBlk = findLabeledValueInBlock(matrix, r + 1, endR, isLocalLabel, (cell) =>
       parseAmountFromCell(cell),
     );
-    if (localBlk > 0) localConveyance = localBlk;
+    if (localBlk > 0) localConveyance = Math.max(localConveyance, localBlk);
 
     const convBlk = findLabeledValueInBlock(matrix, r + 1, endR, isConveyanceLabel, (cell, raw) =>
       parseAmountFromCell(raw.includes('-') || raw.includes(':') ? raw : cell),
     );
-    if (convBlk > 0) localConveyance = Math.max(localConveyance, convBlk);
+    if (convBlk > 0) conveyance = Math.max(conveyance, convBlk);
 
     const ticketsBlk = findLabeledValueInBlock(matrix, r + 1, endR, isTicketsLabel, (cell, raw) =>
       parseAmountFromCell(raw.includes('-') || raw.includes(':') ? raw : cell),
@@ -740,13 +847,16 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       if (!row.some((c) => String(c ?? '').trim())) continue;
 
       const t = findAmountInRow(row, isTravelLabel);
-      if (t > 0) travel = t;
+      if (t > 0) travel = Math.max(travel, t);
 
       const l = findAmountInRow(row, isLocalLabel);
-      if (l > 0) localConveyance = l;
+      if (l > 0) localConveyance = Math.max(localConveyance, l);
+
+      const cashRow = findAmountInRow(row, isCashLabel);
+      if (cashRow > 0) cash = Math.max(cash, cashRow);
 
       const conv = findAmountInRow(row, isConveyanceLabel);
-      if (conv > 0) localConveyance = Math.max(localConveyance, conv);
+      if (conv > 0) conveyance = Math.max(conveyance, conv);
 
       const ticketsRow = findAmountInRow(row, isTicketsLabel);
       if (ticketsRow > 0) travel += ticketsRow;
@@ -803,6 +913,8 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
 
     if (embedded.travel > 0) travel = Math.max(travel, embedded.travel);
     if (embedded.localConveyance > 0) localConveyance = Math.max(localConveyance, embedded.localConveyance);
+    if (embedded.conveyance > 0) conveyance = Math.max(conveyance, embedded.conveyance);
+    if (embedded.cash > 0) cash = Math.max(cash, embedded.cash);
     if (embedded.petrolTravel > 0) {
       petrolTravel = embedded.petrolTravel;
       petrolFromLabel = true;
@@ -819,7 +931,7 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       .map((row) => (row || []).map((c) => String(c ?? '')).join(' '))
       .join(' ');
 
-    let isDaOnly = embedded.isDaOnly || /only\s*da\b/i.test(blockText);
+    let isDaOnlyFlag = isDaOnly || embedded.isDaOnly || /only\s*da\b/i.test(blockText);
     if (!kmTraveled && textFallback.kmTraveled > 0) {
       kmTraveled = textFallback.kmTraveled;
       kmLegs = textFallback.kmLegs;
@@ -856,10 +968,15 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
     const isKmPetrolDay =
       petrolTravel > 0 && (kmTraveled > 0 || travelRsRaw.includes('*'));
     const isSimplePetrolDay =
-      petrolFromLabel && petrolTravel > 0 && travel === 0 && localConveyance === 0;
+      petrolFromLabel &&
+      petrolTravel > 0 &&
+      travel === 0 &&
+      localConveyance === 0 &&
+      conveyance === 0 &&
+      cash === 0;
     const isPetrolDay = isKmPetrolDay || isSimplePetrolDay;
 
-    const ticketsSubtotal = travel + localConveyance;
+    const ticketsSubtotal = travel + localConveyance + conveyance + cash;
     const petrolDayAmount = petrolTravel || 0;
 
     if (!grandTotal) {
@@ -874,7 +991,7 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
         ? 'petrol'
         : ticketsSubtotal > 0 && petrolDayAmount > 0
           ? 'mixed'
-          : isDaOnly && ticketsSubtotal === 0 && petrolDayAmount === 0
+          : isDaOnlyFlag && ticketsSubtotal === 0 && petrolDayAmount === 0
             ? 'da'
             : ticketsSubtotal > 0
               ? 'bus_train'
@@ -884,11 +1001,19 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
 
     const hasBusTrainHint =
       !isPetrolDay &&
-      (travel > 0 || localConveyance > 0 || splitType === 'bus_train' || splitType === 'mixed' || splitType === 'da');
+      (travel > 0 ||
+        localConveyance > 0 ||
+        conveyance > 0 ||
+        cash > 0 ||
+        splitType === 'bus_train' ||
+        splitType === 'mixed' ||
+        splitType === 'da');
 
     const ticketComparable = ticketsLocalForBlock({
       travel,
       localConveyance,
+      conveyance,
+      cash,
       accommodation,
       grandTotal,
       hasBusTrainHint,
@@ -897,12 +1022,21 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       isKmPetrolDay,
     });
 
-    if (ticketComparable > 0 || accommodation > 0 || grandTotal > 0 || petrolDayAmount > 0 || isDaOnly) {
+    if (
+      ticketComparable > 0 ||
+      accommodation > 0 ||
+      grandTotal > 0 ||
+      dayTotal > 0 ||
+      petrolDayAmount > 0 ||
+      isDaOnlyFlag
+    ) {
       blocks.push({
         date: toDateStr(date),
         dateKey: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
         travel,
         localConveyance,
+        conveyance,
+        cash,
         accommodation,
         food,
         petrolTravel: petrolDayAmount,
@@ -936,7 +1070,7 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
                 : '',
         isPetrolDay,
         isKmPetrolDay,
-        isDaOnly,
+        isDaOnly: isDaOnlyFlag,
         hasBusTrainHint,
       });
     }
