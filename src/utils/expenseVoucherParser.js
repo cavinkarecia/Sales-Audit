@@ -366,11 +366,15 @@ const findDateInRow = (row, dateContext = {}) => {
   return null;
 };
 
+const isLocalTravelLabel = (n) =>
+  n.includes('localtravel') || n.includes('localconv') || (n.includes('local') && n.includes('travel'));
+const isLocalLabel = (n) => isLocalTravelLabel(n) || n === 'local';
+const isCashLabel = (n) => n === 'cash';
+
 const isTravelLabel = (n) =>
   (n === 'travel' || (n.startsWith('travel') && !n.includes('rs') && !n.includes('km'))) &&
   !n.includes('expense') &&
   !isLocalTravelLabel(n);
-
 const isTicketsLabel = (n) => n.startsWith('ticket');
 const isTicketsLocalCombinedLabel = (n) =>
   n.includes('tickets') && (n.includes('localconv') || n.includes('localcon'));
@@ -380,10 +384,6 @@ const isBusTrainLabel = (n) =>
   (n === 'bus' || n === 'train' || n === 'busticket' || n === 'trainticket') && !n.includes('business');
 const isAutoLabel = (n) => n === 'auto' || n.startsWith('auto') || n.includes('rickshaw') || n.includes('rapido');
 const isParkingLabel = (n) => n.includes('parking') || n.includes('helmet');
-const isLocalTravelLabel = (n) =>
-  n.includes('localtravel') || n.includes('localconv') || (n.includes('local') && n.includes('travel'));
-const isLocalLabel = (n) => isLocalTravelLabel(n) || n === 'local';
-const isCashLabel = (n) => n === 'cash';
 const isAccLabel = (n) => n.includes('accom');
 const isGrandLabel = (n) => n.includes('grandtotal');
 const isDayTotalLabel = (n) => n === 'total' || (n.startsWith('total') && !n.includes('thousand'));

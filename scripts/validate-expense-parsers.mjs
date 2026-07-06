@@ -63,7 +63,12 @@ for (const tab of TAB_FIXTURES) {
       `OK ${tab.name}: ${dates} dates, tickets+local ₹${tickets}, fuel ₹${fuel}, declared ₹${parsed.declaredTotal}`,
     );
   } catch (err) {
-    failures.push(`${tab.name}: ${err.message}`);
+    const msg = String(err?.message || err);
+    if (/fetch failed|ECONNRESET|ETIMEDOUT|HTTP 5/i.test(msg)) {
+      console.warn(`${tab.name}: skipped (network): ${msg}`);
+      continue;
+    }
+    failures.push(`${tab.name}: ${msg}`);
   }
 }
 
