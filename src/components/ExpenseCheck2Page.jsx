@@ -203,8 +203,7 @@ const dropdownPanelStyle = {
 };
 
 const selectAllBtnStyle = {
-  width: '100%',
-  marginBottom: '8px',
+  flex: 1,
   padding: '6px 10px',
   borderRadius: '6px',
   border: '1px solid var(--accent-primary)',
@@ -213,6 +212,24 @@ const selectAllBtnStyle = {
   fontSize: '0.72rem',
   fontWeight: '700',
   cursor: 'pointer',
+};
+
+const unselectAllBtnStyle = {
+  flex: 1,
+  padding: '6px 10px',
+  borderRadius: '6px',
+  border: '1px solid var(--border-main)',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  fontSize: '0.72rem',
+  fontWeight: '700',
+  cursor: 'pointer',
+};
+
+const filterSelectRowStyle = {
+  display: 'flex',
+  gap: '6px',
+  marginBottom: '8px',
 };
 
 const FilterDropdown = ({ label, summary, icon, isOpen, onToggle, onClose, children, minWidth = 220 }) => {
@@ -645,6 +662,10 @@ const ExpenseCheck2Page = () => {
     setSelectedAuditorIds(new Set(auditorOptions.map((a) => a.id)));
   };
 
+  const unselectAllAuditors = () => {
+    setSelectedAuditorIds(new Set());
+  };
+
   const filtered = useMemo(() => {
     if (!verification) return [];
     let rows = verification.results;
@@ -889,9 +910,14 @@ const ExpenseCheck2Page = () => {
               onClose={() => setAuditorFilterOpen(false)}
               minWidth={300}
             >
-              <button type="button" onClick={selectAllAuditors} style={selectAllBtnStyle}>
-                Select all
-              </button>
+              <div style={filterSelectRowStyle}>
+                <button type="button" onClick={selectAllAuditors} style={selectAllBtnStyle}>
+                  Select all
+                </button>
+                <button type="button" onClick={unselectAllAuditors} style={unselectAllBtnStyle}>
+                  Unselect all
+                </button>
+              </div>
               {auditorOptions.map((a) => (
                 <label
                   key={a.id}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link2, Loader2, CheckCircle2 } from 'lucide-react';
+import { Link2, Loader2, CheckCircle2, RefreshCw } from 'lucide-react';
 
 const SheetLinkUpload = ({
   title,
@@ -13,7 +13,15 @@ const SheetLinkUpload = ({
   placeholder = 'https://docs.google.com/spreadsheets/d/.../edit?gid=0',
   syncLabel = 'Fetch all auditor sheets',
   loadingLabel = 'Fetching all sheets…',
-}) => (
+  refreshTitle = 'Refresh data from the same link',
+}) => {
+  const canRefresh = Boolean(url?.trim()) && !isLoading;
+  const handleRefresh = () => {
+    if (!canRefresh) return;
+    onSync();
+  };
+
+  return (
   <div
     className="glass-card"
     style={{
@@ -24,7 +32,7 @@ const SheetLinkUpload = ({
   >
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '10px' }}>
       <Link2 size={18} style={{ color: 'var(--accent-primary)', marginTop: 2 }} />
-      <div>
+      <div style={{ flex: 1, minWidth: 0 }}>
         <h3 style={{ margin: 0, fontSize: '0.95rem' }}>{title}</h3>
         {description ? (
           <p style={{ margin: '4px 0 0', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -35,7 +43,6 @@ const SheetLinkUpload = ({
       {loadedCount > 0 && (
         <span
           style={{
-            marginLeft: 'auto',
             fontSize: '0.7rem',
             color: 'var(--accent-success)',
             display: 'flex',
@@ -47,6 +54,30 @@ const SheetLinkUpload = ({
           {loadedCount} loaded{totalSheets > 0 ? ` / ${totalSheets} tabs` : ''}
         </span>
       )}
+      <button
+        type="button"
+        onClick={handleRefresh}
+        disabled={!canRefresh}
+        title={refreshTitle}
+        aria-label={refreshTitle}
+        style={{
+          marginLeft: 'auto',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 36,
+          height: 36,
+          borderRadius: 8,
+          border: '1px solid var(--border-main)',
+          background: canRefresh ? 'var(--bg-secondary)' : 'transparent',
+          color: canRefresh ? 'var(--accent-primary)' : 'var(--text-secondary)',
+          cursor: canRefresh ? 'pointer' : 'not-allowed',
+          opacity: canRefresh ? 1 : 0.45,
+        }}
+      >
+        {isLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+      </button>
     </div>
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
       <input
@@ -89,6 +120,7 @@ const SheetLinkUpload = ({
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export default SheetLinkUpload;

@@ -21,7 +21,8 @@ import {
   Upload,
   Compass,
   FileText,
-  Activity
+  Activity,
+  RefreshCw,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -146,8 +147,7 @@ const FilterDropdown = React.memo(({ label, summary, icon, isOpen, onToggle, onC
 });
 
 const selectAllBtnStyle = {
-  width: '100%',
-  marginBottom: '8px',
+  flex: 1,
   padding: '6px 10px',
   borderRadius: '6px',
   border: '1px solid var(--accent-primary)',
@@ -156,6 +156,24 @@ const selectAllBtnStyle = {
   fontSize: '0.72rem',
   fontWeight: '700',
   cursor: 'pointer',
+};
+
+const unselectAllBtnStyle = {
+  flex: 1,
+  padding: '6px 10px',
+  borderRadius: '6px',
+  border: '1px solid var(--border-main)',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  fontSize: '0.72rem',
+  fontWeight: '700',
+  cursor: 'pointer',
+};
+
+const filterSelectRowStyle = {
+  display: 'flex',
+  gap: '6px',
+  marginBottom: '8px',
 };
 
 const CLUSTER_CENTROIDS = {
@@ -1031,13 +1049,18 @@ const AttendanceDashboard = () => {
           onClose={() => setDateDropdownOpen(false)}
           minWidth={280}
         >
-          <button
-            type="button"
-            onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
-            style={selectAllBtnStyle}
-          >
-            Select all
-          </button>
+          <div style={filterSelectRowStyle}>
+            <button
+              type="button"
+              onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
+              style={selectAllBtnStyle}
+            >
+              Select all
+            </button>
+            <button type="button" onClick={() => setSelectedDayKeys([])} style={unselectAllBtnStyle}>
+              Unselect all
+            </button>
+          </div>
           {availableDailyDates.length === 0 ? (
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '4px' }}>
               No Choose Date values in upload
@@ -1080,13 +1103,18 @@ const AttendanceDashboard = () => {
           onClose={() => setDayDropdownOpen(false)}
           minWidth={180}
         >
-          <button
-            type="button"
-            onClick={() => setSelectedWeekdays([...WEEKDAY_OPTIONS])}
-            style={selectAllBtnStyle}
-          >
-            Select all
-          </button>
+          <div style={filterSelectRowStyle}>
+            <button
+              type="button"
+              onClick={() => setSelectedWeekdays([...WEEKDAY_OPTIONS])}
+              style={selectAllBtnStyle}
+            >
+              Select all
+            </button>
+            <button type="button" onClick={() => setSelectedWeekdays([])} style={unselectAllBtnStyle}>
+              Unselect all
+            </button>
+          </div>
           {WEEKDAY_OPTIONS.map((day) => (
             <label
               key={day}
@@ -1428,6 +1456,29 @@ const AttendanceDashboard = () => {
             >
               {isFetchingHistory ? <div className="spinner-small"></div> : <Upload size={14} />}
               Fetch all auditor sheets
+            </button>
+            <button
+              type="button"
+              onClick={handleHistorySync}
+              disabled={isFetchingHistory || !historyUrl?.trim()}
+              title="Refresh data from the same link"
+              aria-label="Refresh PJP data from the same link"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 40,
+                height: 40,
+                borderRadius: 8,
+                border: '1px solid var(--border-main)',
+                background: 'var(--bg-secondary)',
+                color: historyUrl?.trim() && !isFetchingHistory ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                cursor: historyUrl?.trim() && !isFetchingHistory ? 'pointer' : 'not-allowed',
+                opacity: historyUrl?.trim() && !isFetchingHistory ? 1 : 0.45,
+                flexShrink: 0,
+              }}
+            >
+              {isFetchingHistory ? <div className="spinner-small" /> : <RefreshCw size={16} />}
             </button>
           </div>
         </div>
