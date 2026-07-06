@@ -152,25 +152,96 @@ const MONTH_NAME_INDEX = {
 
 const monthIndexFromName = (name) => MONTH_NAME_INDEX[String(name || '').toLowerCase()];
 
-/** Infer month/year from sheet title and header (e.g. "April Bills", "April 2026"). */
-const inferExpensePeriod = (matrix, sheetName) => {
+/** Infer month/year from sheet title, Activity Date row, and date headers in the grid. */
+const inferExpensePeriod = (matrix, sheetName, workbookTitle = '') => {
   let year = new Date().getFullYear();
   let month = null;
-  const blob = [sheetName, ...(matrix || []).slice(0, 35).flat()]
+  const blob = [workbookTitle, sheetName, ...(matrix || []).flat()]
     .map((x) => String(x ?? ''))
     .join('\n');
 
-  const named = blob.match(
-    /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b(?:\s+(20\d{2}))?/i,
+  const activityRange = blob.match(
+    /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2}|\d{2})\s*[-–to]+\s*(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2}|\d{2})/i,
   );
-  if (named) {
-    month = monthIndexFromName(named[1]);
-    if (named[2]) year = parseInt(named[2], 10);
+  if (activityRange) {
+    month = parseInt(activityRange[2], 10) - 1;
+    year = parseInt(activityRange[3], 10);
+    if (year < 100) year += 2000;
   }
+
+  if (month == null) {
+    const named = blob.match(
+      /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b(?:\s+(20\d{2}))?/i,
+    );
+    if (named) {
+      month = monthIndexFromName(named[1]);
+      if (named[2]) year = parseInt(named[2], 10);
+    }
+  }
+
+  if (month == null) {
+    const dateHeaders = [...blob.matchAll(/\b(\d{1,2})\s+(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\b/gi)];
+    if (dateHeaders.length) {
+      month = monthIndexFromName(dateHeaders[0][2]);
+    }
+  }
+
   const yearOnly = blob.match(/\b(20\d{2})\b/);
-  if (yearOnly && !named?.[2]) year = parseInt(yearOnly[1], 10);
+  if (yearOnly && !activityRange) year = parseInt(yearOnly[1], 10);
 
   return { year, month };
+};
+
+/** Detect DD/MM vs MM/DD from Activity Date and date-column patterns (April workbook). */
+const detectDateOrder = (matrix, period) => {
+  const blob = (matrix || [])
+    .flat()
+    .map((x) => String(x ?? ''))
+    .join('\n');
+
+  if (/(\d{1,2})[\/\-.](\d{1,2})[\/\-.](20\d{2}|\d{2})\s*[-–to]+\s*(\d{1,2})[\/\-.](\d{1,2})/i.test(blob)) {
+    return 'dmy';
+  }
+
+  const monthIdx = period?.month;
+  if (monthIdx == null) return 'dmy';
+
+  let mdyVotes = 0;
+  let dmyVotes = 0;
+  const slashDateRe = /\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/g;
+  let m;
+  while ((m = slashDateRe.exec(blob)) !== null) {
+    const a = parseInt(m[1], 10);
+    const b = parseInt(m[2], 10);
+    if (a === monthIdx + 1 && b >= 1 && b <= 31) mdyVotes++;
+    if (b === monthIdx + 1 && a >= 1 && a <= 31) dmyVotes++;
+  }
+
+  if (mdyVotes > dmyVotes) return 'mdy';
+  return 'dmy';
+};
+
+const parseSlashDate = (s, dateContext = {}) => {
+  const parts = s.split(/[\/\-.]/);
+  if (parts.length !== 3) return null;
+  const a = parseInt(parts[0], 10);
+  const b = parseInt(parts[1], 10);
+  let year = parseInt(parts[2], 10);
+  if (year < 100) year += 2000;
+  if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(year)) return null;
+
+  let day;
+  let month;
+  const order = dateContext.dateOrder || 'dmy';
+  if (order === 'mdy') {
+    month = a - 1;
+    day = b;
+  } else {
+    day = a;
+    month = b - 1;
+  }
+  if (day < 1 || day > 31 || month < 0 || month > 11) return null;
+  return new Date(year, month, day);
 };
 
 const parseExcelSerialDate = (serial) => {
@@ -213,6 +284,8 @@ const parseDateCell = (cell, dateContext = {}) => {
   }
 
   if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(s)) {
+    const parsed = parseSlashDate(s, dateContext);
+    if (parsed) return parsed;
     const parts = s.split(/[/-]/);
     const p0 = parseInt(parts[0], 10);
     const p1 = parseInt(parts[1], 10);
@@ -221,23 +294,30 @@ const parseDateCell = (cell, dateContext = {}) => {
     if (p0 >= 1 && p0 <= 31 && p1 >= 1 && p1 <= 12) {
       return new Date(year, p1 - 1, p0);
     }
-    const parsed = parseExcelDate(s);
-    if (parsed) return parsed;
+    const parsedExcel = parseExcelDate(s);
+    if (parsedExcel) return parsedExcel;
   }
 
   return null;
 };
 
-/** Date may be in column A or another column — scan the row. */
+const isDateHeaderCell = (cellStr, dateContext) => {
+  const s = String(cellStr ?? '').trim();
+  if (!s) return false;
+  if (/^\d{1,2}\s+[a-z]{3,}/i.test(s)) return true;
+  if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(s)) return true;
+  return parseDateCell(s, dateContext) != null && s.length <= 14;
+};
+
+/** Date may be in any column — bills sheets often use column E for "1 April". */
 const findDateInRow = (row, dateContext = {}) => {
   if (!row?.length) return null;
-  for (let c = 0; c < Math.min(row.length, 12); c++) {
+  for (let c = 0; c < row.length; c++) {
     const cellStr = String(row[c] ?? '').trim();
+    if (!cellStr) continue;
     const d = parseDateCell(row[c], dateContext);
     if (!d) continue;
-    if (/^\d{1,2}\s+[a-z]{3,}/i.test(cellStr)) return { date: d, col: c };
-    const otherCells = row.filter((cell, i) => i !== c && String(cell ?? '').trim()).length;
-    if (c === 0 || otherCells <= 2) return { date: d, col: c };
+    if (isDateHeaderCell(cellStr, dateContext)) return { date: d, col: c };
   }
   return null;
 };
@@ -247,8 +327,14 @@ const isTravelLabel = (n) =>
   !n.includes('expense');
 
 const isTicketsLabel = (n) => n.startsWith('ticket');
+const isTicketsLocalCombinedLabel = (n) =>
+  n.includes('tickets') && (n.includes('localconv') || n.includes('localcon'));
 const isConveyanceLabel = (n) => n.includes('conveyance') && !n.includes('localconv');
 const isCabLabel = (n) => n === 'cab' || n.startsWith('cab');
+const isBusTrainLabel = (n) =>
+  (n === 'bus' || n === 'train' || n === 'busticket' || n === 'trainticket') && !n.includes('business');
+const isAutoLabel = (n) => n === 'auto' || n.startsWith('auto') || n.includes('rickshaw') || n.includes('rapido');
+const isParkingLabel = (n) => n.includes('parking') || n.includes('helmet');
 const isLocalLabel = (n) => n.includes('localconv') || n === 'local';
 const isAccLabel = (n) => n.includes('accom');
 const isGrandLabel = (n) => n.includes('grandtotal');
@@ -310,21 +396,29 @@ const findLabeledValueInBlock = (matrix, startR, endR, labelTest, parseValue) =>
   return null;
 };
 
+const extractInlineAmount = (raw) => {
+  const s = String(raw ?? '').trim();
+  if (!s) return 0;
+  const labeled = s.match(/[-–:\s]+\s*([\d,]+(?:\.\d+)?)/);
+  if (labeled) {
+    const amt = parseAmountFromCell(labeled[1]);
+    if (amt > 0) return amt;
+  }
+  return parseAmountFromCell(s);
+};
+
 const findAmountInRow = (row, labelTest) => {
   for (let c = 0; c < (row || []).length; c++) {
     const raw = String(row[c] ?? '').trim();
     const label = norm(row[c]);
     if (!raw || !label || !labelTest(label)) continue;
 
-    const inline = raw.match(/[-–:]\s*([\d,]+(?:\.\d+)?)/);
-    if (inline) {
-      const amt = parseAmountFromCell(inline[1]);
-      if (amt > 0) return amt;
-    }
+    const amt = extractInlineAmount(raw);
+    if (amt > 0 && /[-–:\d]/.test(raw)) return amt;
 
     for (let j = c + 1; j < row.length; j++) {
-      const amt = parseAmountFromCell(row[j]);
-      if (amt > 0) return amt;
+      const nextAmt = parseAmountFromCell(row[j]);
+      if (nextAmt > 0) return nextAmt;
     }
   }
   return 0;
@@ -346,6 +440,7 @@ const scanBlockTextFallback = (matrix, startR, endR) => {
     travel: 0,
     localConveyance: 0,
     dayTotal: 0,
+    accommodation: 0,
   };
 
   const kmPlus = text.match(/km\s*traveled[^\d]{0,30}(\d+)\s*\+\s*(\d+)\s*=\s*(\d+)/i);
@@ -379,16 +474,26 @@ const scanBlockTextFallback = (matrix, startR, endR) => {
     out.petrolTravel = parseFloat(petrolLine[1]);
   }
 
-  const convAll = [...text.matchAll(/conveyance\s*[-–:]\s*([\d,]+(?:\.\d+)?)/gi)];
+  const convAll = [...text.matchAll(/conveyance\s*[-–:\s]+([\d,]+(?:\.\d+)?)/gi)];
   convAll.forEach((m) => {
     out.localConveyance = Math.max(out.localConveyance || 0, parseMoney(m[1]));
   });
-  const ticketAll = [...text.matchAll(/tickets?\s*[-–:]\s*([\d,]+(?:\.\d+)?)/gi)];
+  const ticketAll = [...text.matchAll(/tickets?\s*[-–:\s]+([\d,]+(?:\.\d+)?)/gi)];
   ticketAll.forEach((m) => {
     out.travel = (out.travel || 0) + parseMoney(m[1]);
   });
-  const totalMatch = text.match(/^total\s*[-–:]\s*([\d,]+(?:\.\d+)?)/im);
+  const ticketsLocalAll = [
+    ...text.matchAll(/tickets?\s*\+\s*local\s*conveyance?\s*[-–:\s]*([\d,]+(?:\.\d+)?)/gi),
+  ];
+  ticketsLocalAll.forEach((m) => {
+    out.travel = (out.travel || 0) + parseMoney(m[1]);
+  });
+  const totalMatch = text.match(/^total\s*[-–:\s]+([\d,]+(?:\.\d+)?)/im);
   if (totalMatch) out.dayTotal = parseMoney(totalMatch[1]);
+  const stayAll = [...text.matchAll(/(?:accom|accommodation|hotel)\s*[-–:\s]+([\d,]+(?:\.\d+)?)/gi)];
+  stayAll.forEach((m) => {
+    out.accommodation = Math.max(out.accommodation || 0, parseMoney(m[1]));
+  });
 
   return out;
 };
@@ -403,6 +508,7 @@ const scanEmbeddedExpenseLabels = (matrix, startR, endR) => {
     localConveyance: 0,
     petrolTravel: 0,
     dayTotal: 0,
+    accommodation: 0,
     kmTraveled: 0,
     kmLegs: [],
     isRoundTrip: false,
@@ -422,16 +528,36 @@ const scanEmbeddedExpenseLabels = (matrix, startR, endR) => {
         continue;
       }
 
-      const conv = raw.match(/conveyance\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
+      const conv = raw.match(/conveyance\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
       if (conv) out.localConveyance = Math.max(out.localConveyance, parseMoney(conv[1]));
 
-      const tickets = raw.match(/tickets?\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
+      const ticketsLocal = raw.match(
+        /tickets?\s*\+\s*local\s*conveyance?\s*[-–:\s]*([\d,]+(?:\.\d+)?)/i,
+      );
+      if (ticketsLocal) out.travel += parseMoney(ticketsLocal[1]);
+
+      const tickets = raw.match(/tickets?\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
       if (tickets) out.travel += parseMoney(tickets[1]);
 
-      const cab = raw.match(/\bcab\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
+      const cab = raw.match(/\bcab\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
       if (cab) out.travel += parseMoney(cab[1]);
 
-      const fuel = raw.match(/\bfuel\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
+      const bus = raw.match(/\bbus\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
+      if (bus) out.travel += parseMoney(bus[1]);
+
+      const train = raw.match(/\btrain\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
+      if (train) out.travel += parseMoney(train[1]);
+
+      const auto = raw.match(/\b(?:auto|rickshaw|rapido)\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
+      if (auto) out.localConveyance = Math.max(out.localConveyance, parseMoney(auto[1]));
+
+      const parking = raw.match(/parking\/?helmet?\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
+      if (parking) out.localConveyance = Math.max(out.localConveyance, parseMoney(parking[1]));
+
+      const stay = raw.match(/(?:accom|accommodation|hotel|stay)\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
+      if (stay) out.accommodation = Math.max(out.accommodation || 0, parseMoney(stay[1]));
+
+      const fuel = raw.match(/\bfuel\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
       if (fuel) {
         out.petrolTravel = Math.max(out.petrolTravel, parseMoney(fuel[1]));
         const kmRound = raw.match(/(\d+(?:\.\d+)?)\s*\*\s*8/i);
@@ -448,10 +574,10 @@ const scanEmbeddedExpenseLabels = (matrix, startR, endR) => {
         }
       }
 
-      const petrol = raw.match(/\bpetrol\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
+      const petrol = raw.match(/\bpetrol\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
       if (petrol) out.petrolTravel = Math.max(out.petrolTravel, parseMoney(petrol[1]));
 
-      const total = raw.match(/^total\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
+      const total = raw.match(/^total\s*[-–:\s]+([\d,]+(?:\.\d+)?)/i);
       if (total) out.dayTotal = Math.max(out.dayTotal, parseMoney(total[1]));
 
       const daAmt = raw.match(/\bda\s*[-–:]\s*([\d,]+(?:\.\d+)?)/i);
@@ -588,6 +714,18 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       const cabRow = findAmountInRow(row, isCabLabel);
       if (cabRow > 0) travel += cabRow;
 
+      const busRow = findAmountInRow(row, isBusTrainLabel);
+      if (busRow > 0) travel += busRow;
+
+      const autoRow = findAmountInRow(row, isAutoLabel);
+      if (autoRow > 0) localConveyance = Math.max(localConveyance, autoRow);
+
+      const parkRow = findAmountInRow(row, isParkingLabel);
+      if (parkRow > 0) localConveyance = Math.max(localConveyance, parkRow);
+
+      const combinedRow = findAmountInRow(row, isTicketsLocalCombinedLabel);
+      if (combinedRow > 0) travel += combinedRow;
+
       const a = findAmountInRow(row, isAccLabel);
       if (a > 0) accommodation = a;
 
@@ -630,6 +768,7 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       petrolFromLabel = true;
     }
     if (embedded.dayTotal > 0) dayTotal = Math.max(dayTotal, embedded.dayTotal);
+    if (embedded.accommodation > 0) accommodation = Math.max(accommodation, embedded.accommodation);
     if (embedded.kmTraveled > 0 && !kmTraveled) {
       kmTraveled = embedded.kmTraveled;
       kmLegs = embedded.kmLegs?.length ? embedded.kmLegs : [embedded.kmTraveled];
@@ -654,6 +793,9 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       localConveyance = Math.max(localConveyance, textFallback.localConveyance);
     }
     if (textFallback.dayTotal > 0) dayTotal = Math.max(dayTotal, textFallback.dayTotal);
+    if (textFallback.accommodation > 0) {
+      accommodation = Math.max(accommodation, textFallback.accommodation);
+    }
 
     const isRoundTrip =
       embedded.isRoundTrip ||
@@ -778,7 +920,7 @@ const parseMapLegs = (matrix) => {
   return legs;
 };
 
-export const parseVoucherSheet = (matrix, sheetName) => {
+export const parseVoucherSheet = (matrix, sheetName, options = {}) => {
   if (!matrix?.length || !looksLikeVoucher(matrix)) return null;
 
   const requestedBy = findCellInHeader(matrix, 'requested by');
@@ -797,7 +939,8 @@ export const parseVoucherSheet = (matrix, sheetName) => {
   const employeeNo = employeeNoHit ? valueAfterLabel(employeeNoHit) : '';
 
   const amtOpts = { employeeNo };
-  const dateContext = inferExpensePeriod(matrix, sheetName);
+  const dateContext = inferExpensePeriod(matrix, sheetName, options.workbookTitle);
+  dateContext.dateOrder = detectDateOrder(matrix, dateContext);
   const dateBlocks = parseDateWiseBlocks(matrix, dateContext);
   const petrolDays = dateBlocks.filter((b) => b.isPetrolDay);
   const busDays = dateBlocks.filter((b) => !b.isPetrolDay);

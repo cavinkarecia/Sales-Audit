@@ -575,7 +575,8 @@ app.post('/api/expense/sync', async (req, res) => {
   const url = String(req.body?.url || req.body?.id || '').trim();
   if (!url) return res.status(400).json({ error: 'Missing spreadsheet url' });
   try {
-    const result = await syncExpenseWorkbook(url, listWorkbookTabs);
+    const workbookTitle = String(req.body?.workbookTitle || req.body?.workbookName || '').trim();
+    const result = await syncExpenseWorkbook(url, listWorkbookTabs, { workbookTitle });
     res.json({ ...result, build: readBuildId() });
   } catch (err) {
     res.status(502).json({ error: String(err?.message || err) });

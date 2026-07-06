@@ -46,7 +46,7 @@ const runPool = async (items, worker, concurrency = 6) => {
  * Server-side sync: list all tabs → download each tab CSV → parse every voucher.
  * Avoids browser timeouts when workbook has 30+ auditor sheets.
  */
-export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs) => {
+export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs, options = {}) => {
   const spreadsheetId = extractSpreadsheetId(urlOrId);
   if (!spreadsheetId) {
     throw new Error('Invalid Google Sheets URL');
@@ -78,7 +78,7 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs) => {
 
     loadedTabs++;
     matricesBySheet[sheetName] = matrix;
-    const parsed = parseVoucherSheet(matrix, sheetName);
+    const parsed = parseVoucherSheet(matrix, sheetName, { workbookTitle: options.workbookTitle });
 
     if (parsed) {
       vouchers.push(parsed);
@@ -90,6 +90,9 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs) => {
         status: 'loaded',
         dateRows: parsed.dateBlocks.length,
         declaredTotal: parsed.declaredTotal,
+        dateWiseGrand: parsed.dateWiseGrandSum,
+        dateWiseFuel: parsed.dateWisePetrolSum,
+        dateWiseTicketsLocal: parsed.dateWiseTicketsSum,
         reason: `${parsed.dateBlocks.length} date row(s) · ${parsed.voucherMode}`,
       });
     } else {
