@@ -1,5 +1,5 @@
 import XLSX from 'xlsx';
-import { parseVoucherSheet } from '../src/utils/expenseVoucherParser.js';
+import { parseVoucherSheet, inferWorkbookPeriod } from '../src/utils/expenseVoucherParser.js';
 import { extractSpreadsheetId } from '../src/utils/spreadsheetUrl.js';
 import { auditAllVouchers } from '../src/utils/expenseDateAudit.js';
 
@@ -64,6 +64,15 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs, options = {
   const sheetSummary = [];
   let loadedTabs = 0;
 
+  const workbookTitle = options.workbookTitle || 'April Bills';
+  const sheetEntries = tabResults
+    .filter(({ matrix }) => matrix?.length)
+    .map(({ tab, matrix }, i) => ({
+      matrix,
+      sheetName: sanitizeSheetName(tab.name, i),
+    }));
+  const workbookPeriod = inferWorkbookPeriod(sheetEntries, workbookTitle);
+
   tabResults.forEach(({ tab, matrix, error }, i) => {
     const sheetName = sanitizeSheetName(tab.name, i);
     if (!matrix?.length) {
@@ -78,7 +87,7 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs, options = {
 
     loadedTabs++;
     matricesBySheet[sheetName] = matrix;
-    const parsed = parseVoucherSheet(matrix, sheetName, { workbookTitle: options.workbookTitle });
+    const parsed = parseVoucherSheet(matrix, sheetName, { workbookTitle, workbookPeriod });
 
     if (parsed) {
       vouchers.push(parsed);

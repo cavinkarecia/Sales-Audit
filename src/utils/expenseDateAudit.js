@@ -18,6 +18,14 @@ export const validateDateBlock = (block) => {
   const isPetrol = block.isPetrolDay || block.splitType === 'petrol' || isKmPetrol;
   const isBus = block.hasBusTrainHint || block.splitType === 'bus_train';
 
+  if (block.splitType === 'da' || block.isDaOnly) {
+    ok.push({
+      code: 'DA_ONLY',
+      message: `${block.date}: DA only — ₹0 (update sheet when DA amount is added)`,
+    });
+    return { issues, ok, status: 'ok' };
+  }
+
   if (grand <= 0 && tickets <= 0 && petrolAmt <= 0 && stay <= 0) {
     issues.push({ code: 'EMPTY_DAY', message: `${block.date}: No amounts found` });
     return { issues, ok, status: 'flag' };

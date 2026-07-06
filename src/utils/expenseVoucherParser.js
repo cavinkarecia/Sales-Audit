@@ -192,6 +192,41 @@ const inferExpensePeriod = (matrix, sheetName, workbookTitle = '') => {
   return { year, month };
 };
 
+/** Merge month/year across every auditor tab (April workbook → all sheets use April). */
+export const inferWorkbookPeriod = (sheetEntries = [], workbookTitle = '') => {
+  const monthVotes = {};
+  let year = new Date().getFullYear();
+
+  for (const { matrix, sheetName } of sheetEntries) {
+    const p = inferExpensePeriod(matrix, sheetName, workbookTitle);
+    if (p.month != null) {
+      monthVotes[p.month] = (monthVotes[p.month] || 0) + 1;
+    }
+    if (p.year) year = p.year;
+  }
+
+  const ranked = Object.entries(monthVotes).sort((a, b) => b[1] - a[1]);
+  const month = ranked.length ? parseInt(ranked[0][0], 10) : null;
+
+  if (month == null) {
+    const fallback = inferExpensePeriod([], workbookTitle, workbookTitle);
+    return { year: fallback.year || year, month: fallback.month };
+  }
+
+  return { year, month };
+};
+
+const buildDateContext = (matrix, sheetName, options = {}) => {
+  const sheetPeriod = inferExpensePeriod(matrix, sheetName, options.workbookTitle);
+  const workbookPeriod = options.workbookPeriod || {};
+  const dateContext = {
+    year: sheetPeriod.year ?? workbookPeriod.year ?? new Date().getFullYear(),
+    month: sheetPeriod.month ?? workbookPeriod.month ?? null,
+  };
+  dateContext.dateOrder = detectDateOrder(matrix, dateContext);
+  return dateContext;
+};
+
 /** Detect DD/MM vs MM/DD from Activity Date and date-column patterns (April workbook). */
 const detectDateOrder = (matrix, period) => {
   const blob = (matrix || [])
@@ -222,7 +257,7 @@ const detectDateOrder = (matrix, period) => {
 };
 
 const parseSlashDate = (s, dateContext = {}) => {
-  const parts = s.split(/[\/\-.]/);
+  const parts = String(s).trim().split(/[\/\-.]/);
   if (parts.length !== 3) return null;
   const a = parseInt(parts[0], 10);
   const b = parseInt(parts[1], 10);
@@ -230,9 +265,24 @@ const parseSlashDate = (s, dateContext = {}) => {
   if (year < 100) year += 2000;
   if (!Number.isFinite(a) || !Number.isFinite(b) || !Number.isFinite(year)) return null;
 
+  const sheetMonth = dateContext.month;
+  if (sheetMonth != null) {
+    const monthNum = sheetMonth + 1;
+    // Workbook month anchor: 04-01-2026 and 01-04-2026 both → 1 April in an April workbook
+    if (a === monthNum && b >= 1 && b <= 31) {
+      return new Date(year, sheetMonth, b);
+    }
+    if (b === monthNum && a >= 1 && a <= 31) {
+      return new Date(year, sheetMonth, a);
+    }
+  }
+
+  if (a > 12 && b >= 1 && b <= 12) return new Date(year, b - 1, a);
+  if (b > 12 && a >= 1 && a <= 12) return new Date(year, a - 1, b);
+
+  const order = dateContext.dateOrder || 'dmy';
   let day;
   let month;
-  const order = dateContext.dateOrder || 'dmy';
   if (order === 'mdy') {
     month = a - 1;
     day = b;
@@ -283,20 +333,9 @@ const parseDateCell = (cell, dateContext = {}) => {
     if (y >= 2020 && y <= 2035) return d;
   }
 
-  if (/^\d{1,2}[/-]\d{1,2}[/-]\d{2,4}$/.test(s)) {
+  if (/^\d{1,2}[\/\-.]\d{1,2}[\/\-.]\d{2,4}$/.test(s)) {
     const parsed = parseSlashDate(s, dateContext);
     if (parsed) return parsed;
-    const parts = s.split(/[/-]/);
-    const p0 = parseInt(parts[0], 10);
-    const p1 = parseInt(parts[1], 10);
-    let year = parseInt(parts[2], 10);
-    if (year < 100) year += 2000;
-    if (p0 >= 1 && p0 <= 31 && p1 >= 1 && p1 <= 12) {
-      return new Date(year, p1 - 1, p0);
-    }
-    const parsedExcel = parseExcelDate(s);
-    if (parsedExcel) return parsedExcel;
-  }
 
   return null;
 };
@@ -778,6 +817,8 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       .slice(r + 1, endR)
       .map((row) => (row || []).map((c) => String(c ?? '')).join(' '))
       .join(' ');
+
+    let isDaOnly = embedded.isDaOnly || /only\s*da\b/i.test(blockText);
     if (!kmTraveled && textFallback.kmTraveled > 0) {
       kmTraveled = textFallback.kmTraveled;
       kmLegs = textFallback.kmLegs;
@@ -832,7 +873,7 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
         ? 'petrol'
         : ticketsSubtotal > 0 && petrolDayAmount > 0
           ? 'mixed'
-          : embedded.isDaOnly && ticketsSubtotal === 0 && petrolDayAmount === 0
+          : isDaOnly && ticketsSubtotal === 0 && petrolDayAmount === 0
             ? 'da'
             : ticketsSubtotal > 0
               ? 'bus_train'
@@ -855,7 +896,7 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
       isKmPetrolDay,
     });
 
-    if (ticketComparable > 0 || accommodation > 0 || grandTotal > 0 || petrolDayAmount > 0) {
+    if (ticketComparable > 0 || accommodation > 0 || grandTotal > 0 || petrolDayAmount > 0 || isDaOnly) {
       blocks.push({
         date: toDateStr(date),
         dateKey: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
@@ -887,11 +928,14 @@ const parseDateWiseBlocks = (matrix, dateContext = {}) => {
             ? `Sheet: KM TRAVELED ${kmRaw || kmTraveled} → TRAVEL RS ${travelRsRaw || petrolDayAmount}`
             : splitType === 'petrol'
               ? 'Sheet row: Petrol (counts toward Fuel header)'
+              : splitType === 'da'
+                ? 'DA only — ₹0 (add DA amount in sheet when available)'
               : splitType === 'bus_train'
                 ? 'Sheet rows: Travel + Local conveyance'
                 : '',
         isPetrolDay,
         isKmPetrolDay,
+        isDaOnly,
         hasBusTrainHint,
       });
     }
@@ -939,8 +983,7 @@ export const parseVoucherSheet = (matrix, sheetName, options = {}) => {
   const employeeNo = employeeNoHit ? valueAfterLabel(employeeNoHit) : '';
 
   const amtOpts = { employeeNo };
-  const dateContext = inferExpensePeriod(matrix, sheetName, options.workbookTitle);
-  dateContext.dateOrder = detectDateOrder(matrix, dateContext);
+  const dateContext = buildDateContext(matrix, sheetName, options);
   const dateBlocks = parseDateWiseBlocks(matrix, dateContext);
   const petrolDays = dateBlocks.filter((b) => b.isPetrolDay);
   const busDays = dateBlocks.filter((b) => !b.isPetrolDay);

@@ -21,12 +21,14 @@ export const analyzeExpenseDay = (day) => {
 
   const isPetrol =
     day.isPetrolDay || day.isKmPetrolDay || day.splitType === 'petrol' || day.splitType === 'petrol_km';
+  const isDa = day.splitType === 'da' || day.isDaOnly;
   const isBus =
-    day.hasBusTrainHint ||
-    day.splitType === 'bus_train' ||
-    day.splitType === 'mixed' ||
-    travel > 0 ||
-    local > 0;
+    !isDa &&
+    (day.hasBusTrainHint ||
+      day.splitType === 'bus_train' ||
+      day.splitType === 'mixed' ||
+      travel > 0 ||
+      local > 0);
 
   let petrolCheck = '—';
   let petrolExpected = petrolEntered;
@@ -57,6 +59,9 @@ export const analyzeExpenseDay = (day) => {
   if (isPetrol && !isBus) {
     rowExpected = petrolEntered + stay;
     rowCheck = stay > 0 ? 'Petrol + Stay' : 'Petrol only';
+  } else if (isDa) {
+    rowExpected = 0;
+    rowCheck = 'DA only — ₹0';
   } else if (isBus) {
     rowExpected = travel + local + stay + (petrolEntered > 0 ? petrolEntered : 0);
     rowCheck =
@@ -75,7 +80,9 @@ export const analyzeExpenseDay = (day) => {
     sheetGrand <= 0 || Math.abs(sheetGrand - rowExpected) <= 5 || Math.abs(sheetGrand - daySplitTotal) <= 5;
   const splitMatch = Math.abs(daySplitTotal - rowExpected) <= 5 || (!isBus && isPetrol);
 
-  const ok = petrolMatch && grandMatch && (splitMatch || daySplitTotal > 0);
+  const ok = isDa
+    ? true
+    : petrolMatch && grandMatch && (splitMatch || daySplitTotal > 0);
 
   return {
     travel,
@@ -91,6 +98,7 @@ export const analyzeExpenseDay = (day) => {
     rowExpected,
     grandMatch,
     ok,
+    isDa,
     isBus,
     isPetrol,
   };
