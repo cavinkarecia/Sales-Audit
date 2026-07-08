@@ -14,6 +14,7 @@ const SheetLinkUpload = ({
   syncLabel = 'Fetch all auditor sheets',
   loadingLabel = 'Fetching all sheets…',
   refreshTitle = 'Refresh data from the same link',
+  hideActions = false,
 }) => {
   const canRefresh = Boolean(url?.trim()) && !isLoading;
   const handleRefresh = () => {
@@ -54,30 +55,32 @@ const SheetLinkUpload = ({
           {loadedCount} loaded{totalSheets > 0 ? ` / ${totalSheets} tabs` : ''}
         </span>
       )}
-      <button
-        type="button"
-        onClick={handleRefresh}
-        disabled={!canRefresh}
-        title={refreshTitle}
-        aria-label={refreshTitle}
-        style={{
-          marginLeft: 'auto',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 36,
-          height: 36,
-          borderRadius: 8,
-          border: '1px solid var(--border-main)',
-          background: canRefresh ? 'var(--bg-secondary)' : 'transparent',
-          color: canRefresh ? 'var(--accent-primary)' : 'var(--text-secondary)',
-          cursor: canRefresh ? 'pointer' : 'not-allowed',
-          opacity: canRefresh ? 1 : 0.45,
-        }}
-      >
-        {isLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
-      </button>
+      {!hideActions && (
+        <button
+          type="button"
+          onClick={handleRefresh}
+          disabled={!canRefresh}
+          title={refreshTitle}
+          aria-label={refreshTitle}
+          style={{
+            marginLeft: 'auto',
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 36,
+            height: 36,
+            borderRadius: 8,
+            border: '1px solid var(--border-main)',
+            background: canRefresh ? 'var(--bg-secondary)' : 'transparent',
+            color: canRefresh ? 'var(--accent-primary)' : 'var(--text-secondary)',
+            cursor: canRefresh ? 'pointer' : 'not-allowed',
+            opacity: canRefresh ? 1 : 0.45,
+          }}
+        >
+          {isLoading ? <Loader2 size={16} className="spin" /> : <RefreshCw size={16} />}
+        </button>
+      )}
     </div>
     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
       <input
@@ -96,28 +99,30 @@ const SheetLinkUpload = ({
           outline: 'none',
         }}
       />
-      <button
-        type="button"
-        onClick={onSync}
-        disabled={isLoading || !url?.trim()}
-        style={{
-          background: 'var(--accent-primary)',
-          color: '#fff',
-          border: 'none',
-          padding: '10px 18px',
-          borderRadius: '8px',
-          cursor: isLoading || !url?.trim() ? 'not-allowed' : 'pointer',
-          opacity: isLoading || !url?.trim() ? 0.6 : 1,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-          fontSize: '0.8rem',
-          fontWeight: 600,
-        }}
-      >
-        {isLoading ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
-        {isLoading ? loadingLabel : syncLabel}
-      </button>
+      {!hideActions && (
+        <button
+          type="button"
+          onClick={onSync}
+          disabled={isLoading || !url?.trim()}
+          style={{
+            background: 'var(--accent-primary)',
+            color: '#fff',
+            border: 'none',
+            padding: '10px 18px',
+            borderRadius: '8px',
+            cursor: isLoading || !url?.trim() ? 'not-allowed' : 'pointer',
+            opacity: isLoading || !url?.trim() ? 0.6 : 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            fontSize: '0.8rem',
+            fontWeight: 600,
+          }}
+        >
+          {isLoading ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
+          {isLoading ? loadingLabel : syncLabel}
+        </button>
+      )}
     </div>
   </div>
   );

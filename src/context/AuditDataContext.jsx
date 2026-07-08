@@ -5,6 +5,11 @@ import {
 } from '../utils/expenseVoucherParser.js';
 import { fetchAllSheets } from '../utils/sheetFetcher.js';
 import { enrichAllVouchersWithImages } from '../utils/expenseImageAnalysis.js';
+import {
+  mergeExpenseVoucherParts,
+  mergeSheetSummaries,
+  mergeDateAuditSummaries,
+} from '../utils/expenseMerge.js';
 import { normalizeAttendanceRecords } from '../utils/attendanceProcessor.js';
 import {
   AUDIT_STORAGE_KEYS,
@@ -121,15 +126,12 @@ export const AuditDataProvider = ({ children }) => {
     }
 
     if (expenseSpreadsheetUrl && expenseSpreadsheetUrl.trim()) {
-      setHardRefreshStatus({
-        running: true,
-        step: 'Refreshing Expense from live link…',
-        error: '',
-      });
-      try {
-        clearSectionCache('expense');
-        const r = await fetchAllExpenseVouchers(expenseSpreadsheetUrl.trim());
-        setExpenseSheetSummary(r.sheetSummary || []);
+      const mode = localStorage.getItem('sales_audit_expense_upload_mode') || 'single';
+      const part2Url = (localStorage.getItem('sales_audit_expense_v5_url_part2') || '').trim();
+
+      const fetchExpensePart = async (url, label) => {
+        setHardRefreshStatus({ running: true, step: `Refreshing Expense ${label}…`, error: '' });
+        const r = await fetchAllExpenseVouchers(url);
         const enriched = await enrichAllVouchersWithImages(
           r.vouchers,
           r.tabs,
@@ -138,20 +140,47 @@ export const AuditDataProvider = ({ children }) => {
           (n, total) => {
             setHardRefreshStatus({
               running: true,
-              step: `Analyzing bill images (${n}/${total})…`,
+              step: `Expense ${label} — bill images (${n}/${total})…`,
               error: '',
             });
           },
         );
-        setExpenseVouchers(enriched);
-        if (r.dateAudit) {
-          try {
-            localStorage.setItem(
-              AUDIT_STORAGE_KEYS.expenseDateAudit,
-              JSON.stringify(r.dateAudit),
-            );
-          } catch {
-            /* ignore */
+        return { r, enriched };
+      };
+
+      try {
+        clearSectionCache('expense');
+        if (mode === 'sections' && part2Url) {
+          const p1 = await fetchExpensePart(expenseSpreadsheetUrl.trim(), 'Part 1 (days 1–15)');
+          const p2 = await fetchExpensePart(part2Url, 'Part 2 (days 16–end)');
+          setExpenseSheetSummary(
+            mergeSheetSummaries(p1.r.sheetSummary || [], p2.r.sheetSummary || []),
+          );
+          const mergedAudit = mergeDateAuditSummaries(p1.r.dateAudit, p2.r.dateAudit);
+          setExpenseVouchers(mergeExpenseVoucherParts(p1.enriched, p2.enriched));
+          if (mergedAudit) {
+            try {
+              localStorage.setItem(
+                AUDIT_STORAGE_KEYS.expenseDateAudit,
+                JSON.stringify(mergedAudit),
+              );
+            } catch {
+              /* ignore */
+            }
+          }
+        } else {
+          const p1 = await fetchExpensePart(expenseSpreadsheetUrl.trim(), 'from live link');
+          setExpenseSheetSummary(p1.r.sheetSummary || []);
+          setExpenseVouchers(p1.enriched);
+          if (p1.r.dateAudit) {
+            try {
+              localStorage.setItem(
+                AUDIT_STORAGE_KEYS.expenseDateAudit,
+                JSON.stringify(p1.r.dateAudit),
+              );
+            } catch {
+              /* ignore */
+            }
           }
         }
       } catch (e) {

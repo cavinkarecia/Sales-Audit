@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Bot, ChevronDown, ChevronUp, Loader2, Users } from 'lucide-react';
+import { ArrowLeft, Bot, ChevronDown, ChevronUp, Link2, Loader2, Users } from 'lucide-react';
 import { useAuditData } from '../context/AuditDataContext';
 import SheetLinkUpload from './SheetLinkUpload';
 import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
@@ -27,6 +27,14 @@ import {
   reportMonthsMatch,
 } from '../utils/reportMonth';
 import { AUDIT_STORAGE_KEYS, clearSectionCache } from '../utils/auditStorage';
+import {
+  mergeExpenseVoucherParts,
+  mergeSheetSummaries,
+  mergeDateAuditSummaries,
+} from '../utils/expenseMerge';
+
+const EXPENSE_UPLOAD_MODE_KEY = 'sales_audit_expense_upload_mode';
+const EXPENSE_PART2_URL_KEY = 'sales_audit_expense_v5_url_part2';
 
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
@@ -533,6 +541,12 @@ const ExpenseCheck2Page = () => {
 
   const [isFetching, setIsFetching] = useState(false);
   const [syncError, setSyncError] = useState(null);
+  const [uploadMode, setUploadMode] = useState(
+    () => localStorage.getItem(EXPENSE_UPLOAD_MODE_KEY) || 'single',
+  );
+  const [expensePart2Url, setExpensePart2Url] = useState(
+    () => localStorage.getItem(EXPENSE_PART2_URL_KEY) || '',
+  );
   const [filter, setFilter] = useState('all');
   const [selectedAuditorIds, setSelectedAuditorIds] = useState(() => new Set());
   const [auditorFilterOpen, setAuditorFilterOpen] = useState(false);
@@ -566,6 +580,75 @@ const ExpenseCheck2Page = () => {
       .then((h) => setLiveBuild(h.build || ''))
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    localStorage.setItem(EXPENSE_UPLOAD_MODE_KEY, uploadMode);
+  }, [uploadMode]);
+
+  useEffect(() => {
+    localStorage.setItem(EXPENSE_PART2_URL_KEY, expensePart2Url);
+  }, [expensePart2Url]);
+
+  const fetchAndEnrichPart = async (url, partLabel) => {
+    setSyncStatus(`${partLabel}: listing tabs and downloading every auditor sheet…`);
+    const result = await fetchAllExpenseVouchers(url);
+    const enriched = await enrichAllVouchersWithImages(
+      result.vouchers,
+      result.tabs,
+      result.spreadsheetId,
+      result.matricesBySheet,
+      (n, total, name) => {
+        setSyncStatus(`${partLabel}: analyzing bill images (${n}/${total}): ${name}…`);
+      },
+    );
+    return { result, enriched };
+  };
+
+  const handleSyncCombined = async () => {
+    const url1 = expenseSpreadsheetUrl.trim();
+    const url2 = expensePart2Url.trim();
+    if (!url1 || !url2) {
+      alert('Paste both the Part 1 and Part 2 Google Sheet links before fetching.');
+      return;
+    }
+    setIsFetching(true);
+    setSyncError(null);
+    setAiReport('');
+    clearSectionCache('expense');
+    setExpenseVouchers([]);
+    setExpenseSheetSummary([]);
+    setDateAuditSummary(null);
+    try {
+      const p1 = await fetchAndEnrichPart(url1, 'Part 1 (days 1–15)');
+      const p2 = await fetchAndEnrichPart(url2, 'Part 2 (days 16–end)');
+
+      const merged = mergeExpenseVoucherParts(p1.enriched, p2.enriched);
+      const mergedSummary = mergeSheetSummaries(
+        p1.result.sheetSummary || [],
+        p2.result.sheetSummary || [],
+      );
+      const mergedAudit = mergeDateAuditSummaries(p1.result.dateAudit, p2.result.dateAudit);
+
+      setExpenseSheetSummary(mergedSummary);
+      setDateAuditSummary(mergedAudit);
+      setExpenseVouchers(merged);
+      setSyncError(p1.result.syncError || p2.result.syncError || null);
+      if (mergedAudit) {
+        localStorage.setItem(AUDIT_STORAGE_KEYS.expenseDateAudit, JSON.stringify(mergedAudit));
+      }
+      setSyncStatus(
+        `Done — ${merged.length} auditor(s), ${mergedAudit?.summary?.totalDates ?? 0} dates, ${mergedAudit?.summary?.flaggedDates ?? 0} date flag(s).`,
+      );
+    } catch (err) {
+      console.error(err);
+      setSyncError(err.message || 'Sync failed');
+      setExpenseVouchers([]);
+      setExpenseSheetSummary([]);
+      setSyncStatus('');
+    } finally {
+      setIsFetching(false);
+    }
+  };
 
   const handleSync = async () => {
     if (!expenseSpreadsheetUrl.trim()) return;
@@ -752,21 +835,124 @@ const ExpenseCheck2Page = () => {
         </p>
       )}
 
-      <SheetLinkUpload
-        title="Upload expense claim workbook"
-        description="Paste one Google Sheet link — we fetch ALL auditor tabs in that workbook (not only the open tab). Then we read bus/train ticket images and verify totals."
-        url={expenseSpreadsheetUrl}
-        onUrlChange={(v) => {
-          setExpenseSpreadsheetUrl(v);
-          setSyncError(null);
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          marginBottom: '1rem',
         }}
-        onSync={handleSync}
-        isLoading={isFetching}
-        loadedCount={expenseSheetSummary.filter((s) => s.status === 'loaded').length}
-        totalSheets={expenseSheetSummary.length}
-        syncLabel="Fetch all auditor sheets"
-        loadingLabel="Fetching all tabs…"
-      />
+      >
+        <div
+          style={{
+            display: 'inline-flex',
+            padding: 4,
+            borderRadius: 10,
+            border: '1px solid var(--border-main)',
+            background: 'var(--bg-secondary)',
+            gap: 4,
+          }}
+        >
+          {[
+            { id: 'single', label: 'One time upload' },
+            { id: 'sections', label: 'Section wise upload' },
+          ].map((opt) => {
+            const active = uploadMode === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setUploadMode(opt.id)}
+                disabled={isFetching}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: 7,
+                  border: 'none',
+                  background: active ? 'var(--accent-primary)' : 'transparent',
+                  color: active ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '0.8rem',
+                  fontWeight: 700,
+                  cursor: isFetching ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {uploadMode === 'single' ? (
+        <SheetLinkUpload
+          title="Upload expense claim workbook"
+          description="Paste one Google Sheet link — we fetch ALL auditor tabs in that workbook (not only the open tab). Then we read bus/train ticket images and verify totals."
+          url={expenseSpreadsheetUrl}
+          onUrlChange={(v) => {
+            setExpenseSpreadsheetUrl(v);
+            setSyncError(null);
+          }}
+          onSync={handleSync}
+          isLoading={isFetching}
+          loadedCount={expenseSheetSummary.filter((s) => s.status === 'loaded').length}
+          totalSheets={expenseSheetSummary.length}
+          syncLabel="Fetch all auditor sheets"
+          loadingLabel="Fetching all tabs…"
+        />
+      ) : (
+        <>
+          <SheetLinkUpload
+            hideActions
+            title="Upload expense claim workbook — Part 1"
+            description="Days 1–15. Paste the Google Sheet link for the first half of the month."
+            url={expenseSpreadsheetUrl}
+            onUrlChange={(v) => {
+              setExpenseSpreadsheetUrl(v);
+              setSyncError(null);
+            }}
+            isLoading={isFetching}
+            loadedCount={expenseSheetSummary.filter((s) => s.status === 'loaded').length}
+            totalSheets={expenseSheetSummary.length}
+          />
+          <SheetLinkUpload
+            hideActions
+            title="Upload expense claim workbook — Part 2"
+            description="Days 16–30/31. Paste the Google Sheet link for the second half of the same month."
+            url={expensePart2Url}
+            onUrlChange={(v) => {
+              setExpensePart2Url(v);
+              setSyncError(null);
+            }}
+            isLoading={isFetching}
+          />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+            <button
+              type="button"
+              onClick={handleSyncCombined}
+              disabled={isFetching || !expenseSpreadsheetUrl.trim() || !expensePart2Url.trim()}
+              style={{
+                background: 'var(--accent-primary)',
+                color: '#fff',
+                border: 'none',
+                padding: '11px 22px',
+                borderRadius: '8px',
+                cursor:
+                  isFetching || !expenseSpreadsheetUrl.trim() || !expensePart2Url.trim()
+                    ? 'not-allowed'
+                    : 'pointer',
+                opacity:
+                  isFetching || !expenseSpreadsheetUrl.trim() || !expensePart2Url.trim() ? 0.6 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontSize: '0.85rem',
+                fontWeight: 700,
+              }}
+            >
+              {isFetching ? <Loader2 size={16} className="spin" /> : <Link2 size={16} />}
+              {isFetching ? 'Fetching both parts…' : 'Fetch all auditor sheets (Part 1 + Part 2)'}
+            </button>
+          </div>
+        </>
+      )}
 
       {dateAuditSummary?.summary && (
         <div className="glass-card" style={{ padding: '1rem', marginBottom: '1rem', fontSize: '0.8rem' }}>
