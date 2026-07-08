@@ -601,7 +601,7 @@ const ExpenseCheck2Page = () => {
         localStorage.setItem('sales_audit_expense_v5_date_audit', JSON.stringify(result.dateAudit));
       }
       setSyncStatus(
-        `Done — ${enriched.length} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates, ${result.dateAudit?.summary?.flaggedDates ?? 0} date flag(s). Build: ${result.build || liveBuild || 'live'}`,
+        `Done — ${enriched.length} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates, ${result.dateAudit?.summary?.flaggedDates ?? 0} date flag(s).`,
       );
     } catch (err) {
       console.error(err);

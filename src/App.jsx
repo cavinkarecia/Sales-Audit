@@ -76,7 +76,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v52-global-hard-refresh-instant-rebuild
+            build: v53-expense-done-status-no-build
           </span>
           <HardRefreshButton />
         </div>
