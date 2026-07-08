@@ -499,6 +499,12 @@ const AttendanceDashboard = () => {
       });
   }, [processedData, timeFilter]);
 
+  const autoSelectedDateKeyRef = React.useRef('');
+  const allChooseDateSignature = useMemo(
+    () => allChooseDateOptions.map((d) => d.key).join('\0'),
+    [allChooseDateOptions],
+  );
+
   React.useEffect(() => {
     const meta = loadAttendanceMeta();
     if (meta?.uploadBatch && selectedDayKeys.length > 0) {
@@ -509,7 +515,11 @@ const AttendanceDashboard = () => {
         return;
       }
     }
-    if (selectedDayKeys.length > 0 || allChooseDateOptions.length === 0) return;
+    if (allChooseDateOptions.length === 0) return;
+    // Auto-select all dates only once per distinct upload — never re-fill after
+    // the user explicitly clicks "Unselect all" (which leaves the list empty).
+    if (autoSelectedDateKeyRef.current === allChooseDateSignature) return;
+    autoSelectedDateKeyRef.current = allChooseDateSignature;
     const fromMeta = meta?.chooseDateKeys?.filter((k) =>
       allChooseDateOptions.some((d) => d.key === k),
     );
@@ -518,7 +528,7 @@ const AttendanceDashboard = () => {
       return;
     }
     setSelectedDayKeys(allChooseDateOptions.map((d) => d.key));
-  }, [allChooseDateOptions, selectedDayKeys.length]);
+  }, [allChooseDateOptions, allChooseDateSignature, selectedDayKeys]);
 
   React.useEffect(() => {
     if (selectedWeekdays.length === 0) return;

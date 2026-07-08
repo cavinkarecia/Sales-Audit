@@ -28,7 +28,7 @@ function App() {
             opacity: 0.7,
           }}
         >
-          build: v48-refresh-and-unselect-filters
+          build: v49-fix-unselect-all
         </span>
       </nav>
       <Routes>
