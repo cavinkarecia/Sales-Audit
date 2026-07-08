@@ -1,7 +1,7 @@
 import { ATTENDANCE_META_KEY } from './attendanceProcessor.js';
 
 /** Bump when stored browser data must be reset (fresh start, no old uploads). */
-export const STORAGE_SCHEMA_VERSION = '34';
+export const STORAGE_SCHEMA_VERSION = '35';
 
 export const STORAGE_VERSION_KEY = 'sales_audit_storage_version';
 
@@ -60,6 +60,65 @@ export const purgeAllAuditData = () => {
 
 export const purgeLegacyAuditKeys = () => {
   LEGACY_KEYS.forEach((key) => {
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      /* ignore */
+    }
+  });
+};
+
+/** Per-section refresh flags consumed on next page load to re-fetch live links. */
+export const REFRESH_FLAGS = {
+  pjp: 'sales_audit_refresh_pjp',
+  expense: 'sales_audit_refresh_expense',
+};
+
+/**
+ * Global Hard Refresh: flag live-link sections (PJP, Expense) that have a saved
+ * URL for a full re-fetch, drop derived caches, then reload so every dashboard
+ * rebuilds from scratch using only the currently uploaded datasets.
+ */
+export const requestHardRefresh = () => {
+  try {
+    const pjpUrl = localStorage.getItem(AUDIT_STORAGE_KEYS.pjpUrl);
+    if (pjpUrl && pjpUrl.trim()) localStorage.setItem(REFRESH_FLAGS.pjp, '1');
+
+    const expenseUrl = localStorage.getItem(AUDIT_STORAGE_KEYS.expenseUrl);
+    if (expenseUrl && expenseUrl.trim()) localStorage.setItem(REFRESH_FLAGS.expense, '1');
+
+    // Derived/computed caches are rebuilt after re-fetch.
+    localStorage.removeItem(AUDIT_STORAGE_KEYS.expenseDateAudit);
+  } catch {
+    /* ignore */
+  }
+};
+
+/** Read-and-clear a one-shot refresh flag. */
+export const consumeRefreshFlag = (key) => {
+  try {
+    if (localStorage.getItem(key)) {
+      localStorage.removeItem(key);
+      return true;
+    }
+  } catch {
+    /* ignore */
+  }
+  return false;
+};
+
+/** Clear only one section's cached data + stored state (independent per module). */
+export const clearSectionCache = (section) => {
+  const keysBySection = {
+    attendance: [AUDIT_STORAGE_KEYS.attendance, AUDIT_STORAGE_KEYS.attendanceMeta],
+    pjp: [AUDIT_STORAGE_KEYS.pjp, AUDIT_STORAGE_KEYS.pjpSummary],
+    expense: [
+      AUDIT_STORAGE_KEYS.expenseVouchers,
+      AUDIT_STORAGE_KEYS.expenseSummary,
+      AUDIT_STORAGE_KEYS.expenseDateAudit,
+    ],
+  };
+  (keysBySection[section] || []).forEach((key) => {
     try {
       localStorage.removeItem(key);
     } catch {

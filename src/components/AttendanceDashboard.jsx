@@ -36,6 +36,7 @@ import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats, de
 import { buildTravelLegs, enrichTravelLegsOnline, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
+import { REFRESH_FLAGS, consumeRefreshFlag, clearSectionCache } from '../utils/auditStorage';
 
 const dropdownPanelStyle = {
   position: 'fixed',
@@ -286,6 +287,8 @@ const AttendanceDashboard = () => {
     setIsParsing(true);
     try {
       const data = await parseAttendanceExcel(file);
+      // Independent replace: drop only the Attendance section's cached data + state.
+      clearSectionCache('attendance');
       const uploadBatch = Date.now();
       const tagged = data.map((row) => ({ ...row, _uploadBatch: uploadBatch }));
 
@@ -322,6 +325,8 @@ const AttendanceDashboard = () => {
     setIsFetchingHistory(true);
     setAiAnalysisText('');
     setAllAuditorsInsights('');
+    // Independent replace: drop only the PJP section's cached data + state first.
+    clearSectionCache('pjp');
     try {
       const result = await fetchAllSheets(historyUrl);
       setHistoryData(result.records);
@@ -357,6 +362,17 @@ const AttendanceDashboard = () => {
       setIsFetchingHistory(false);
     }
   };
+
+  // Global Hard Refresh: auto re-fetch PJP from the saved link on load.
+  const didPjpAutoRefresh = React.useRef(false);
+  React.useEffect(() => {
+    if (didPjpAutoRefresh.current) return;
+    didPjpAutoRefresh.current = true;
+    if (consumeRefreshFlag(REFRESH_FLAGS.pjp) && historyUrl?.trim()) {
+      handleHistorySync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleFetchAIInsights = async (auditorName, monthKey, recordsForMonth, stats) => {
     if (recordsForMonth.length === 0) return;

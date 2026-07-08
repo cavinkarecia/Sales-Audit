@@ -4,6 +4,7 @@ import { Map, Receipt } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import AttendanceDashboard from './components/AttendanceDashboard';
 import ExpenseCheck2Page from './components/ExpenseCheck2Page';
+import HardRefreshButton from './components/HardRefreshButton';
 import './App.css';
 
 function App() {
@@ -20,16 +21,25 @@ function App() {
         >
           <Receipt size={16} /> Expense Check
         </NavLink>
-        <span
+        <div
           style={{
             marginLeft: 'auto',
-            fontSize: '0.65rem',
-            color: 'var(--text-secondary)',
-            opacity: 0.7,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
           }}
         >
-          build: v50-filter-toggle-active-state
-        </span>
+          <span
+            style={{
+              fontSize: '0.65rem',
+              color: 'var(--text-secondary)',
+              opacity: 0.7,
+            }}
+          >
+            build: v51-cache-isolation-month-check-hard-refresh
+          </span>
+          <HardRefreshButton />
+        </div>
       </nav>
       <Routes>
         <Route

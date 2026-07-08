@@ -20,6 +20,13 @@ import {
   TOL,
   getAuditorColumnFlags,
 } from '../utils/expenseTotals';
+import {
+  getAttendanceReportMonth,
+  getExpenseReportMonth,
+  formatReportMonth,
+  reportMonthsMatch,
+} from '../utils/reportMonth';
+import { REFRESH_FLAGS, consumeRefreshFlag, clearSectionCache } from '../utils/auditStorage';
 
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
@@ -558,6 +565,8 @@ const ExpenseCheck2Page = () => {
     setIsFetching(true);
     setSyncError(null);
     setAiReport('');
+    // Independent replace: drop only this section's cached data + state first.
+    clearSectionCache('expense');
     setExpenseVouchers([]);
     setExpenseSheetSummary([]);
     setDateAuditSummary(null);
@@ -598,10 +607,38 @@ const ExpenseCheck2Page = () => {
     }
   };
 
+  // Global Hard Refresh: auto re-fetch expense from the saved link on load.
+  const didAutoRefresh = useRef(false);
+  useEffect(() => {
+    if (didAutoRefresh.current) return;
+    didAutoRefresh.current = true;
+    if (consumeRefreshFlag(REFRESH_FLAGS.expense) && expenseSpreadsheetUrl.trim()) {
+      handleSync();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reporting-month guard: Expense validation needs the same month's Attendance.
+  const attendanceMonth = useMemo(
+    () => getAttendanceReportMonth(attendanceRecords),
+    [attendanceRecords],
+  );
+  const expenseMonth = useMemo(() => getExpenseReportMonth(expenseVouchers), [expenseVouchers]);
+  const monthMismatch = useMemo(
+    () =>
+      expenseVouchers.length > 0 &&
+      attendanceRecords.length > 0 &&
+      attendanceMonth &&
+      expenseMonth &&
+      !reportMonthsMatch(attendanceMonth, expenseMonth),
+    [expenseVouchers.length, attendanceRecords.length, attendanceMonth, expenseMonth],
+  );
+
   const verification = useMemo(() => {
     if (!expenseVouchers.length) return null;
+    if (monthMismatch) return null;
     return verifyAllExpenseVouchers(expenseVouchers, attendanceRecords, pjpRecords);
-  }, [expenseVouchers, attendanceRecords, pjpRecords]);
+  }, [expenseVouchers, attendanceRecords, pjpRecords, monthMismatch]);
 
   const auditorOptions = useMemo(() => {
     if (!verification?.results?.length) return [];
@@ -770,7 +807,40 @@ const ExpenseCheck2Page = () => {
         </div>
       )}
 
-      {(!attendanceRecords.length || !pjpRecords.length) && expenseVouchers.length > 0 && (
+      {monthMismatch && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '1rem 1.25rem',
+            marginBottom: '1rem',
+            borderLeft: '4px solid #f85149',
+            background: 'rgba(248,81,73,0.08)',
+            fontSize: '0.85rem',
+          }}
+        >
+          <strong style={{ color: '#f85149' }}>
+            Attendance and Expense months do not match.
+          </strong>
+          <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
+            Expense validation requires the Attendance upload for the same reporting month.
+          </p>
+          <div style={{ margin: '10px 0 0', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span>
+              Current Attendance Month:{' '}
+              <strong style={{ color: '#fff' }}>{formatReportMonth(attendanceMonth) || '—'}</strong>
+            </span>
+            <span>
+              Current Expense Month:{' '}
+              <strong style={{ color: '#fff' }}>{formatReportMonth(expenseMonth) || '—'}</strong>
+            </span>
+          </div>
+          <p style={{ margin: '10px 0 0', color: 'var(--text-secondary)' }}>
+            Please upload matching files before proceeding. Dashboards are paused until the mismatch is resolved.
+          </p>
+        </div>
+      )}
+
+      {!monthMismatch && (!attendanceRecords.length || !pjpRecords.length) && expenseVouchers.length > 0 && (
         <div
           className="glass-card"
           style={{
