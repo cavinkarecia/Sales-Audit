@@ -146,29 +146,17 @@ const FilterDropdown = React.memo(({ label, summary, icon, isOpen, onToggle, onC
   );
 });
 
-const selectAllBtnStyle = {
+const filterToggleBtnStyle = (active) => ({
   flex: 1,
   padding: '6px 10px',
   borderRadius: '6px',
-  border: '1px solid var(--accent-primary)',
-  background: 'rgba(88, 166, 255, 0.12)',
-  color: 'var(--accent-primary)',
+  border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-main)'}`,
+  background: active ? 'rgba(88, 166, 255, 0.12)' : 'transparent',
+  color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
   fontSize: '0.72rem',
   fontWeight: '700',
   cursor: 'pointer',
-};
-
-const unselectAllBtnStyle = {
-  flex: 1,
-  padding: '6px 10px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-main)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: '0.72rem',
-  fontWeight: '700',
-  cursor: 'pointer',
-};
+});
 
 const filterSelectRowStyle = {
   display: 'flex',
@@ -1063,11 +1051,17 @@ const AttendanceDashboard = () => {
             <button
               type="button"
               onClick={() => setSelectedDayKeys(availableDailyDates.map((d) => d.key))}
-              style={selectAllBtnStyle}
+              style={filterToggleBtnStyle(
+                availableDailyDates.length > 0 && selectedDayKeys.length === availableDailyDates.length,
+              )}
             >
               Select all
             </button>
-            <button type="button" onClick={() => setSelectedDayKeys([])} style={unselectAllBtnStyle}>
+            <button
+              type="button"
+              onClick={() => setSelectedDayKeys([])}
+              style={filterToggleBtnStyle(selectedDayKeys.length === 0)}
+            >
               Unselect all
             </button>
           </div>
@@ -1117,11 +1111,15 @@ const AttendanceDashboard = () => {
             <button
               type="button"
               onClick={() => setSelectedWeekdays([...WEEKDAY_OPTIONS])}
-              style={selectAllBtnStyle}
+              style={filterToggleBtnStyle(selectedWeekdays.length === WEEKDAY_OPTIONS.length)}
             >
               Select all
             </button>
-            <button type="button" onClick={() => setSelectedWeekdays([])} style={unselectAllBtnStyle}>
+            <button
+              type="button"
+              onClick={() => setSelectedWeekdays([])}
+              style={filterToggleBtnStyle(selectedWeekdays.length === 0)}
+            >
               Unselect all
             </button>
           </div>

@@ -202,29 +202,17 @@ const dropdownPanelStyle = {
   padding: '8px',
 };
 
-const selectAllBtnStyle = {
+const filterToggleBtnStyle = (active) => ({
   flex: 1,
   padding: '6px 10px',
   borderRadius: '6px',
-  border: '1px solid var(--accent-primary)',
-  background: 'rgba(88, 166, 255, 0.12)',
-  color: 'var(--accent-primary)',
+  border: `1px solid ${active ? 'var(--accent-primary)' : 'var(--border-main)'}`,
+  background: active ? 'rgba(88, 166, 255, 0.12)' : 'transparent',
+  color: active ? 'var(--accent-primary)' : 'var(--text-secondary)',
   fontSize: '0.72rem',
   fontWeight: '700',
   cursor: 'pointer',
-};
-
-const unselectAllBtnStyle = {
-  flex: 1,
-  padding: '6px 10px',
-  borderRadius: '6px',
-  border: '1px solid var(--border-main)',
-  background: 'transparent',
-  color: 'var(--text-secondary)',
-  fontSize: '0.72rem',
-  fontWeight: '700',
-  cursor: 'pointer',
-};
+});
 
 const filterSelectRowStyle = {
   display: 'flex',
@@ -911,10 +899,20 @@ const ExpenseCheck2Page = () => {
               minWidth={300}
             >
               <div style={filterSelectRowStyle}>
-                <button type="button" onClick={selectAllAuditors} style={selectAllBtnStyle}>
+                <button
+                  type="button"
+                  onClick={selectAllAuditors}
+                  style={filterToggleBtnStyle(
+                    auditorOptions.length > 0 && selectedAuditorIds.size === auditorOptions.length,
+                  )}
+                >
                   Select all
                 </button>
-                <button type="button" onClick={unselectAllAuditors} style={unselectAllBtnStyle}>
+                <button
+                  type="button"
+                  onClick={unselectAllAuditors}
+                  style={filterToggleBtnStyle(selectedAuditorIds.size === 0)}
+                >
                   Unselect all
                 </button>
               </div>
