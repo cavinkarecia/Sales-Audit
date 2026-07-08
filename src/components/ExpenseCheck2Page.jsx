@@ -26,7 +26,7 @@ import {
   formatReportMonth,
   reportMonthsMatch,
 } from '../utils/reportMonth';
-import { REFRESH_FLAGS, consumeRefreshFlag, clearSectionCache } from '../utils/auditStorage';
+import { AUDIT_STORAGE_KEYS, clearSectionCache } from '../utils/auditStorage';
 
 const severityColor = (s) =>
   s === 'red' ? '#f85149' : s === 'orange' ? '#d29922' : '#3fb950';
@@ -540,7 +540,14 @@ const ExpenseCheck2Page = () => {
   const [isAiRunning, setIsAiRunning] = useState(false);
   const [syncStatus, setSyncStatus] = useState('');
   const [liveBuild, setLiveBuild] = useState('');
-  const [dateAuditSummary, setDateAuditSummary] = useState(null);
+  const [dateAuditSummary, setDateAuditSummary] = useState(() => {
+    try {
+      const raw = localStorage.getItem(AUDIT_STORAGE_KEYS.expenseDateAudit);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [openDateDetail, setOpenDateDetail] = useState(() => new Set());
   const [sheetStatusOpen, setSheetStatusOpen] = useState(false);
 
@@ -606,17 +613,6 @@ const ExpenseCheck2Page = () => {
       setIsFetching(false);
     }
   };
-
-  // Global Hard Refresh: auto re-fetch expense from the saved link on load.
-  const didAutoRefresh = useRef(false);
-  useEffect(() => {
-    if (didAutoRefresh.current) return;
-    didAutoRefresh.current = true;
-    if (consumeRefreshFlag(REFRESH_FLAGS.expense) && expenseSpreadsheetUrl.trim()) {
-      handleSync();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // Reporting-month guard: Expense validation needs the same month's Attendance.
   const attendanceMonth = useMemo(

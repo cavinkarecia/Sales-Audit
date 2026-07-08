@@ -36,7 +36,7 @@ import { fetchAllSheets, groupByEmployee, groupByMonth, calculateTravelStats, de
 import { buildTravelLegs, enrichTravelLegsOnline, dayColor } from '../utils/travelMapUtils';
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
-import { REFRESH_FLAGS, consumeRefreshFlag, clearSectionCache } from '../utils/auditStorage';
+import { clearSectionCache } from '../utils/auditStorage';
 
 const dropdownPanelStyle = {
   position: 'fixed',
@@ -362,17 +362,6 @@ const AttendanceDashboard = () => {
       setIsFetchingHistory(false);
     }
   };
-
-  // Global Hard Refresh: auto re-fetch PJP from the saved link on load.
-  const didPjpAutoRefresh = React.useRef(false);
-  React.useEffect(() => {
-    if (didPjpAutoRefresh.current) return;
-    didPjpAutoRefresh.current = true;
-    if (consumeRefreshFlag(REFRESH_FLAGS.pjp) && historyUrl?.trim()) {
-      handleHistorySync();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const handleFetchAIInsights = async (auditorName, monthKey, recordsForMonth, stats) => {
     if (recordsForMonth.length === 0) return;

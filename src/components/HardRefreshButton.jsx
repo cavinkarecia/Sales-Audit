@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { RefreshCw } from 'lucide-react';
-import { requestHardRefresh } from '../utils/auditStorage.js';
+import { useAuditData } from '../context/AuditDataContext';
 
 /**
- * Global Hard Refresh — flags every live-link section for a fresh re-fetch,
- * drops derived caches, then reloads so the whole app rebuilds from scratch
- * using only the currently uploaded datasets. No manual browser refresh needed.
+ * Global Hard Refresh — re-fetches every live-link section (PJP + Expense)
+ * from its saved link right now and rebuilds every dashboard in-app, with no
+ * manual browser refresh required.
  */
 const HardRefreshButton = () => {
-  const [busy, setBusy] = useState(false);
+  const { hardRefresh, hardRefreshStatus } = useAuditData();
+  const busy = hardRefreshStatus?.running;
 
   const handleClick = () => {
     if (busy) return;
@@ -17,9 +18,7 @@ const HardRefreshButton = () => {
         'currently uploaded files and links. Continue?',
     );
     if (!ok) return;
-    setBusy(true);
-    requestHardRefresh();
-    window.location.reload();
+    hardRefresh();
   };
 
   return (
@@ -45,7 +44,7 @@ const HardRefreshButton = () => {
       }}
     >
       <RefreshCw size={14} className={busy ? 'spin' : undefined} />
-      Hard Refresh
+      {busy ? 'Refreshing…' : 'Hard Refresh'}
     </button>
   );
 };

@@ -68,45 +68,6 @@ export const purgeLegacyAuditKeys = () => {
   });
 };
 
-/** Per-section refresh flags consumed on next page load to re-fetch live links. */
-export const REFRESH_FLAGS = {
-  pjp: 'sales_audit_refresh_pjp',
-  expense: 'sales_audit_refresh_expense',
-};
-
-/**
- * Global Hard Refresh: flag live-link sections (PJP, Expense) that have a saved
- * URL for a full re-fetch, drop derived caches, then reload so every dashboard
- * rebuilds from scratch using only the currently uploaded datasets.
- */
-export const requestHardRefresh = () => {
-  try {
-    const pjpUrl = localStorage.getItem(AUDIT_STORAGE_KEYS.pjpUrl);
-    if (pjpUrl && pjpUrl.trim()) localStorage.setItem(REFRESH_FLAGS.pjp, '1');
-
-    const expenseUrl = localStorage.getItem(AUDIT_STORAGE_KEYS.expenseUrl);
-    if (expenseUrl && expenseUrl.trim()) localStorage.setItem(REFRESH_FLAGS.expense, '1');
-
-    // Derived/computed caches are rebuilt after re-fetch.
-    localStorage.removeItem(AUDIT_STORAGE_KEYS.expenseDateAudit);
-  } catch {
-    /* ignore */
-  }
-};
-
-/** Read-and-clear a one-shot refresh flag. */
-export const consumeRefreshFlag = (key) => {
-  try {
-    if (localStorage.getItem(key)) {
-      localStorage.removeItem(key);
-      return true;
-    }
-  } catch {
-    /* ignore */
-  }
-  return false;
-};
-
 /** Clear only one section's cached data + stored state (independent per module). */
 export const clearSectionCache = (section) => {
   const keysBySection = {
