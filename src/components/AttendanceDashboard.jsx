@@ -37,6 +37,14 @@ import { buildTravelLegs, enrichTravelLegsOnline, dayColor } from '../utils/trav
 import { getAIInsights, analyzeAllAuditorsTravel } from '../utils/deepseekAgent';
 import { useAuditData } from '../context/AuditDataContext';
 import { clearSectionCache } from '../utils/auditStorage';
+import {
+  validateAttendanceFile,
+  validateAttendanceData,
+  validateGoogleSheetLink,
+  validatePjpFetchResult,
+  alertIfInvalid,
+  alertUploadException,
+} from '../utils/uploadValidation';
 
 const dropdownPanelStyle = {
   position: 'fixed',
@@ -284,9 +292,18 @@ const AttendanceDashboard = () => {
     const file = event.target.files[0];
     if (!file) return;
 
+    const fileCheck = validateAttendanceFile(file);
+    if (alertIfInvalid(fileCheck)) {
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsParsing(true);
     try {
       const data = await parseAttendanceExcel(file);
+      const dataCheck = validateAttendanceData(data);
+      if (alertIfInvalid(dataCheck)) return;
+
       // Independent replace: drop only the Attendance section's cached data + state.
       clearSectionCache('attendance');
       const uploadBatch = Date.now();
@@ -313,7 +330,7 @@ const AttendanceDashboard = () => {
       }
     } catch (err) {
       console.error('Error parsing file:', err);
-      alert('Failed to parse file. Please ensure it is a valid GoSurvey attendance export.');
+      alertUploadException(err, 'attendance');
     } finally {
       setIsParsing(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -322,6 +339,10 @@ const AttendanceDashboard = () => {
 
   const handleHistorySync = async () => {
     if (!historyUrl) return;
+
+    const linkCheck = validateGoogleSheetLink(historyUrl, 'PJP');
+    if (alertIfInvalid(linkCheck)) return;
+
     setIsFetchingHistory(true);
     setAiAnalysisText('');
     setAllAuditorsInsights('');
@@ -329,6 +350,13 @@ const AttendanceDashboard = () => {
     clearSectionCache('pjp');
     try {
       const result = await fetchAllSheets(historyUrl);
+      const dataCheck = validatePjpFetchResult(result);
+      if (alertIfInvalid(dataCheck)) {
+        setHistoryData([]);
+        setHistorySheetsSummary(result.sheetSummary || []);
+        return;
+      }
+
       setHistoryData(result.records);
       setHistorySheetsSummary(result.sheetSummary);
       setPjpWorkbookTitle(result.workbookTitle || '');
@@ -352,12 +380,10 @@ const AttendanceDashboard = () => {
             (skippedSheets.length > 6 ? `\n  • … and ${skippedSheets.length - 6} more (see the Sync Summary panel)` : '')
           : '';
         alert(`Loaded ${loadedCount} of ${result.totalSheets} sheets (${result.totalRecords} travel records).${skippedNote}`);
-      } else {
-        alert(`Fetched the spreadsheet but no rows could be parsed across its ${result.totalSheets} sheet${result.totalSheets === 1 ? '' : 's'}. Check that the sheets contain Date and Employee Name columns.`);
       }
     } catch (err) {
       console.error('Error fetching history:', err);
-      alert(`Failed to fetch data from Google Sheets: ${err.message}`);
+      alertUploadException(err, 'PJP');
     } finally {
       setIsFetchingHistory(false);
     }

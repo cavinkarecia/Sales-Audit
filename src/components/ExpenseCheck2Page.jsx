@@ -32,6 +32,13 @@ import {
   mergeSheetSummaries,
   mergeDateAuditSummaries,
 } from '../utils/expenseMerge';
+import {
+  validateGoogleSheetLink,
+  validateExpenseFetchResult,
+  alertIfInvalid,
+  alertUploadException,
+  showUploadError,
+} from '../utils/uploadValidation';
 
 const EXPENSE_UPLOAD_MODE_KEY = 'sales_audit_expense_upload_mode';
 const EXPENSE_PART2_URL_KEY = 'sales_audit_expense_v5_url_part2';
@@ -590,8 +597,14 @@ const ExpenseCheck2Page = () => {
   }, [expensePart2Url]);
 
   const fetchAndEnrichPart = async (url, partLabel) => {
+    const linkCheck = validateGoogleSheetLink(url, partLabel);
+    if (!linkCheck.ok) throw new Error(linkCheck.message);
+
     setSyncStatus(`${partLabel}: listing tabs and downloading every auditor sheet…`);
     const result = await fetchAllExpenseVouchers(url);
+    const dataCheck = validateExpenseFetchResult(result);
+    if (!dataCheck.ok) throw new Error(dataCheck.message);
+
     const enriched = await enrichAllVouchersWithImages(
       result.vouchers,
       result.tabs,
@@ -608,9 +621,17 @@ const ExpenseCheck2Page = () => {
     const url1 = expenseSpreadsheetUrl.trim();
     const url2 = expensePart2Url.trim();
     if (!url1 || !url2) {
-      alert('Paste both the Part 1 and Part 2 Google Sheet links before fetching.');
+      showUploadError(
+        'Upload error',
+        'Paste both the Part 1 and Part 2 Google Sheet links before fetching.',
+      );
       return;
     }
+    const link1Check = validateGoogleSheetLink(url1, 'Expense Part 1');
+    if (alertIfInvalid(link1Check)) return;
+    const link2Check = validateGoogleSheetLink(url2, 'Expense Part 2');
+    if (alertIfInvalid(link2Check)) return;
+
     setIsFetching(true);
     setSyncError(null);
     setAiReport('');
@@ -641,7 +662,9 @@ const ExpenseCheck2Page = () => {
       );
     } catch (err) {
       console.error(err);
-      setSyncError(err.message || 'Sync failed');
+      const msg = err.message || 'Sync failed';
+      setSyncError(msg);
+      alertUploadException(err, 'Expense (Part 1 + Part 2)');
       setExpenseVouchers([]);
       setExpenseSheetSummary([]);
       setSyncStatus('');
@@ -651,7 +674,9 @@ const ExpenseCheck2Page = () => {
   };
 
   const handleSync = async () => {
-    if (!expenseSpreadsheetUrl.trim()) return;
+    const linkCheck = validateGoogleSheetLink(expenseSpreadsheetUrl, 'Expense');
+    if (alertIfInvalid(linkCheck)) return;
+
     setIsFetching(true);
     setSyncError(null);
     setAiReport('');
@@ -663,6 +688,14 @@ const ExpenseCheck2Page = () => {
     setSyncStatus('Server: listing all tabs and downloading every auditor sheet…');
     try {
       const result = await fetchAllExpenseVouchers(expenseSpreadsheetUrl.trim());
+      const dataCheck = validateExpenseFetchResult(result);
+      if (alertIfInvalid(dataCheck)) {
+        setExpenseSheetSummary(result.sheetSummary || []);
+        setSyncError(dataCheck.message);
+        setSyncStatus('');
+        return;
+      }
+
       setExpenseSheetSummary(result.sheetSummary || []);
       setDateAuditSummary(result.dateAudit || null);
       setSyncError(result.syncError || null);
@@ -688,7 +721,9 @@ const ExpenseCheck2Page = () => {
       );
     } catch (err) {
       console.error(err);
-      setSyncError(err.message || 'Sync failed');
+      const msg = err.message || 'Sync failed';
+      setSyncError(msg);
+      alertUploadException(err, 'Expense');
       setExpenseVouchers([]);
       setExpenseSheetSummary([]);
       setSyncStatus('');
