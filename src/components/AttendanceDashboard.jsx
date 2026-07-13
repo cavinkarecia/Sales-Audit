@@ -231,7 +231,12 @@ const AttendanceDashboard = () => {
     return Array.isArray(meta?.chooseDateKeys) ? meta.chooseDateKeys : [];
   });
   const [selectedWeekdays, setSelectedWeekdays] = useState([]);
+  const [selectedMonthKeys, setSelectedMonthKeys] = useState(() => {
+    const meta = loadAttendanceMeta();
+    return Array.isArray(meta?.monthKeys) ? meta.monthKeys : [];
+  });
   const [dateDropdownOpen, setDateDropdownOpen] = useState(false);
+  const [monthDropdownOpen, setMonthDropdownOpen] = useState(false);
   const [dayDropdownOpen, setDayDropdownOpen] = useState(false);
   const [expandedKpi, setExpandedKpi] = useState(null); 
   const [selectedCluster, setSelectedCluster] = useState(null); 
@@ -310,11 +315,27 @@ const AttendanceDashboard = () => {
       const tagged = data.map((row) => ({ ...row, _uploadBatch: uploadBatch }));
 
       const dayKeys = [...new Set(tagged.map((d) => toDayKey(d.chooseDate)).filter(Boolean))].sort();
-      saveAttendanceMeta({ uploadBatch, chooseDateKeys: dayKeys, savedAt: new Date().toISOString() });
+      const monthKeys = [
+        ...new Set(
+          tagged
+            .map((d) => {
+              const cd = d.chooseDate instanceof Date ? d.chooseDate : parseLocalDate(d.chooseDate);
+              return cd ? format(startOfMonth(cd), 'yyyy-MM') : null;
+            })
+            .filter(Boolean),
+        ),
+      ].sort();
+      saveAttendanceMeta({
+        uploadBatch,
+        chooseDateKeys: dayKeys,
+        monthKeys,
+        savedAt: new Date().toISOString(),
+      });
 
       setTimeFilter('daily');
       setActivePeriod(null);
       setSelectedWeekdays([]);
+      setSelectedMonthKeys(monthKeys);
       setExpandedKpi(null);
       setSelectedCluster(null);
 
@@ -487,14 +508,40 @@ const AttendanceDashboard = () => {
     return keys.map((key) => ({ key, label: formatDayLabel(key) }));
   }, [processedData]);
 
+  const allMonthOptions = useMemo(() => {
+    if (processedData.length === 0) return [];
+    const keys = [...new Set(processedData.map((d) => d.monthKey).filter(Boolean))].sort();
+    return keys.map((key) => {
+      const [year, month] = key.split('-');
+      return {
+        key,
+        label: format(new Date(Number(year), Number(month) - 1, 1), 'MMMM yyyy'),
+      };
+    });
+  }, [processedData]);
+
   const selectedDayKeySet = useMemo(() => new Set(selectedDayKeys), [selectedDayKeys]);
+  const selectedMonthKeySet = useMemo(() => new Set(selectedMonthKeys), [selectedMonthKeys]);
   const selectedWeekdaySet = useMemo(() => new Set(selectedWeekdays), [selectedWeekdays]);
 
   const availableDailyDates = useMemo(() => {
     if (allChooseDateOptions.length === 0) return [];
-    if (selectedWeekdays.length === 0) return allChooseDateOptions;
-    return allChooseDateOptions.filter((d) => selectedWeekdaySet.has(weekdayFromDayKey(d.key)));
-  }, [allChooseDateOptions, selectedWeekdays.length, selectedWeekdaySet]);
+    let dates = allChooseDateOptions;
+    if (selectedMonthKeys.length > 0) {
+      dates = dates.filter((d) => {
+        const [y, m] = d.key.split('-');
+        return selectedMonthKeySet.has(`${y}-${m}`);
+      });
+    }
+    if (selectedWeekdays.length === 0) return dates;
+    return dates.filter((d) => selectedWeekdaySet.has(weekdayFromDayKey(d.key)));
+  }, [
+    allChooseDateOptions,
+    selectedMonthKeys,
+    selectedMonthKeySet,
+    selectedWeekdays.length,
+    selectedWeekdaySet,
+  ]);
 
   const availablePeriods = useMemo(() => {
     if (processedData.length === 0) return [];
@@ -519,10 +566,28 @@ const AttendanceDashboard = () => {
   }, [processedData, timeFilter]);
 
   const autoSelectedDateKeyRef = React.useRef('');
+  const autoSelectedMonthKeyRef = React.useRef('');
   const allChooseDateSignature = useMemo(
     () => allChooseDateOptions.map((d) => d.key).join('\0'),
     [allChooseDateOptions],
   );
+  const allMonthSignature = useMemo(
+    () => allMonthOptions.map((m) => m.key).join('\0'),
+    [allMonthOptions],
+  );
+
+  React.useEffect(() => {
+    if (allMonthOptions.length === 0) return;
+    if (autoSelectedMonthKeyRef.current === allMonthSignature) return;
+    autoSelectedMonthKeyRef.current = allMonthSignature;
+    const meta = loadAttendanceMeta();
+    const fromMeta = meta?.monthKeys?.filter((k) => allMonthOptions.some((m) => m.key === k));
+    if (fromMeta?.length) {
+      setSelectedMonthKeys(fromMeta);
+      return;
+    }
+    setSelectedMonthKeys(allMonthOptions.map((m) => m.key));
+  }, [allMonthOptions, allMonthSignature]);
 
   React.useEffect(() => {
     const meta = loadAttendanceMeta();
@@ -555,6 +620,11 @@ const AttendanceDashboard = () => {
   }, [selectedWeekdays]);
 
   React.useEffect(() => {
+    if (selectedMonthKeys.length === 0) return;
+    setSelectedDayKeys(availableDailyDates.map((d) => d.key));
+  }, [selectedMonthKeys.join(',')]);
+
+  React.useEffect(() => {
     if (timeFilter === 'daily') return;
     if (availablePeriods.length === 0) {
       setActivePeriod(null);
@@ -585,6 +655,7 @@ const AttendanceDashboard = () => {
       prev.includes(dayKey) ? prev.filter((k) => k !== dayKey) : [...prev, dayKey].sort(),
     );
     setExpandedKpi(null);
+    setSelectedCluster(null);
   };
 
   const toggleWeekday = (weekday) => {
@@ -594,15 +665,27 @@ const AttendanceDashboard = () => {
     setExpandedKpi(null);
   };
 
+  const toggleMonthKey = (monthKey) => {
+    setSelectedMonthKeys((prev) =>
+      prev.includes(monthKey) ? prev.filter((k) => k !== monthKey) : [...prev, monthKey].sort(),
+    );
+    setExpandedKpi(null);
+    setSelectedCluster(null);
+  };
+
   const handleClearAllFilters = () => {
     setSelectedWeekdays([]);
+    const months = allMonthOptions.map((m) => m.key);
+    setSelectedMonthKeys(months);
     const keys = allChooseDateOptions.map((d) => d.key);
     setSelectedDayKeys(keys);
     const meta = loadAttendanceMeta();
-    if (meta) saveAttendanceMeta({ ...meta, chooseDateKeys: keys });
+    if (meta) saveAttendanceMeta({ ...meta, chooseDateKeys: keys, monthKeys: months });
     setDateDropdownOpen(false);
+    setMonthDropdownOpen(false);
     setDayDropdownOpen(false);
     setExpandedKpi(null);
+    setSelectedCluster(null);
   };
 
   const dateFilterSummary =
@@ -615,10 +698,21 @@ const AttendanceDashboard = () => {
   const dayFilterSummary =
     selectedWeekdays.length === 0 ? 'All days' : selectedWeekdays.join(', ');
 
+  const monthFilterSummary =
+    selectedMonthKeys.length === 0
+      ? 'No months'
+      : selectedMonthKeys.length === allMonthOptions.length
+        ? `All (${allMonthOptions.length})`
+        : `${selectedMonthKeys.length} selected`;
+
   const filteredData = useMemo(() => {
     if (processedData.length === 0) return [];
 
     let rows = processedData;
+
+    if (selectedMonthKeys.length > 0) {
+      rows = rows.filter((item) => selectedMonthKeySet.has(item.monthKey));
+    }
 
     if (selectedDayKeys.length > 0) {
       rows = rows.filter((item) => selectedDayKeySet.has(item.chooseDateKey));
@@ -636,26 +730,41 @@ const AttendanceDashboard = () => {
     }
 
     return rows;
-  }, [processedData, timeFilter, activePeriod, selectedDayKeys, selectedWeekdays, selectedDayKeySet, selectedWeekdaySet]);
+  }, [
+    processedData,
+    timeFilter,
+    activePeriod,
+    selectedDayKeys,
+    selectedMonthKeys,
+    selectedWeekdays,
+    selectedDayKeySet,
+    selectedMonthKeySet,
+    selectedWeekdaySet,
+  ]);
 
-  const stats = useMemo(() => {
-    if (filteredData.length === 0) return null;
-    const allNames = filteredData.map(d => d.name);
+  const mapSectionData = useMemo(() => {
+    if (!selectedCluster) return filteredData;
+    return filteredData.filter((d) => d.cluster === selectedCluster);
+  }, [filteredData, selectedCluster]);
+
+  const buildAttendanceStats = (rows) => {
+    if (!rows.length) return null;
+    const allNames = rows.map((d) => d.name);
     const uniqueNames = Array.from(new Set(allNames));
-    const presentRecords = filteredData.filter(d => d.isPresent);
-    const absentRecords = filteredData.filter(d => !d.isPresent);
-    const uniqueAbsentees = Array.from(new Set(absentRecords.map(d => d.name)));
-    const planned = filteredData.filter(d => d.isPlanned).length;
-    const totalRecords = filteredData.length;
-    
-    const absenceReasons = filteredData.reduce((acc, curr) => {
+    const presentRecords = rows.filter((d) => d.isPresent);
+    const absentRecords = rows.filter((d) => !d.isPresent);
+    const uniqueAbsentees = Array.from(new Set(absentRecords.map((d) => d.name)));
+    const planned = rows.filter((d) => d.isPlanned).length;
+    const totalRecords = rows.length;
+
+    const absenceReasons = rows.reduce((acc, curr) => {
       if (!curr.isPresent && curr.absentReason) {
         acc[curr.absentReason] = (acc[curr.absentReason] || 0) + 1;
       }
       return acc;
     }, {});
 
-    const clusterAudits = filteredData.reduce((acc, curr) => {
+    const clusterAudits = rows.reduce((acc, curr) => {
       const cluster = curr.cluster || 'Unknown';
       acc[cluster] = (acc[cluster] || 0) + 1;
       return acc;
@@ -669,9 +778,11 @@ const AttendanceDashboard = () => {
       attendanceRate: Math.round((presentRecords.length / totalRecords) * 100),
       plannedRate: Math.round((planned / totalRecords) * 100),
       absenceReasons: Object.entries(absenceReasons).map(([name, value]) => ({ name, value })),
-      clusterAudits: Object.entries(clusterAudits).map(([name, value]) => ({ name, value }))
+      clusterAudits: Object.entries(clusterAudits).map(([name, value]) => ({ name, value })),
     };
-  }, [filteredData]);
+  };
+
+  const stats = useMemo(() => buildAttendanceStats(filteredData), [filteredData]);
 
   const emptyStats = {
     total: 0,
@@ -684,6 +795,10 @@ const AttendanceDashboard = () => {
     clusterAudits: [],
   };
   const displayStats = stats || emptyStats;
+  const mapRegionStats = useMemo(
+    () => buildAttendanceStats(mapSectionData) || emptyStats,
+    [mapSectionData],
+  );
 
   const trendData = useMemo(() => {
     if (filteredData.length === 0 || timeFilter === 'daily') return [];
@@ -1073,6 +1188,7 @@ const AttendanceDashboard = () => {
           isOpen={dateDropdownOpen}
           onToggle={() => {
             setDateDropdownOpen((v) => !v);
+            setMonthDropdownOpen(false);
             setDayDropdownOpen(false);
           }}
           onClose={() => setDateDropdownOpen(false)}
@@ -1127,6 +1243,67 @@ const AttendanceDashboard = () => {
         </FilterDropdown>
 
         <FilterDropdown
+          label="Month filter"
+          summary={processedData.length === 0 ? 'Upload file first' : monthFilterSummary}
+          icon={<Calendar size={14} color="var(--accent-primary)" />}
+          isOpen={monthDropdownOpen}
+          onToggle={() => {
+            setMonthDropdownOpen((v) => !v);
+            setDateDropdownOpen(false);
+            setDayDropdownOpen(false);
+          }}
+          onClose={() => setMonthDropdownOpen(false)}
+          minWidth={220}
+        >
+          <div style={filterSelectRowStyle}>
+            <button
+              type="button"
+              onClick={() => setSelectedMonthKeys(allMonthOptions.map((m) => m.key))}
+              style={filterToggleBtnStyle(
+                allMonthOptions.length > 0 && selectedMonthKeys.length === allMonthOptions.length,
+              )}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedMonthKeys([])}
+              style={filterToggleBtnStyle(selectedMonthKeys.length === 0)}
+            >
+              Unselect all
+            </button>
+          </div>
+          {allMonthOptions.length === 0 ? (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', padding: '4px' }}>
+              No months in upload
+            </span>
+          ) : (
+            allMonthOptions.map((m) => (
+              <label
+                key={m.key}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  fontSize: '0.78rem',
+                  padding: '5px 6px',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  background: selectedMonthKeySet.has(m.key) ? 'rgba(88, 166, 255, 0.1)' : 'transparent',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedMonthKeySet.has(m.key)}
+                  onChange={() => toggleMonthKey(m.key)}
+                />
+                <span>{m.label}</span>
+              </label>
+            ))
+          )}
+        </FilterDropdown>
+
+        <FilterDropdown
           label="Day filter"
           summary={dayFilterSummary}
           icon={<Filter size={14} color="var(--accent-primary)" />}
@@ -1134,6 +1311,7 @@ const AttendanceDashboard = () => {
           onToggle={() => {
             setDayDropdownOpen((v) => !v);
             setDateDropdownOpen(false);
+            setMonthDropdownOpen(false);
           }}
           onClose={() => setDayDropdownOpen(false)}
           minWidth={180}
@@ -1182,6 +1360,8 @@ const AttendanceDashboard = () => {
           <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
             <div>
               <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.auditors}</strong> auditors ·{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.months}</strong> month
+              {uploadSummary.months === 1 ? '' : 's'} ·{' '}
               <strong style={{ color: 'var(--text-primary)' }}>{uploadSummary.days}</strong> Choose Date days
             </div>
             <div>
@@ -1324,14 +1504,62 @@ const AttendanceDashboard = () => {
               <div style={{ marginBottom: '16px' }}>
                 <h3 style={{ fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                   <MapPin size={18} color="var(--accent-primary)" /> Geographic Footprint
+                  {selectedCluster && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', fontWeight: 600 }}>
+                      — {selectedCluster}
+                    </span>
+                  )}
                 </h3>
+                {selectedCluster && (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: 16,
+                      flexWrap: 'wrap',
+                      marginTop: 10,
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                    }}
+                  >
+                    <span>
+                      Attendance: <strong style={{ color: '#3fb950' }}>{mapRegionStats.attendanceRate}%</strong>
+                    </span>
+                    <span>
+                      Auditors: <strong style={{ color: '#fff' }}>{mapRegionStats.total}</strong>
+                    </span>
+                    <span>
+                      Absent: <strong style={{ color: '#f85149' }}>{mapRegionStats.absent}</strong>
+                    </span>
+                    <span>
+                      Records: <strong style={{ color: '#fff' }}>{mapSectionData.length}</strong>
+                    </span>
+                  </div>
+                )}
               </div>
-              <LeafletTravelMap data={filteredData} auditorsMaster={auditorsMaster} height="520px" />
+              <LeafletTravelMap data={mapSectionData} auditorsMaster={auditorsMaster} height="520px" />
             </div>
 
             <div className="card" style={{ padding: '20px' }}>
               <h3 style={{ fontSize: '0.9rem', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <TrendingUp size={18} color="var(--accent-primary)" /> Cluster Summary
+                {selectedCluster && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCluster(null)}
+                    style={{
+                      marginLeft: 'auto',
+                      fontSize: '0.65rem',
+                      padding: '4px 8px',
+                      borderRadius: 6,
+                      border: '1px solid var(--border-main)',
+                      background: 'transparent',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Show all regions
+                  </button>
+                )}
               </h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {displayStats.clusterAudits.map((cluster, i) => (
@@ -1346,7 +1574,8 @@ const AttendanceDashboard = () => {
                       cursor: 'pointer',
                       display: 'flex',
                       justifyContent: 'space-between',
-                      alignItems: 'center'
+                      alignItems: 'center',
+                      opacity: selectedCluster && selectedCluster !== cluster.name ? 0.45 : 1,
                     }}
                   >
                     <span style={{ fontSize: '0.8rem', fontWeight: '600' }}>{cluster.name}</span>
@@ -1359,7 +1588,7 @@ const AttendanceDashboard = () => {
                 <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-main)' }}>
                   <h4 style={{ fontSize: '0.75rem', marginBottom: '8px', color: 'var(--accent-primary)' }}>Auditors in {selectedCluster}</h4>
                   <div style={{ maxHeight: '150px', overflowY: 'auto', fontSize: '0.75rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    {filteredData.filter(d => d.cluster === selectedCluster).reduce((acc, c) => acc.includes(c.name) ? acc : [...acc, c.name], []).map((name, idx) => (
+                    {mapSectionData.reduce((acc, c) => acc.includes(c.name) ? acc : [...acc, c.name], []).map((name, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-secondary)' }}>
                         <div style={{ width: '4px', height: '4px', background: 'var(--accent-primary)', borderRadius: '50%' }}></div>
                         {name}

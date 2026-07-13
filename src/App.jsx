@@ -5,6 +5,7 @@ import { NavLink } from 'react-router-dom';
 import AttendanceDashboard from './components/AttendanceDashboard';
 import ExpenseCheck2Page from './components/ExpenseCheck2Page';
 import HardRefreshButton from './components/HardRefreshButton';
+import RemoveFilesButton from './components/RemoveFilesButton';
 import { useAuditData } from './context/AuditDataContext';
 import './App.css';
 
@@ -76,8 +77,9 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v55-upload-format-error-popups
+            build: v56-rmv-files-cluster-month-filter
           </span>
+          <RemoveFilesButton />
           <HardRefreshButton />
         </div>
       </nav>

@@ -15,6 +15,7 @@ import {
   AUDIT_STORAGE_KEYS,
   ensureStorageSchema,
   purgeLegacyAuditKeys,
+  purgeAllAuditData,
   clearSectionCache,
 } from '../utils/auditStorage.js';
 
@@ -199,6 +200,19 @@ export const AuditDataProvider = ({ children }) => {
     }
   }, [pjpSpreadsheetUrl, expenseSpreadsheetUrl]);
 
+  /** Wipe every upload, link, and cached result — fresh empty state. */
+  const removeAllFiles = useCallback(() => {
+    purgeAllAuditData();
+    setAttendanceRecords([]);
+    setPjpRecords([]);
+    setPjpSheetSummary([]);
+    setPjpSpreadsheetUrl('');
+    setExpenseVouchers([]);
+    setExpenseSheetSummary([]);
+    setExpenseSpreadsheetUrl('');
+    setRefreshKey((k) => k + 1);
+  }, [setAttendanceRecords]);
+
   const value = useMemo(
     () => ({
       attendanceRecords,
@@ -221,6 +235,7 @@ export const AuditDataProvider = ({ children }) => {
       refreshKey,
       hardRefresh,
       hardRefreshStatus,
+      removeAllFiles,
     }),
     [
       attendanceRecords,
@@ -233,6 +248,7 @@ export const AuditDataProvider = ({ children }) => {
       refreshKey,
       hardRefresh,
       hardRefreshStatus,
+      removeAllFiles,
     ],
   );
 

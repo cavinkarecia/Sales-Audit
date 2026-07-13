@@ -33,6 +33,8 @@ const LEGACY_KEYS = [
   'sales_audit_expense_v4_url',
   'sales_audit_expense_v4_build',
   'sales_audit_report_data_v1',
+  'sales_audit_expense_upload_mode',
+  'sales_audit_expense_v5_url_part2',
 ];
 
 /** Remove every saved upload / filter cache from this browser. */
