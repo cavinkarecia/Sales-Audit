@@ -62,3 +62,44 @@ export const formatReportMonth = (m) =>
 
 export const reportMonthsMatch = (a, b) =>
   Boolean(a && b && a.year === b.year && a.month === b.month);
+
+/** dd-MM-yyyy from canonical dateKey (yyyy-MM-dd). */
+export const formatDayKeyLabel = (dateKey) => {
+  if (!dateKey) return '';
+  const [y, m, d] = String(dateKey).split('-').map(Number);
+  if (!Number.isFinite(y) || !Number.isFinite(m) || !Number.isFinite(d)) return '';
+  return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
+};
+
+/** Min/max dated rows across the current expense upload. */
+export const getExpenseDateRange = (vouchers) => {
+  const keys = [];
+  for (const v of vouchers || []) {
+    for (const b of v?.dateBlocks || []) {
+      const k = b?.dateKey;
+      if (k && /^\d{4}-\d{2}-\d{2}$/.test(k)) keys.push(k);
+    }
+  }
+  if (!keys.length) return null;
+
+  keys.sort();
+  const fromKey = keys[0];
+  const toKey = keys[keys.length - 1];
+  const [fy, fm] = fromKey.split('-').map(Number);
+  const [ty, tm] = toKey.split('-').map(Number);
+
+  const monthPart =
+    fy === ty && fm === tm
+      ? `${MONTH_NAMES[fm - 1]} ${fy}`
+      : `${MONTH_NAMES[fm - 1]} ${fy} – ${MONTH_NAMES[tm - 1]} ${ty}`;
+
+  const from = formatDayKeyLabel(fromKey);
+  const to = formatDayKeyLabel(toKey);
+
+  return {
+    monthLabel: monthPart,
+    from,
+    to,
+    line: `${monthPart} from ${from} to ${to}`,
+  };
+};

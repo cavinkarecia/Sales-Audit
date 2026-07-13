@@ -23,6 +23,7 @@ import {
 import {
   getAttendanceReportMonth,
   getExpenseReportMonth,
+  getExpenseDateRange,
   formatReportMonth,
   reportMonthsMatch,
 } from '../utils/reportMonth';
@@ -738,6 +739,10 @@ const ExpenseCheck2Page = () => {
     [attendanceRecords],
   );
   const expenseMonth = useMemo(() => getExpenseReportMonth(expenseVouchers), [expenseVouchers]);
+  const expenseUploadPeriod = useMemo(() => {
+    if (uploadMode !== 'single' || !expenseVouchers.length) return null;
+    return getExpenseDateRange(expenseVouchers);
+  }, [uploadMode, expenseVouchers]);
   const monthMismatch = useMemo(
     () =>
       expenseVouchers.length > 0 &&
@@ -863,7 +868,7 @@ const ExpenseCheck2Page = () => {
         )}
       </div>
 
-      {expenseVouchers.length > 0 && (
+      {expenseVouchers.length > 0 && uploadMode === 'sections' && (
         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 1rem' }}>
           Showing {expenseVouchers.length} auditor(s). If this looks wrong, click <strong>Fetch all auditor sheets</strong> again
           (old results are not reused after sync).
@@ -896,7 +901,17 @@ const ExpenseCheck2Page = () => {
               <button
                 key={opt.id}
                 type="button"
-                onClick={() => setUploadMode(opt.id)}
+                onClick={() => {
+                  if (opt.id === 'single' && uploadMode === 'sections') {
+                    clearSectionCache('expense');
+                    setExpenseVouchers([]);
+                    setExpenseSheetSummary([]);
+                    setDateAuditSummary(null);
+                    setSyncStatus('');
+                    setSyncError(null);
+                  }
+                  setUploadMode(opt.id);
+                }}
                 disabled={isFetching}
                 style={{
                   padding: '8px 18px',
@@ -917,21 +932,41 @@ const ExpenseCheck2Page = () => {
       </div>
 
       {uploadMode === 'single' ? (
-        <SheetLinkUpload
-          title="Upload expense claim workbook"
-          description="Paste one Google Sheet link — we fetch ALL auditor tabs in that workbook (not only the open tab). Then we read bus/train ticket images and verify totals."
-          url={expenseSpreadsheetUrl}
-          onUrlChange={(v) => {
-            setExpenseSpreadsheetUrl(v);
-            setSyncError(null);
-          }}
-          onSync={handleSync}
-          isLoading={isFetching}
-          loadedCount={expenseSheetSummary.filter((s) => s.status === 'loaded').length}
-          totalSheets={expenseSheetSummary.length}
-          syncLabel="Fetch all auditor sheets"
-          loadingLabel="Fetching all tabs…"
-        />
+        <>
+          <SheetLinkUpload
+            title="Upload expense claim workbook"
+            description="Paste one Google Sheet link — we fetch ALL auditor tabs in that workbook (not only the open tab). Then we read bus/train ticket images and verify totals."
+            url={expenseSpreadsheetUrl}
+            onUrlChange={(v) => {
+              setExpenseSpreadsheetUrl(v);
+              setSyncError(null);
+            }}
+            onSync={handleSync}
+            isLoading={isFetching}
+            loadedCount={expenseSheetSummary.filter((s) => s.status === 'loaded').length}
+            totalSheets={expenseSheetSummary.length}
+            syncLabel="Fetch all auditor sheets"
+            loadingLabel="Fetching all tabs…"
+          />
+          {expenseUploadPeriod && (
+            <p
+              style={{
+                fontSize: '0.82rem',
+                color: 'var(--accent-primary)',
+                margin: '0 0 1rem',
+                padding: '10px 14px',
+                borderRadius: 8,
+                border: '1px solid var(--border-main)',
+                background: 'rgba(88, 166, 255, 0.08)',
+              }}
+            >
+              <strong>{expenseUploadPeriod.line}</strong>
+              <span style={{ color: 'var(--text-secondary)', marginLeft: 8 }}>
+                ({expenseVouchers.length} auditor{expenseVouchers.length === 1 ? '' : 's'} loaded from this upload)
+              </span>
+            </p>
+          )}
+        </>
       ) : (
         <>
           <SheetLinkUpload
