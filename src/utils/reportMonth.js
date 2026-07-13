@@ -71,27 +71,37 @@ export const formatDayKeyLabel = (dateKey) => {
   return `${String(d).padStart(2, '0')}-${String(m).padStart(2, '0')}-${y}`;
 };
 
-/** Min/max dated rows across the current expense upload. */
+/** Min/max dated rows for the dominant reporting month (ignores stray wrong-year dates). */
 export const getExpenseDateRange = (vouchers) => {
-  const keys = [];
+  const allKeys = [];
   for (const v of vouchers || []) {
     for (const b of v?.dateBlocks || []) {
       const k = b?.dateKey;
-      if (k && /^\d{4}-\d{2}-\d{2}$/.test(k)) keys.push(k);
+      if (k && /^\d{4}-\d{2}-\d{2}$/.test(k)) allKeys.push(k);
     }
   }
-  if (!keys.length) return null;
+  if (!allKeys.length) return null;
+
+  const reportMonth = getExpenseReportMonth(vouchers);
+  let keys = allKeys;
+
+  if (reportMonth && Number.isFinite(reportMonth.year) && Number.isFinite(reportMonth.month)) {
+    const { year, month } = reportMonth;
+    const inMainMonth = allKeys.filter((k) => {
+      const [y, m] = k.split('-').map(Number);
+      return y === year && m - 1 === month;
+    });
+    if (inMainMonth.length > 0) keys = inMainMonth;
+  }
 
   keys.sort();
   const fromKey = keys[0];
   const toKey = keys[keys.length - 1];
   const [fy, fm] = fromKey.split('-').map(Number);
-  const [ty, tm] = toKey.split('-').map(Number);
 
-  const monthPart =
-    fy === ty && fm === tm
-      ? `${MONTH_NAMES[fm - 1]} ${fy}`
-      : `${MONTH_NAMES[fm - 1]} ${fy} – ${MONTH_NAMES[tm - 1]} ${ty}`;
+  const monthPart = reportMonth
+    ? formatReportMonth(reportMonth)
+    : `${MONTH_NAMES[fm - 1]} ${fy}`;
 
   const from = formatDayKeyLabel(fromKey);
   const to = formatDayKeyLabel(toKey);
@@ -101,5 +111,8 @@ export const getExpenseDateRange = (vouchers) => {
     from,
     to,
     line: `${monthPart} from ${from} to ${to}`,
+    reportingMonth: reportMonth,
+    datesInMonth: keys.length,
+    totalDates: allKeys.length,
   };
 };

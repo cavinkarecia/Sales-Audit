@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v57-expense-onetime-period-line
+            build: v58-expense-period-main-month-only
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />
