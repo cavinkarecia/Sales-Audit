@@ -620,7 +620,7 @@ const ExpenseCheck2Page = () => {
       (n, total, name) => {
         setSyncStatus(`${partLabel}: OCR bill images (${n}/${total}): ${name}…`);
       },
-      { attendanceRecords, pjpRecords },
+      { attendanceRecords, pjpRecords, imagesBySheet: result.imagesBySheet },
     );
     return { result, enriched };
   };
@@ -720,7 +720,7 @@ const ExpenseCheck2Page = () => {
         (n, total, name) => {
           setSyncStatus(`OCR bill images (${n}/${total}): ${name}…`);
         },
-        { attendanceRecords, pjpRecords },
+        { attendanceRecords, pjpRecords, imagesBySheet: result.imagesBySheet },
       );
       setExpenseVouchers(enriched);
       localStorage.setItem('sales_audit_expense_v5_build', result.build || liveBuild || '');

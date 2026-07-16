@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v59-expense-gemini-ocr-fraud
+            build: v60-expense-xlsx-bill-images
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />

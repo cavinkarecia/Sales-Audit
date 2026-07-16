@@ -102,7 +102,38 @@ const normalizeBill = (parsed, imageUrl, meta = {}) => {
 };
 
 const fetchImageBytes = async (url) => {
-  const resp = await fetch(url, {
+  const raw = String(url || '').trim();
+  if (!raw) throw new Error('Missing image URL');
+
+  if (raw.startsWith('data:')) {
+    const match = raw.match(/^data:([^;,]+)?(?:;base64)?,(.+)$/i);
+    if (!match) throw new Error('Invalid data URL');
+    const mime = (match[1] || 'image/jpeg').split(';')[0].trim() || 'image/jpeg';
+    const buf = Buffer.from(match[2], 'base64');
+    if (buf.byteLength < 50) throw new Error('Image too small');
+    return { buf, mime };
+  }
+
+  if (raw.startsWith('/api/sheet/embedded-image')) {
+    const { getEmbeddedImage, loadTabImagesFromXlsx } = await import('./tabImageCache.js');
+    const parsed = new URL(raw, 'http://local');
+    const id = parsed.searchParams.get('id') || '';
+    const gid = parsed.searchParams.get('gid') || '0';
+    const index = Number.parseInt(parsed.searchParams.get('i') || '0', 10);
+    let image = getEmbeddedImage(id, gid, index);
+    if (!image) {
+      await loadTabImagesFromXlsx(id, gid, {
+        'User-Agent':
+          'Mozilla/5.0 (compatible; SalesAudit/2.0; +https://sales-audit-2-0.onrender.com)',
+        Accept: '*/*',
+      });
+      image = getEmbeddedImage(id, gid, index);
+    }
+    if (!image?.data) throw new Error('Embedded sheet image not found');
+    return { buf: image.data, mime: image.mime || 'image/jpeg' };
+  }
+
+  const resp = await fetch(raw, {
     redirect: 'follow',
     headers: {
       'User-Agent':

@@ -70,11 +70,20 @@ export const attachTicketAnalysisToDates = (dateBlocks, tickets) => {
   });
 };
 
-export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matrix) => {
-  const gid = matchTabGid(voucher.sheetName, tabs);
+export const enrichVoucherWithImages = async (
+  voucher,
+  tabs,
+  spreadsheetId,
+  matrix,
+  imagesBySheet = null,
+) => {
+  const gid = voucher.gid || matchTabGid(voucher.sheetName, tabs);
   const cellUrls = extractImageUrlsFromMatrix(matrix);
-  const { images: htmlImages = [] } = await fetchTabImages(spreadsheetId, gid);
-  const imageUrls = [...new Set([...cellUrls, ...htmlImages])];
+  const presetImages = imagesBySheet?.[voucher.sheetName] || [];
+  const { images: tabImages = [] } = presetImages.length
+    ? { images: presetImages }
+    : await fetchTabImages(spreadsheetId, gid);
+  const imageUrls = [...new Set([...cellUrls, ...tabImages])];
 
   let analysis = {
     bills: [],
@@ -157,12 +166,15 @@ export const enrichAllVouchersWithImages = async (
   onProgress,
   options = {},
 ) => {
+  const imagesBySheet = options.imagesBySheet || null;
   const out = [];
   for (let i = 0; i < vouchers.length; i++) {
     const v = vouchers[i];
     const matrix = matricesBySheet[v.sheetName] || [];
     onProgress?.(i + 1, vouchers.length, v.auditorName);
-    out.push(await enrichVoucherWithImages(v, tabs, spreadsheetId, matrix));
+    out.push(
+      await enrichVoucherWithImages(v, tabs, spreadsheetId, matrix, imagesBySheet),
+    );
   }
 
   const fraudAudit = auditBillsForFraud(out, {

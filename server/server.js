@@ -7,6 +7,11 @@ import fs from 'node:fs';
 import XLSX from 'xlsx';
 import { syncExpenseWorkbook } from './expenseSync.js';
 import { analyzeBillsWithGemini } from './geminiOcr.js';
+import {
+  buildEmbeddedImageUrls,
+  getEmbeddedImage,
+  loadTabImagesFromXlsx,
+} from './tabImageCache.js';
 import { geocodeOnlineMulti } from '../src/utils/geocodeProviders.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -447,17 +452,67 @@ app.get('/api/sheet/tabs', async (req, res) => {
 
 app.get('/api/sheet/tab-images', async (req, res) => {
   const id = sanitizeSpreadsheetId(req.query.id);
-  const gid = String(req.query.gid || '0');
+  const gid = String(req.query.gid || '0').replace(/\D/g, '') || '0';
   if (!id) return res.status(400).json({ error: 'Invalid spreadsheet id' });
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${id}/htmlview?gid=${gid}`;
-    const htmlResp = await fetch(url, { redirect: 'follow' });
-    if (!htmlResp.ok) {
-      return res.json({ images: [], embeddedCount: 0, note: 'Could not open tab HTML view' });
+    let images = [];
+    let source = 'none';
+    let note = '';
+
+    try {
+      const xlsxEntry = await loadTabImagesFromXlsx(id, gid, SHEET_FETCH_HEADERS);
+      if (xlsxEntry.images.length > 0) {
+        images = buildEmbeddedImageUrls(id, gid, xlsxEntry.images.length);
+        source = 'xlsx';
+      }
+    } catch (e) {
+      note = `XLSX image export: ${e?.message || e}`;
     }
-    const html = await htmlResp.text();
-    const images = extractImagesFromHtml(html);
-    res.json({ images, embeddedCount: images.length, gid });
+
+    if (!images.length) {
+      const htmlUrl = `https://docs.google.com/spreadsheets/d/${id}/htmlview?gid=${gid}`;
+      const htmlResp = await fetch(htmlUrl, { redirect: 'follow', headers: SHEET_FETCH_HEADERS });
+      if (htmlResp.ok) {
+        const html = await htmlResp.text();
+        const htmlImages = extractImagesFromHtml(html);
+        if (htmlImages.length) {
+          images = htmlImages;
+          source = 'html';
+        }
+      } else if (!note) {
+        note = 'Could not open tab HTML view';
+      }
+    }
+
+    res.json({
+      images,
+      embeddedCount: images.length,
+      gid,
+      source,
+      note: images.length ? '' : note || 'No embedded bill images found in this tab',
+    });
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+app.get('/api/sheet/embedded-image', async (req, res) => {
+  const id = sanitizeSpreadsheetId(req.query.id);
+  const gid = String(req.query.gid || '0').replace(/\D/g, '') || '0';
+  const index = Number.parseInt(String(req.query.i ?? '0'), 10);
+  if (!id || !Number.isFinite(index) || index < 0) {
+    return res.status(400).json({ error: 'Invalid image request' });
+  }
+  try {
+    let image = getEmbeddedImage(id, gid, index);
+    if (!image) {
+      await loadTabImagesFromXlsx(id, gid, SHEET_FETCH_HEADERS);
+      image = getEmbeddedImage(id, gid, index);
+    }
+    if (!image) return res.status(404).json({ error: 'Image not found' });
+    res.set('Content-Type', image.mime || 'image/jpeg');
+    res.set('Cache-Control', 'private, max-age=3600');
+    res.send(image.data);
   } catch (err) {
     res.status(502).json({ error: String(err?.message || err) });
   }
