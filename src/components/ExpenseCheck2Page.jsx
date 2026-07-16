@@ -762,8 +762,21 @@ const ExpenseCheck2Page = () => {
     let tamperedImages = 0;
     let missingGstin = 0;
     let ocrBills = 0;
+    let imageCount = 0;
+    let tabsWithImages = 0;
+    let cacheHits = 0;
+    let ocrFailures = 0;
+    let provider = '';
     for (const v of expenseVouchers) {
-      ocrBills += v.imageAnalysis?.bills?.length || 0;
+      const analysis = v.imageAnalysis || {};
+      const bills = analysis.bills || [];
+      const urls = v.imageUrls || [];
+      if (urls.length > 0) tabsWithImages += 1;
+      imageCount += urls.length;
+      ocrBills += bills.length;
+      cacheHits += analysis.cacheHits || 0;
+      if (!provider && analysis.provider) provider = analysis.provider;
+      ocrFailures += bills.filter((b) => (b.ocrConfidence || 0) <= 0).length;
       for (const f of v.fraudFlags || []) {
         if (f.severity === 'red') red += 1;
         if (f.severity === 'orange') orange += 1;
@@ -772,8 +785,19 @@ const ExpenseCheck2Page = () => {
         if (f.code === 'GSTIN_MISSING_HIGH_VALUE') missingGstin += 1;
       }
     }
-    if (!ocrBills && !red && !orange) return null;
-    return { red, orange, duplicateBills, tamperedImages, missingGstin, ocrBills };
+    return {
+      red,
+      orange,
+      duplicateBills,
+      tamperedImages,
+      missingGstin,
+      ocrBills,
+      imageCount,
+      tabsWithImages,
+      cacheHits,
+      ocrFailures,
+      provider,
+    };
   }, [expenseVouchers]);
   const monthMismatch = useMemo(
     () =>
@@ -1075,13 +1099,34 @@ const ExpenseCheck2Page = () => {
             padding: '1rem',
             marginBottom: '1rem',
             fontSize: '0.8rem',
-            borderLeft: `4px solid ${fraudWorkbookSummary.red > 0 ? '#f85149' : fraudWorkbookSummary.orange > 0 ? '#d29922' : '#3fb950'}`,
+            borderLeft: `4px solid ${
+              fraudWorkbookSummary.red > 0
+                ? '#f85149'
+                : fraudWorkbookSummary.orange > 0
+                  ? '#d29922'
+                  : '#3fb950'
+            }`,
           }}
         >
           <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>Bill OCR & fraud check</h3>
           <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
             <span>
+              OCR provider: <strong>{fraudWorkbookSummary.provider || 'none'}</strong>
+            </span>
+            <span>
+              Tabs with images: <strong>{fraudWorkbookSummary.tabsWithImages}</strong>
+            </span>
+            <span>
+              Images found: <strong>{fraudWorkbookSummary.imageCount}</strong>
+            </span>
+            <span>
               Bills OCR'd: <strong>{fraudWorkbookSummary.ocrBills}</strong>
+            </span>
+            <span>
+              OCR failed: <strong>{fraudWorkbookSummary.ocrFailures}</strong>
+            </span>
+            <span>
+              Cache hits: <strong>{fraudWorkbookSummary.cacheHits}</strong>
             </span>
             <span style={{ color: '#f85149' }}>
               Red flags: <strong>{fraudWorkbookSummary.red}</strong>
@@ -1099,6 +1144,12 @@ const ExpenseCheck2Page = () => {
               Missing GSTIN: <strong>{fraudWorkbookSummary.missingGstin}</strong>
             </span>
           </div>
+          {fraudWorkbookSummary.imageCount === 0 && (
+            <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
+              No bill images were detected in the workbook tabs. OCR summary stays zero until image URLs
+              or pasted images are found.
+            </p>
+          )}
         </div>
       )}
 
