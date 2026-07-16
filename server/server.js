@@ -6,11 +6,12 @@ import os from 'node:os';
 import fs from 'node:fs';
 import XLSX from 'xlsx';
 import { syncExpenseWorkbook } from './expenseSync.js';
-import { analyzeBillsWithGemini } from './geminiOcr.js';
+import { analyzeBillsWithGemini, analyzeBillsBulk } from './geminiOcr.js';
 import {
   buildEmbeddedImageUrls,
-  getEmbeddedImage,
+  getEmbeddedImageAt,
   loadTabImagesFromXlsx,
+  loadTabImagesBatch,
 } from './tabImageCache.js';
 import { geocodeOnlineMulti } from '../src/utils/geocodeProviders.js';
 
@@ -504,15 +505,27 @@ app.get('/api/sheet/embedded-image', async (req, res) => {
     return res.status(400).json({ error: 'Invalid image request' });
   }
   try {
-    let image = getEmbeddedImage(id, gid, index);
+    let image = getEmbeddedImageAt(id, gid, index);
     if (!image) {
       await loadTabImagesFromXlsx(id, gid, SHEET_FETCH_HEADERS);
-      image = getEmbeddedImage(id, gid, index);
+      image = getEmbeddedImageAt(id, gid, index);
     }
     if (!image) return res.status(404).json({ error: 'Image not found' });
     res.set('Content-Type', image.mime || 'image/jpeg');
     res.set('Cache-Control', 'private, max-age=3600');
     res.send(image.data);
+  } catch (err) {
+    res.status(502).json({ error: String(err?.message || err) });
+  }
+});
+
+app.post('/api/sheet/tab-images-batch', async (req, res) => {
+  const id = sanitizeSpreadsheetId(req.body?.id);
+  const gids = Array.isArray(req.body?.gids) ? req.body.gids : [];
+  if (!id) return res.status(400).json({ error: 'Invalid spreadsheet id' });
+  try {
+    const byGid = await loadTabImagesBatch(id, gids, SHEET_FETCH_HEADERS, 4);
+    res.json({ byGid, count: Object.values(byGid).reduce((s, arr) => s + arr.length, 0) });
   } catch (err) {
     res.status(502).json({ error: String(err?.message || err) });
   }
@@ -551,6 +564,24 @@ const parseTicketJsonFromAi = (text) => {
   });
   return tickets;
 };
+
+app.post('/api/ai/analyze-bill-images-bulk', async (req, res) => {
+  const { batches = [] } = req.body || {};
+  if (!batches.length) {
+    return res.json({ byKey: {}, totals: { uniqueImages: 0, cacheHits: 0, vouchers: 0 } });
+  }
+  try {
+    const result = await analyzeBillsBulk(batches);
+    res.json(result);
+  } catch (err) {
+    const status = err?.status || 502;
+    res.status(status).json({
+      error: String(err?.message || err),
+      byKey: {},
+      totals: { uniqueImages: 0, cacheHits: 0, vouchers: 0 },
+    });
+  }
+});
 
 app.post('/api/ai/analyze-bill-images', async (req, res) => {
   const { imageUrls = [], context = {} } = req.body || {};

@@ -17,6 +17,20 @@ export const fetchTabImages = async (spreadsheetId, gid) => {
   return res.json();
 };
 
+/** Preload embedded images for many tabs in one server round-trip. */
+export const fetchTabImagesBatch = async (spreadsheetId, gids) => {
+  const uniq = [...new Set((gids || []).map((g) => String(g || '0')))];
+  if (!uniq.length) return {};
+  const res = await fetch('/api/sheet/tab-images-batch', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: spreadsheetId, gids: uniq }),
+  });
+  if (!res.ok) return {};
+  const data = await res.json();
+  return data.byGid || {};
+};
+
 const normTab = (s) =>
   String(s || '')
     .trim()

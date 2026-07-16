@@ -1,6 +1,16 @@
 import { getCachedOcr, setCachedOcr, sha256 } from './ocrCache.js';
+import {
+  getEmbeddedImageAt,
+  loadTabImagesFromXlsx,
+  parseEmbeddedImageUrl,
+  loadTabImagesBatch,
+  DEFAULT_SHEET_FETCH_HEADERS,
+} from './tabImageCache.js';
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+const OCR_CONCURRENCY = Number(process.env.OCR_CONCURRENCY) || 10;
+const MAX_IMAGES_PER_VOUCHER = Number(process.env.OCR_MAX_IMAGES_PER_TAB) || 8;
+const ENABLE_TAMPER = process.env.ENABLE_BILL_TAMPER_SCAN === 'true';
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
 const OCR_PROMPT = `You are reading Indian expense bills/tickets (bus, train, fuel, taxi, hotel).
@@ -101,6 +111,43 @@ const normalizeBill = (parsed, imageUrl, meta = {}) => {
   };
 };
 
+const runPool = async (items, worker, concurrency = 4) => {
+  if (!items.length) return [];
+  const results = new Array(items.length);
+  let idx = 0;
+  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (idx < items.length) {
+      const i = idx++;
+      results[i] = await worker(items[i], i);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+};
+
+/** Resize once for OCR + compute dHash in a single Jimp pass. */
+const prepareBillImage = async (buf) => {
+  const Jimp = (await import('jimp')).default;
+  const img = await Jimp.read(buf);
+
+  const hashImg = img.clone().greyscale().resize(9, 8);
+  let bits = '';
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const left = Jimp.intToRGBA(hashImg.getPixelColor(x, y)).r;
+      const right = Jimp.intToRGBA(hashImg.getPixelColor(x + 1, y)).r;
+      bits += left < right ? '1' : '0';
+    }
+  }
+  const dHash = BigInt(`0b${bits}`).toString(16).padStart(16, '0');
+
+  if (img.bitmap.width > 1024 || img.bitmap.height > 1024) {
+    img.scaleToFit(1024, 1024);
+  }
+  const ocrBuf = await img.quality(82).getBufferAsync(Jimp.MIME_JPEG);
+  return { ocrBuf, mime: 'image/jpeg', dHash };
+};
+
 const fetchImageBytes = async (url) => {
   const raw = String(url || '').trim();
   if (!raw) throw new Error('Missing image URL');
@@ -114,20 +161,12 @@ const fetchImageBytes = async (url) => {
     return { buf, mime };
   }
 
-  if (raw.startsWith('/api/sheet/embedded-image')) {
-    const { getEmbeddedImage, loadTabImagesFromXlsx } = await import('./tabImageCache.js');
-    const parsed = new URL(raw, 'http://local');
-    const id = parsed.searchParams.get('id') || '';
-    const gid = parsed.searchParams.get('gid') || '0';
-    const index = Number.parseInt(parsed.searchParams.get('i') || '0', 10);
-    let image = getEmbeddedImage(id, gid, index);
+  const embedded = parseEmbeddedImageUrl(raw);
+  if (embedded?.id) {
+    let image = getEmbeddedImageAt(embedded.id, embedded.gid, embedded.index);
     if (!image) {
-      await loadTabImagesFromXlsx(id, gid, {
-        'User-Agent':
-          'Mozilla/5.0 (compatible; SalesAudit/2.0; +https://sales-audit-2-0.onrender.com)',
-        Accept: '*/*',
-      });
-      image = getEmbeddedImage(id, gid, index);
+      await loadTabImagesFromXlsx(embedded.id, embedded.gid, DEFAULT_SHEET_FETCH_HEADERS);
+      image = getEmbeddedImageAt(embedded.id, embedded.gid, embedded.index);
     }
     if (!image?.data) throw new Error('Embedded sheet image not found');
     return { buf: image.data, mime: image.mime || 'image/jpeg' };
@@ -148,56 +187,6 @@ const fetchImageBytes = async (url) => {
   return { buf, mime };
 };
 
-/** Simple difference hash (dHash) via jimp — Hamming distance ≤ 5 ≈ duplicate. */
-const computeDHash = async (buf) => {
-  try {
-    const Jimp = (await import('jimp')).default;
-    const img = await Jimp.read(buf);
-    img.greyscale().resize(9, 8);
-    let bits = '';
-    for (let y = 0; y < 8; y++) {
-      for (let x = 0; x < 8; x++) {
-        const left = Jimp.intToRGBA(img.getPixelColor(x, y)).r;
-        const right = Jimp.intToRGBA(img.getPixelColor(x + 1, y)).r;
-        bits += left < right ? '1' : '0';
-      }
-    }
-    return BigInt(`0b${bits}`).toString(16).padStart(16, '0');
-  } catch {
-    return null;
-  }
-};
-
-/** Lightweight ELA-style score (0–1). Higher = more likely local edit. */
-const computeTamperScore = async (buf) => {
-  try {
-    const Jimp = (await import('jimp')).default;
-    const original = await Jimp.read(buf);
-    const w = Math.min(original.bitmap.width, 400);
-    const h = Math.min(original.bitmap.height, 400);
-    original.resize(w, h);
-
-    const jpeg = await original.quality(90).getBufferAsync(Jimp.MIME_JPEG);
-    const resaved = await Jimp.read(jpeg);
-    resaved.resize(w, h);
-
-    let sum = 0;
-    let count = 0;
-    for (let y = 0; y < h; y += 2) {
-      for (let x = 0; x < w; x += 2) {
-        const a = Jimp.intToRGBA(original.getPixelColor(x, y));
-        const b = Jimp.intToRGBA(resaved.getPixelColor(x, y));
-        sum += Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
-        count += 1;
-      }
-    }
-    const avg = count ? sum / count / (255 * 3) : 0;
-    return Math.min(1, Number(avg.toFixed(4)));
-  } catch {
-    return null;
-  }
-};
-
 const callGemini = async (apiKey, mime, base64, context = {}) => {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const body = {
@@ -214,7 +203,7 @@ const callGemini = async (apiKey, mime, base64, context = {}) => {
     ],
     generationConfig: {
       temperature: 0.1,
-      maxOutputTokens: 1024,
+      maxOutputTokens: 512,
       responseMimeType: 'application/json',
     },
   };
@@ -232,19 +221,6 @@ const callGemini = async (apiKey, mime, base64, context = {}) => {
   const text =
     result?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('') || '';
   return parseJsonObject(text);
-};
-
-const runPool = async (items, worker, concurrency = 4) => {
-  const results = new Array(items.length);
-  let idx = 0;
-  const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-    while (idx < items.length) {
-      const i = idx++;
-      results[i] = await worker(items[i], i);
-    }
-  });
-  await Promise.all(runners);
-  return results;
 };
 
 const billToTicketCompat = (bill) => {
@@ -271,9 +247,79 @@ const billToTicketCompat = (bill) => {
   };
 };
 
+const packAnalysis = (bills, imageCount, cacheHits) => {
+  const tickets = bills.filter((b) => (b.amount || 0) > 0).map(billToTicketCompat);
+  const totalFromTickets = tickets.reduce((s, t) => s + (t.amount || 0), 0);
+  return {
+    bills,
+    tickets,
+    totalFromTickets,
+    imageCount,
+    cacheHits,
+    provider: 'gemini',
+    model: GEMINI_MODEL,
+    raw: `OCR ${imageCount} image(s) via Gemini · ${tickets.length} amount(s) · ${cacheHits} cache hit(s)`,
+  };
+};
+
+const ocrOneImage = async (apiKey, imageUrl, context) => {
+  try {
+    const { buf } = await fetchImageBytes(imageUrl);
+    const contentHash = sha256(buf);
+    const cached = getCachedOcr(contentHash);
+    if (cached?.bill) {
+      return {
+        imageUrl,
+        bill: {
+          ...cached.bill,
+          imageUrl,
+          contentHash,
+          dHash: cached.dHash || cached.bill.dHash || null,
+          tamperScore: cached.tamperScore ?? cached.bill.tamperScore ?? null,
+          fromCache: true,
+        },
+        fromCache: true,
+      };
+    }
+
+    const { ocrBuf, mime, dHash } = await prepareBillImage(buf);
+    const parsed = await callGemini(apiKey, mime, ocrBuf.toString('base64'), context);
+    const bill = normalizeBill(parsed, imageUrl, {
+      contentHash,
+      dHash,
+      tamperScore: null,
+      fromCache: false,
+    });
+
+    setCachedOcr(contentHash, {
+      bill: { ...bill, imageUrl: undefined },
+      dHash,
+      tamperScore: null,
+    });
+    return { imageUrl, bill, fromCache: false };
+  } catch (e) {
+    return { imageUrl, bill: failedBill(imageUrl, e?.message || 'OCR failed to parse'), fromCache: false };
+  }
+};
+
+const preloadEmbeddedUrls = async (urls) => {
+  const bySpreadsheet = new Map();
+  for (const url of urls) {
+    const parsed = parseEmbeddedImageUrl(url);
+    if (!parsed?.id) continue;
+    const gid = String(parsed.gid).replace(/\D/g, '') || '0';
+    if (!bySpreadsheet.has(parsed.id)) bySpreadsheet.set(parsed.id, new Set());
+    bySpreadsheet.get(parsed.id).add(gid);
+  }
+  const jobs = [];
+  for (const [spreadsheetId, gids] of bySpreadsheet.entries()) {
+    jobs.push(loadTabImagesBatch(spreadsheetId, [...gids], DEFAULT_SHEET_FETCH_HEADERS, 4));
+  }
+  await Promise.all(jobs);
+};
+
 /**
- * OCR every bill image with Gemini (cached by content hash).
- * Returns structured bills + ticket-compat array for existing date matching.
+ * OCR bill images for one auditor tab (legacy single-batch API).
  */
 export const analyzeBillsWithGemini = async (imageUrls, context = {}) => {
   const apiKey = process.env.GEMINI_API_KEY || '';
@@ -283,67 +329,84 @@ export const analyzeBillsWithGemini = async (imageUrls, context = {}) => {
     throw err;
   }
 
-  const urls = (imageUrls || []).slice(0, 24);
-  let cacheHits = 0;
+  const urls = (imageUrls || []).slice(0, MAX_IMAGES_PER_VOUCHER);
+  await preloadEmbeddedUrls(urls);
 
-  const bills = await runPool(
+  let cacheHits = 0;
+  const results = await runPool(
     urls,
     async (imageUrl) => {
-      try {
-        const { buf, mime } = await fetchImageBytes(imageUrl);
-        const contentHash = sha256(buf);
-        const cached = getCachedOcr(contentHash);
-        if (cached?.bill) {
-          cacheHits += 1;
-          return {
-            ...cached.bill,
-            imageUrl,
-            contentHash,
-            dHash: cached.dHash || cached.bill.dHash || null,
-            tamperScore: cached.tamperScore ?? cached.bill.tamperScore ?? null,
-            fromCache: true,
-          };
-        }
-
-        const [dHash, tamperScore, parsed] = await Promise.all([
-          computeDHash(buf),
-          computeTamperScore(buf),
-          callGemini(apiKey, mime, buf.toString('base64'), context),
-        ]);
-
-        const bill = normalizeBill(parsed, imageUrl, {
-          contentHash,
-          dHash,
-          tamperScore,
-          fromCache: false,
-        });
-
-        setCachedOcr(contentHash, {
-          bill: { ...bill, imageUrl: undefined },
-          dHash,
-          tamperScore,
-        });
-        return bill;
-      } catch (e) {
-        return failedBill(imageUrl, e?.message || 'OCR failed to parse');
-      }
+      const r = await ocrOneImage(apiKey, imageUrl, context);
+      if (r.fromCache) cacheHits += 1;
+      return r.bill;
     },
-    4,
+    OCR_CONCURRENCY,
   );
 
-  const tickets = bills.filter((b) => (b.amount || 0) > 0).map(billToTicketCompat);
-  const totalFromTickets = tickets.reduce((s, t) => s + (t.amount || 0), 0);
+  return packAnalysis(results, urls.length, cacheHits);
+};
+
+/**
+ * Fast bulk OCR for an entire expense workbook.
+ * Dedupes identical images, preloads each tab XLSX once, runs Gemini in parallel.
+ */
+export const analyzeBillsBulk = async (batches = []) => {
+  const apiKey = process.env.GEMINI_API_KEY || '';
+  if (!apiKey) {
+    const err = new Error('Set GEMINI_API_KEY on Render for bill OCR.');
+    err.status = 503;
+    throw err;
+  }
+
+  const trimmedBatches = (batches || []).map((batch) => ({
+    key: String(batch.key || ''),
+    imageUrls: (batch.imageUrls || []).slice(0, MAX_IMAGES_PER_VOUCHER),
+    context: batch.context || {},
+  }));
+
+  const urlJobs = new Map();
+  for (const batch of trimmedBatches) {
+    for (const imageUrl of batch.imageUrls) {
+      if (!urlJobs.has(imageUrl)) {
+        urlJobs.set(imageUrl, batch.context);
+      }
+    }
+  }
+
+  const allUrls = [...urlJobs.keys()];
+  await preloadEmbeddedUrls(allUrls);
+
+  let cacheHits = 0;
+  const billsByUrl = new Map();
+  await runPool(
+    allUrls,
+    async (imageUrl) => {
+      const result = await ocrOneImage(apiKey, imageUrl, urlJobs.get(imageUrl) || {});
+      if (result.fromCache) cacheHits += 1;
+      billsByUrl.set(imageUrl, result.bill);
+    },
+    OCR_CONCURRENCY,
+  );
+
+  const byKey = {};
+  for (const batch of trimmedBatches) {
+    const bills = batch.imageUrls.map((url) => billsByUrl.get(url)).filter(Boolean);
+    byKey[batch.key] = packAnalysis(bills, batch.imageUrls.length, 0);
+    if (!batch.imageUrls.length) {
+      byKey[batch.key].note = 'No bill images found in this tab (paste images in sheet or share as Viewer).';
+    }
+  }
 
   return {
-    bills,
-    tickets,
-    totalFromTickets,
-    imageCount: urls.length,
-    cacheHits,
-    provider: 'gemini',
-    model: GEMINI_MODEL,
-    raw: `OCR ${urls.length} image(s) via Gemini · ${tickets.length} amount(s) · ${cacheHits} cache hit(s)`,
+    byKey,
+    totals: {
+      uniqueImages: allUrls.length,
+      cacheHits,
+      vouchers: trimmedBatches.length,
+      tamperScan: ENABLE_TAMPER,
+    },
   };
 };
 
 export const GSTIN_REGEX = GSTIN_RE;
+export { MAX_IMAGES_PER_VOUCHER, OCR_CONCURRENCY };
