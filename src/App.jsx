@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v63-expense-chunked-ocr
+            build: v64-expense-ocr-amount-checks
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />

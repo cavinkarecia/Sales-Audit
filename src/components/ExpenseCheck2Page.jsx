@@ -461,16 +461,6 @@ const AuditorTotalSummary = ({ voucher }) => {
           </tr>
         </tbody>
       </table>
-      {!checks.allOk && (
-        <div style={{ marginTop: 10, fontSize: '0.72rem', color: '#f85149' }}>
-          <strong>What is wrong:</strong>
-          <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-            {amounts.issues.map((issue) => (
-              <li key={issue.code} style={{ marginBottom: 4 }}>{issue.message}</li>
-            ))}
-          </ul>
-        </div>
-      )}
       {voucher.imageAnalysis?.note && (
         <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
           {voucher.imageAnalysis.note}
@@ -761,12 +751,15 @@ const ExpenseCheck2Page = () => {
     let duplicateBills = 0;
     let tamperedImages = 0;
     let missingGstin = 0;
+    let amountMismatches = 0;
     let ocrBills = 0;
     let imageCount = 0;
     let tabsWithImages = 0;
     let cacheHits = 0;
     let ocrFailures = 0;
     let provider = '';
+    const ocrFailReasons = [];
+    const seenReason = new Set();
     for (const v of expenseVouchers) {
       const analysis = v.imageAnalysis || {};
       const bills = analysis.bills || [];
@@ -776,13 +769,34 @@ const ExpenseCheck2Page = () => {
       ocrBills += bills.length;
       cacheHits += analysis.cacheHits || 0;
       if (!provider && analysis.provider) provider = analysis.provider;
-      ocrFailures += bills.filter((b) => (b.ocrConfidence || 0) <= 0).length;
+      for (const b of bills) {
+        if ((b.ocrConfidence || 0) <= 0 || /OCR failed/i.test(String(b.suspiciousNotes || ''))) {
+          ocrFailures += 1;
+          const reason = String(b.suspiciousNotes || 'Could not read amount from bill image')
+            .replace(/\s+/g, ' ')
+            .slice(0, 120);
+          const line = `${v.auditorName || v.sheetName}: ${reason}`;
+          if (!seenReason.has(line) && ocrFailReasons.length < 12) {
+            seenReason.add(line);
+            ocrFailReasons.push(line);
+          }
+        }
+      }
       for (const f of v.fraudFlags || []) {
         if (f.severity === 'red') red += 1;
         if (f.severity === 'orange') orange += 1;
         if (f.code === 'DUPLICATE_BILL_IMAGE') duplicateBills += 1;
         if (f.code === 'TAMPERED_IMAGE') tamperedImages += 1;
         if (f.code === 'GSTIN_MISSING_HIGH_VALUE') missingGstin += 1;
+        if (
+          f.code === 'BILL_VS_ENTERED' ||
+          f.code === 'MULTI_BILL_VS_ENTERED' ||
+          f.code === 'OCR_TOTAL_VS_ENTERED' ||
+          f.code === 'BILL_AMOUNT_NOT_IN_SHEET' ||
+          f.code === 'NO_BILL_FOR_DATE'
+        ) {
+          amountMismatches += 1;
+        }
       }
     }
     return {
@@ -791,12 +805,14 @@ const ExpenseCheck2Page = () => {
       duplicateBills,
       tamperedImages,
       missingGstin,
+      amountMismatches,
       ocrBills,
       imageCount,
       tabsWithImages,
       cacheHits,
       ocrFailures,
       provider,
+      ocrFailReasons,
     };
   }, [expenseVouchers]);
   const monthMismatch = useMemo(
@@ -1135,6 +1151,9 @@ const ExpenseCheck2Page = () => {
               Orange flags: <strong>{fraudWorkbookSummary.orange}</strong>
             </span>
             <span>
+              Amount mismatches: <strong>{fraudWorkbookSummary.amountMismatches}</strong>
+            </span>
+            <span>
               Duplicates: <strong>{fraudWorkbookSummary.duplicateBills}</strong>
             </span>
             <span>
@@ -1144,6 +1163,29 @@ const ExpenseCheck2Page = () => {
               Missing GSTIN: <strong>{fraudWorkbookSummary.missingGstin}</strong>
             </span>
           </div>
+          <div style={{ marginTop: 10, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--text-primary)' }}>OCR checks:</strong>
+            <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+              <li>Bill amount on image matches the amount entered for that date</li>
+              <li>If 2+ bills for one date — sum of bill OCR amounts matches entered date total</li>
+              <li>OCR travel/ticket total matches auditor tickets/travel header or date sum</li>
+              <li>Duplicate bill images / same bill number across auditors</li>
+              <li>GSTIN format / missing GSTIN on high-value bills</li>
+              <li>Unreadable bill images (one-line fail reason below)</li>
+            </ul>
+          </div>
+          {fraudWorkbookSummary.ocrFailReasons?.length > 0 && (
+            <div style={{ marginTop: 10, fontSize: '0.72rem' }}>
+              <strong style={{ color: '#d29922' }}>OCR fail reasons:</strong>
+              <ul style={{ margin: '6px 0 0', paddingLeft: 18, color: '#d29922' }}>
+                {fraudWorkbookSummary.ocrFailReasons.map((line) => (
+                  <li key={line} style={{ marginBottom: 4 }}>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {fraudWorkbookSummary.imageCount === 0 && (
             <p style={{ margin: '8px 0 0', color: 'var(--text-secondary)' }}>
               No bill images were detected in the workbook tabs. OCR summary stays zero until image URLs
@@ -1522,66 +1564,11 @@ const ExpenseCheck2Page = () => {
                         </a>
                       ))}
                     </div>
-                    {(result.voucher.fraudFlags || []).length > 0 && (
-                      <div style={{ marginTop: 10 }}>
-                        <div
-                          style={{
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            color: '#f85149',
-                            marginBottom: 6,
-                          }}
-                        >
-                          Fraud / OCR flags ({result.voucher.fraudFlags.length})
-                        </div>
-                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.75rem' }}>
-                          {result.voucher.fraudFlags.slice(0, 12).map((f, i) => (
-                            <li
-                              key={`${f.code}-${i}`}
-                              style={{
-                                color: severityColor(f.severity === 'orange' ? 'orange' : 'red'),
-                                marginBottom: 4,
-                              }}
-                            >
-                              <strong>{f.code}</strong>: {f.message}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
+                    <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                      Amount mismatches and OCR fails are listed under <strong>Mistakes found</strong> above.
+                    </p>
                   </div>
                 )}
-
-                {(result.voucher.fraudFlags || []).length > 0 &&
-                  !(result.voucher.imageUrls?.length > 0) && (
-                    <div
-                      style={{
-                        marginTop: 10,
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '1px solid #f85149',
-                        background: 'rgba(248,81,73,0.08)',
-                        fontSize: '0.75rem',
-                      }}
-                    >
-                      <strong style={{ color: '#f85149' }}>
-                        Fraud / OCR flags ({result.voucher.fraudFlags.length})
-                      </strong>
-                      <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-                        {result.voucher.fraudFlags.slice(0, 12).map((f, i) => (
-                          <li
-                            key={`${f.code}-${i}`}
-                            style={{
-                              color: severityColor(f.severity === 'orange' ? 'orange' : 'red'),
-                              marginBottom: 4,
-                            }}
-                          >
-                            <strong>{f.code}</strong>: {f.message}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
 
                 {result.dateResults.length > 0 && (
                   <div style={{ marginTop: 12 }}>

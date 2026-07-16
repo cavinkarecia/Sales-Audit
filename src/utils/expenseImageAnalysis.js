@@ -104,17 +104,22 @@ export const attachTicketAnalysisToDates = (dateBlocks, tickets) => {
     const ticketSum = matched.reduce((s, t) => s + (t.amount || 0), 0);
     const compareAmount = block.isPetrolDay ? block.petrolTravel : block.travel;
     const compareSubtotal = block.ticketComparable || block.travel + block.localConveyance;
+    const compareGrand = Number(block.grandTotal) || Number(block.dayTotal) || 0;
+    const matches =
+      ticketSum > 0
+        ? Math.abs(ticketSum - compareAmount) <= 5 ||
+          Math.abs(ticketSum - compareSubtotal) <= 5 ||
+          (compareGrand > 0 && Math.abs(ticketSum - compareGrand) <= 5)
+        : null;
 
     return {
       ...block,
       ticketsFromImages: matched,
       ticketAmountFromImages: ticketSum,
-      manualMatchesImages:
-        ticketSum > 0
-          ? Math.abs(ticketSum - compareAmount) <= 5 ||
-            Math.abs(ticketSum - compareSubtotal) <= 5
-          : null,
-      imageCompareTarget: block.isPetrolDay ? compareAmount : compareSubtotal,
+      manualMatchesImages: matches,
+      imageCompareTarget: block.isPetrolDay
+        ? compareAmount
+        : compareSubtotal || compareGrand || compareAmount,
     };
   });
 };

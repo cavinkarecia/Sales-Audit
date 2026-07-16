@@ -34,23 +34,63 @@ const collectBills = (vouchers) => {
   return out;
 };
 
+const normDateDigits = (d) => String(d || '').replace(/[^0-9]/g, '');
+
+const datesMatchLoose = (a, b) => {
+  const na = normDateDigits(a);
+  const nb = normDateDigits(b);
+  if (!na || !nb) return false;
+  return (
+    na === nb ||
+    na.slice(-6) === nb.slice(-6) ||
+    na.includes(nb.slice(-4)) ||
+    nb.includes(na.slice(-4))
+  );
+};
+
+const enteredAmountForDate = (block) => {
+  if (!block) return 0;
+  if (block.isPetrolDay || block.isKmPetrolDay) {
+    return Number(block.petrolTravel) || 0;
+  }
+  const ticket =
+    Number(block.ticketComparable) ||
+    Number(block.travel || 0) + Number(block.localConveyance || 0) + Number(block.conveyance || 0);
+  if (ticket > 0) return ticket;
+  return Number(block.grandTotal) || Number(block.dayTotal) || 0;
+};
+
+const ocrFailReason = (bill) => {
+  const note = String(bill?.suspiciousNotes || '').trim();
+  if (!note || note === 'OCR failed to parse') {
+    if ((bill?.amount || 0) <= 0 && (bill?.ocrConfidence || 0) <= 0) {
+      return 'Could not read amount from bill image';
+    }
+    return 'OCR could not parse this bill image';
+  }
+  // Keep one short line
+  return note.replace(/\s+/g, ' ').slice(0, 140);
+};
+
 /** Per-image / per-auditor OCR flags that don't need the whole workbook. */
 export const auditBillsForVoucher = (voucher) => {
   const flags = [];
   const bills = voucher?.imageAnalysis?.bills || [];
+  const dateBlocks = voucher?.dateBlocks || [];
 
   for (const bill of bills) {
     const label = bill.date || bill.billNumber || bill.vendorName || 'bill';
 
-    if ((bill.ocrConfidence || 0) <= 0 || bill.suspiciousNotes === 'OCR failed to parse') {
+    if ((bill.ocrConfidence || 0) <= 0 || /OCR failed/i.test(String(bill.suspiciousNotes || ''))) {
       flags.push(
-        flag('orange', 'OCR_FAILED', `OCR failed on image (${label})`, {
+        flag('orange', 'OCR_FAILED', `OCR failed — ${ocrFailReason(bill)} (${label})`, {
           imageUrl: bill.imageUrl,
+          reason: ocrFailReason(bill),
         }),
       );
     } else if (bill.suspiciousNotes) {
       flags.push(
-        flag('orange', 'OCR_SUSPICIOUS', `${label}: ${bill.suspiciousNotes}`, {
+        flag('orange', 'OCR_SUSPICIOUS', `${label}: ${String(bill.suspiciousNotes).slice(0, 140)}`, {
           imageUrl: bill.imageUrl,
           ocrConfidence: bill.ocrConfidence,
         }),
@@ -114,6 +154,111 @@ export const auditBillsForVoucher = (voucher) => {
         );
       }
     }
+  }
+
+  // Bill upload amount checks: entered date values vs OCR bill amounts
+  const readableBills = bills.filter(
+    (b) => (b.amount || 0) > 0 && (b.ocrConfidence || 0) > 0,
+  );
+  const usedBillUrls = new Set();
+
+  for (const block of dateBlocks) {
+    const entered = enteredAmountForDate(block);
+    if (entered <= 0) continue;
+
+    const matched = readableBills.filter((b) => {
+      if (!b.date) return false;
+      return datesMatchLoose(b.date, block.date);
+    });
+    matched.forEach((b) => {
+      if (b.imageUrl) usedBillUrls.add(b.imageUrl);
+    });
+
+    if (!matched.length) {
+      // Prefer tickets/travel days for "missing bill" — skip pure stay-only if no travel
+      const travelish =
+        (block.travel || 0) > 0 ||
+        (block.localConveyance || 0) > 0 ||
+        (block.petrolTravel || 0) > 0;
+      if (travelish) {
+        flags.push(
+          flag(
+            'orange',
+            'NO_BILL_FOR_DATE',
+            `${block.date}: Entered ₹${entered} but no OCR bill amount matched this date`,
+            { entered, date: block.date },
+          ),
+        );
+      }
+      continue;
+    }
+
+    const billSum = matched.reduce((s, b) => s + (Number(b.amount) || 0), 0);
+    const billParts = matched.map((b) => `₹${b.amount}`).join(' + ');
+
+    if (Math.abs(billSum - entered) > 5) {
+      const severity = Math.abs(billSum - entered) > 50 ? 'red' : 'orange';
+      flags.push(
+        flag(
+          severity,
+          matched.length > 1 ? 'MULTI_BILL_VS_ENTERED' : 'BILL_VS_ENTERED',
+          matched.length > 1
+            ? `${block.date}: Entered ₹${entered} ≠ sum of ${matched.length} bills (${billParts} = ₹${billSum})`
+            : `${block.date}: Entered ₹${entered} ≠ bill OCR ₹${billSum}`,
+          {
+            entered,
+            billSum,
+            billCount: matched.length,
+            date: block.date,
+            imageUrls: matched.map((b) => b.imageUrl).filter(Boolean),
+          },
+        ),
+      );
+    }
+  }
+
+  // Unmatched OCR bills whose amount does not appear on any date row
+  for (const bill of readableBills) {
+    if (bill.imageUrl && usedBillUrls.has(bill.imageUrl)) continue;
+    const amt = Number(bill.amount) || 0;
+    if (amt <= 0) continue;
+    const hitsDate = dateBlocks.some((block) => {
+      const entered = enteredAmountForDate(block);
+      if (entered <= 0) return false;
+      if (Math.abs(entered - amt) <= 5) return true;
+      // also allow being part of a multi-bill day already flagged above
+      return bill.date && datesMatchLoose(bill.date, block.date);
+    });
+    if (!hitsDate) {
+      const label = bill.date || bill.billNumber || bill.vendorName || 'bill';
+      flags.push(
+        flag(
+          'orange',
+          'BILL_AMOUNT_NOT_IN_SHEET',
+          `${label}: Bill OCR ₹${amt} not found in any date-entered amount`,
+          { amount: amt, imageUrl: bill.imageUrl },
+        ),
+      );
+    }
+  }
+
+  // Whole-voucher: OCR bill total vs tickets/travel entered total
+  const ocrTravelTotal = readableBills
+    .filter((b) => /bus|train|taxi|ticket|other/i.test(String(b.billType || 'other')))
+    .reduce((s, b) => s + (Number(b.amount) || 0), 0);
+  const enteredTravel =
+    Number(voucher.dateWiseTicketsSum) ||
+    Number(voucher.ticketsTotal) ||
+    0;
+  if (ocrTravelTotal > 0 && enteredTravel > 0 && Math.abs(ocrTravelTotal - enteredTravel) > 20) {
+    flags.push(
+      flag(
+        'red',
+        'OCR_TOTAL_VS_ENTERED',
+        `Tickets/travel entered ₹${enteredTravel} ≠ OCR bill total ₹${ocrTravelTotal}`,
+        { enteredTravel, ocrTravelTotal },
+      ),
+    );
   }
 
   return flags;
