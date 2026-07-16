@@ -1195,30 +1195,54 @@ export const parseVoucherSheet = (matrix, sheetName, options = {}) => {
   };
 };
 
-/** Server sync — downloads all tabs on Render. */
-export const fetchAllExpenseVouchers = async (url) => {
+/** Server sync — downloads all tabs on Render. Retries transient 502/503 failures. */
+export const fetchAllExpenseVouchers = async (url, options = {}) => {
   const spreadsheetId = extractSpreadsheetId(url);
   if (!spreadsheetId) {
     throw new Error('Invalid Google Sheets URL — paste the full spreadsheet link.');
   }
 
-  const res = await fetch('/api/expense/sync', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ url: url.trim() }),
-  });
+  const includeMatrices = options.includeMatrices !== false;
+  const maxAttempts = Number(options.retries) > 0 ? Number(options.retries) : 3;
+  let lastErr;
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    const base = err.error || `Sync failed (HTTP ${res.status})`;
-    const hint =
-      res.status === 503
-        ? ' The server was busy or timed out — wait 30 seconds and try again.'
-        : '';
-    throw new Error(`${base}${hint}`);
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await fetch('/api/expense/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: url.trim(), includeMatrices }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const base = err.error || `Sync failed (HTTP ${res.status})`;
+        const retryable = res.status === 502 || res.status === 503 || res.status === 504;
+        if (retryable && attempt < maxAttempts) {
+          await new Promise((r) => setTimeout(r, 1500 * attempt));
+          continue;
+        }
+        const hint =
+          res.status === 502 || res.status === 503
+            ? ' Server was busy — try Hard Refresh again in a few seconds.'
+            : '';
+        throw new Error(`${base}${hint}`);
+      }
+
+      return res.json();
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e?.message || e);
+      const retryable = /failed to fetch|network|timeout|502|503|504/i.test(msg);
+      if (retryable && attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 1500 * attempt));
+        continue;
+      }
+      throw e;
+    }
   }
 
-  return res.json();
+  throw lastErr || new Error('Expense sync failed');
 };
 
 export const DEFAULT_EXPENSE_SHEET_URL =

@@ -4,16 +4,10 @@ import {
   fetchAllExpenseVouchers,
 } from '../utils/expenseVoucherParser.js';
 import { fetchAllSheets } from '../utils/sheetFetcher.js';
-import { enrichAllVouchersWithImages } from '../utils/expenseImageAnalysis.js';
 import {
-  mergeExpenseVoucherParts,
   mergeSheetSummaries,
   mergeDateAuditSummaries,
 } from '../utils/expenseMerge.js';
-import {
-  auditBillsForFraud,
-  attachFraudFlagsToVouchers,
-} from '../utils/expenseFraudAudit.js';
 import { normalizeAttendanceRecords } from '../utils/attendanceProcessor.js';
 import {
   AUDIT_STORAGE_KEYS,
@@ -39,6 +33,24 @@ const loadJson = (key, fallback) => {
       /* ignore */
     }
     return fallback;
+  }
+};
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const clearServerCaches = async () => {
+  try {
+    await fetch('/api/cache/clear', { method: 'POST' });
+  } catch {
+    /* ignore — still continue refresh */
+  }
+};
+
+const wakeServer = async () => {
+  try {
+    await fetch('/api/health');
+  } catch {
+    /* ignore */
   }
 };
 
@@ -110,18 +122,22 @@ export const AuditDataProvider = ({ children }) => {
   }, [expenseSpreadsheetUrl]);
 
   /**
-   * Global Hard Refresh — re-fetch every live-link section (PJP + Expense) from
-   * its saved link right now, rebuild all shared data, then remount every page.
-   * Attendance is kept as-is (a local Excel file cannot be silently re-read).
+   * Global Hard Refresh — clear all caches, re-fetch PJP + Expense data only
+   * (no OCR during refresh — OCR runs when you open Expense and fetch).
    */
   const hardRefresh = useCallback(async () => {
-    setHardRefreshStatus({ running: true, step: 'Starting hard refresh…', error: '' });
+    setHardRefreshStatus({ running: true, step: 'Clearing caches…', error: '' });
     let error = '';
+
+    clearSectionCache('pjp');
+    clearSectionCache('expense');
+    await clearServerCaches();
+    await wakeServer();
+    await sleep(400);
 
     if (pjpSpreadsheetUrl && pjpSpreadsheetUrl.trim()) {
       setHardRefreshStatus({ running: true, step: 'Refreshing PJP from live link…', error: '' });
       try {
-        clearSectionCache('pjp');
         const r = await fetchAllSheets(pjpSpreadsheetUrl.trim());
         setPjpRecords(r.records || []);
         setPjpSheetSummary(r.sheetSummary || []);
@@ -135,27 +151,34 @@ export const AuditDataProvider = ({ children }) => {
       const part2Url = (localStorage.getItem('sales_audit_expense_v5_url_part2') || '').trim();
 
       const fetchExpensePart = async (url, label) => {
-        setHardRefreshStatus({ running: true, step: `Refreshing Expense ${label}…`, error: '' });
-        const r = await fetchAllExpenseVouchers(url);
-        const enriched = await enrichAllVouchersWithImages(
-          r.vouchers,
-          r.tabs,
-          r.spreadsheetId,
-          r.matricesBySheet,
-          (n, total) => {
-            setHardRefreshStatus({
-              running: true,
-              step: `Expense ${label} — OCR bills (${n}/${total})…`,
-              error: '',
-            });
+        setHardRefreshStatus({
+          running: true,
+          step: `Refreshing Expense ${label} (data sync, no OCR)…`,
+          error: '',
+        });
+        // Hard refresh: data only — skip matrices + OCR to avoid 502 timeouts
+        const r = await fetchAllExpenseVouchers(url, {
+          includeMatrices: false,
+          retries: 3,
+        });
+        const vouchers = (r.vouchers || []).map((v) => ({
+          ...v,
+          imageUrls: [],
+          imageAnalysis: {
+            bills: [],
+            tickets: [],
+            totalFromTickets: 0,
+            imageCount: 0,
+            note: 'Hard Refresh synced voucher data. Open Expense and Fetch to run bill OCR.',
+            provider: '',
+            cacheHits: 0,
           },
-          { attendanceRecords, pjpRecords },
-        );
-        return { r, enriched };
+          fraudFlags: [],
+        }));
+        return { r, vouchers };
       };
 
       try {
-        clearSectionCache('expense');
         if (mode === 'sections' && part2Url) {
           const p1 = await fetchExpensePart(expenseSpreadsheetUrl.trim(), 'Part 1 (days 1–15)');
           const p2 = await fetchExpensePart(part2Url, 'Part 2 (days 16–end)');
@@ -163,12 +186,25 @@ export const AuditDataProvider = ({ children }) => {
             mergeSheetSummaries(p1.r.sheetSummary || [], p2.r.sheetSummary || []),
           );
           const mergedAudit = mergeDateAuditSummaries(p1.r.dateAudit, p2.r.dateAudit);
-          const merged = mergeExpenseVoucherParts(p1.enriched, p2.enriched);
-          const fraudAudit = auditBillsForFraud(merged, {
-            attendanceRecords,
-            pjpRecords,
+          // Prefer part2 then part1 by employee for merge-lite without OCR
+          const byKey = new Map();
+          [...p1.vouchers, ...p2.vouchers].forEach((v) => {
+            const key = `${String(v.employeeNo || '').trim()}|${String(v.auditorName || '')
+              .trim()
+              .toLowerCase()}`;
+            const prev = byKey.get(key);
+            if (!prev) {
+              byKey.set(key, v);
+              return;
+            }
+            byKey.set(key, {
+              ...prev,
+              ...v,
+              dateBlocks: [...(prev.dateBlocks || []), ...(v.dateBlocks || [])],
+              declaredTotal: Math.max(prev.declaredTotal || 0, v.declaredTotal || 0),
+            });
           });
-          setExpenseVouchers(attachFraudFlagsToVouchers(merged, fraudAudit));
+          setExpenseVouchers([...byKey.values()]);
           if (mergedAudit) {
             try {
               localStorage.setItem(
@@ -182,7 +218,7 @@ export const AuditDataProvider = ({ children }) => {
         } else {
           const p1 = await fetchExpensePart(expenseSpreadsheetUrl.trim(), 'from live link');
           setExpenseSheetSummary(p1.r.sheetSummary || []);
-          setExpenseVouchers(p1.enriched);
+          setExpenseVouchers(p1.vouchers);
           if (p1.r.dateAudit) {
             try {
               localStorage.setItem(
@@ -208,11 +244,12 @@ export const AuditDataProvider = ({ children }) => {
         /* ignore */
       }
     }
-  }, [pjpSpreadsheetUrl, expenseSpreadsheetUrl, attendanceRecords, pjpRecords]);
+  }, [pjpSpreadsheetUrl, expenseSpreadsheetUrl]);
 
   /** Wipe every upload, link, and cached result — fresh empty state. */
-  const removeAllFiles = useCallback(() => {
+  const removeAllFiles = useCallback(async () => {
     purgeAllAuditData();
+    await clearServerCaches();
     setAttendanceRecords([]);
     setPjpRecords([]);
     setPjpSheetSummary([]);

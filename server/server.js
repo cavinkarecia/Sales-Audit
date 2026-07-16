@@ -12,7 +12,9 @@ import {
   getEmbeddedImageAt,
   loadTabImagesFromXlsx,
   loadTabImagesBatch,
+  clearTabImageCache,
 } from './tabImageCache.js';
+import { clearOcrCache } from './ocrCache.js';
 import { geocodeOnlineMulti } from '../src/utils/geocodeProviders.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -51,6 +53,17 @@ app.get('/api/health', (_req, res) => {
     ocrConfigured: Boolean(GEMINI_API_KEY),
     time: new Date().toISOString(),
   });
+});
+
+app.post('/api/cache/clear', (_req, res) => {
+  try {
+    clearTabImageCache();
+    clearOcrCache();
+    if (typeof global.gc === 'function') global.gc();
+    res.json({ ok: true, cleared: ['tabImages', 'ocr'], build: readBuildId() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: String(err?.message || err) });
+  }
 });
 
 const sanitizeSpreadsheetId = (raw) => {
@@ -614,9 +627,16 @@ app.post('/api/expense/sync', async (req, res) => {
   if (!url) return res.status(400).json({ error: 'Missing spreadsheet url' });
   try {
     const workbookTitle = String(req.body?.workbookTitle || req.body?.workbookName || '').trim();
+    const includeMatrices = req.body?.includeMatrices !== false;
     const result = await syncExpenseWorkbook(url, listWorkbookTabs, { workbookTitle });
-    res.json({ ...result, build: readBuildId() });
+    const payload = { ...result, build: readBuildId() };
+    if (!includeMatrices) {
+      // Smaller response for Hard Refresh — OCR reloads cell formulas later if needed
+      payload.matricesBySheet = {};
+    }
+    res.json(payload);
   } catch (err) {
+    console.error('[expense/sync]', err);
     res.status(502).json({ error: String(err?.message || err) });
   }
 });

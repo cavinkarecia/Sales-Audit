@@ -53,11 +53,15 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs, options = {
   }
 
   const tabs = await listWorkbookTabs(spreadsheetId);
-  const tabResults = await runPool(tabs, async (tab) => {
-    const csv = await fetchTabCsv(spreadsheetId, tab.gid);
-    if (!csv) return { tab, matrix: null, error: 'CSV export failed' };
-    return { tab, matrix: matrixFromCsv(csv), error: null };
-  });
+  const tabResults = await runPool(
+    tabs,
+    async (tab) => {
+      const csv = await fetchTabCsv(spreadsheetId, tab.gid);
+      if (!csv) return { tab, matrix: null, error: 'CSV export failed' };
+      return { tab, matrix: matrixFromCsv(csv), error: null };
+    },
+    3,
+  );
 
   const matricesBySheet = {};
   const vouchers = [];

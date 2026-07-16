@@ -14,8 +14,8 @@ const HardRefreshButton = () => {
   const handleClick = () => {
     if (busy) return;
     const ok = window.confirm(
-      'Hard Refresh will clear all cached results and rebuild every dashboard from the ' +
-        'currently uploaded files and links. Continue?',
+      'Hard Refresh will clear browser + server caches, then rebuild PJP and Expense ' +
+        'from saved links (data sync only — open Expense and Fetch to re-run bill OCR). Continue?',
     );
     if (!ok) return;
     hardRefresh();

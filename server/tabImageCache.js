@@ -127,4 +127,10 @@ export const parseEmbeddedImageUrl = (url) => {
   };
 };
 
+/** Drop in-memory XLSX image buffers (call on Hard Refresh). */
+export const clearTabImageCache = () => {
+  cache.clear();
+  return { cleared: true };
+};
+
 export { DEFAULT_SHEET_FETCH_HEADERS };

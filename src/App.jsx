@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v65-expense-skip-fuel-ocr-diff-row
+            build: v66-hard-refresh-stable
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />

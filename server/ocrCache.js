@@ -56,3 +56,13 @@ export const setCachedOcr = (contentHash, value) => {
   }
   saveCache(cache);
 };
+
+export const clearOcrCache = () => {
+  try {
+    ensureCacheDir();
+    if (fs.existsSync(CACHE_FILE)) fs.unlinkSync(CACHE_FILE);
+  } catch {
+    /* ignore */
+  }
+  return { cleared: true };
+};
