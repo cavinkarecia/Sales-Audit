@@ -151,8 +151,10 @@ export const alertIfInvalid = (validation, title = 'Upload error') => {
 };
 
 export const alertUploadException = (err, sectionLabel) => {
-  const msg =
-    err?.message ||
-    `Something went wrong while uploading ${sectionLabel}. Please check the file or link and try again.`;
+  const raw = err?.message || '';
+  const msg = /failed to fetch/i.test(raw)
+    ? `Network timed out while processing ${sectionLabel}. Sync/OCR was too heavy for one request — refresh and try again (v63 processes OCR in small chunks).`
+    : raw ||
+      `Something went wrong while uploading ${sectionLabel}. Please check the file or link and try again.`;
   showUploadError('Upload error', msg);
 };

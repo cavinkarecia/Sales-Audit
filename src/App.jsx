@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v62-expense-fast-bulk-ocr
+            build: v63-expense-chunked-ocr
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />

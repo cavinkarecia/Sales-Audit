@@ -83,11 +83,13 @@ export const loadTabImagesBatch = async (
   spreadsheetId,
   gids,
   fetchHeaders = DEFAULT_SHEET_FETCH_HEADERS,
-  concurrency = 4,
+  concurrency = 2,
 ) => {
   const uniq = [...new Set((gids || []).map((g) => String(g || '0').replace(/\D/g, '') || '0'))];
+  // Cap batch size so one HTTP request cannot download dozens of multi-MB XLSX files.
+  const limited = uniq.slice(0, 6);
   await runPool(
-    uniq,
+    limited,
     async (gid) => {
       try {
         await loadTabImagesFromXlsx(spreadsheetId, gid, fetchHeaders);

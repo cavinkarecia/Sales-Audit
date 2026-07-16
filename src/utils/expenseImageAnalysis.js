@@ -4,7 +4,9 @@ import {
   attachFraudFlagsToVouchers,
 } from './expenseFraudAudit.js';
 
-const MAX_IMAGES_PER_VOUCHER = 8;
+/** Keep OCR requests under Render's HTTP timeout. */
+const MAX_IMAGES_PER_VOUCHER = 4;
+const AUDITORS_PER_OCR_CHUNK = 2;
 
 const parseMoney = (val) => {
   const n = parseFloat(String(val ?? '').replace(/[^\d.-]/g, ''));
@@ -34,7 +36,7 @@ const travelImageCap = (voucher) => {
       (d.accommodation || 0) > 0 ||
       (d.localConveyance || 0) > 0,
   ).length;
-  return Math.min(MAX_IMAGES_PER_VOUCHER, Math.max(3, travelDays || 3));
+  return Math.min(MAX_IMAGES_PER_VOUCHER, Math.max(2, Math.min(travelDays || 2, MAX_IMAGES_PER_VOUCHER)));
 };
 
 export const analyzeBillImages = async (imageUrls, context = {}) => {
@@ -69,6 +71,24 @@ const analyzeBillImagesBulk = async (batches) => {
   return res.json();
 };
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+const analyzeBillImagesBulkWithRetry = async (batches, attempts = 2) => {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await analyzeBillImagesBulk(batches);
+    } catch (e) {
+      lastErr = e;
+      const msg = String(e?.message || e);
+      const retryable = /failed to fetch|network|timeout|502|503|504/i.test(msg);
+      if (!retryable || i === attempts - 1) break;
+      await sleep(1200 * (i + 1));
+    }
+  }
+  throw lastErr;
+};
+
 const normDate = (d) => String(d || '').replace(/[^0-9]/g, '');
 
 const datesMatch = (a, b) => {
@@ -98,6 +118,16 @@ export const attachTicketAnalysisToDates = (dateBlocks, tickets) => {
     };
   });
 };
+
+const emptyAnalysis = (imageCount, note = '') => ({
+  bills: [],
+  tickets: [],
+  totalFromTickets: 0,
+  imageCount,
+  note,
+  provider: '',
+  cacheHits: 0,
+});
 
 const buildEnrichedVoucher = (voucher, gid, imageUrls, analysis) => {
   const dateBlocksWithTickets = attachTicketAnalysisToDates(
@@ -147,6 +177,25 @@ const buildEnrichedVoucher = (voucher, gid, imageUrls, analysis) => {
   };
 };
 
+const resolveImageUrls = async (voucher, tabs, spreadsheetId, matrix, imagesBySheet) => {
+  const gid = String(voucher.gid || matchTabGid(voucher.sheetName, tabs)).replace(/\D/g, '') || '0';
+  const cellUrls = extractImageUrlsFromMatrix(matrix);
+  let tabUrls = imagesBySheet?.[voucher.sheetName] || [];
+
+  if (!tabUrls.length) {
+    const batch = await fetchTabImagesBatch(spreadsheetId, [gid]);
+    tabUrls = batch?.[gid] || batch?.[String(gid)] || [];
+    if (!tabUrls.length) {
+      const single = await fetchTabImages(spreadsheetId, gid);
+      tabUrls = single.images || [];
+    }
+  }
+
+  const cap = travelImageCap(voucher);
+  const imageUrls = [...new Set([...cellUrls, ...tabUrls])].slice(0, cap);
+  return { gid, imageUrls };
+};
+
 export const enrichVoucherWithImages = async (
   voucher,
   tabs,
@@ -154,24 +203,15 @@ export const enrichVoucherWithImages = async (
   matrix,
   imagesBySheet = null,
 ) => {
-  const gid = voucher.gid || matchTabGid(voucher.sheetName, tabs);
-  const cellUrls = extractImageUrlsFromMatrix(matrix);
-  const presetImages = imagesBySheet?.[voucher.sheetName] || [];
-  const { images: tabImages = [] } = presetImages.length
-    ? { images: presetImages }
-    : await fetchTabImages(spreadsheetId, gid);
-  const cap = travelImageCap(voucher);
-  const imageUrls = [...new Set([...cellUrls, ...tabImages])].slice(0, cap);
+  const { gid, imageUrls } = await resolveImageUrls(
+    voucher,
+    tabs,
+    spreadsheetId,
+    matrix,
+    imagesBySheet,
+  );
 
-  let analysis = {
-    bills: [],
-    tickets: [],
-    totalFromTickets: 0,
-    imageCount: imageUrls.length,
-    note: '',
-    provider: '',
-    cacheHits: 0,
-  };
+  let analysis = emptyAnalysis(imageUrls.length);
   if (imageUrls.length > 0) {
     try {
       analysis = await analyzeBillImages(imageUrls, {
@@ -191,6 +231,10 @@ export const enrichVoucherWithImages = async (
   return buildEnrichedVoucher(voucher, gid, imageUrls, analysis);
 };
 
+/**
+ * OCR in small auditor chunks so each HTTP request finishes before Render/proxy timeout.
+ * Sync data still succeeds even if some OCR chunks fail.
+ */
 export const enrichAllVouchersWithImages = async (
   vouchers,
   tabs,
@@ -200,90 +244,106 @@ export const enrichAllVouchersWithImages = async (
   options = {},
 ) => {
   const imagesBySheet = options.imagesBySheet || null;
+  const out = [];
+  let totalCacheHits = 0;
+  let ocrFailures = 0;
 
-  onProgress?.(0, vouchers.length, 'Loading bill images from all tabs…');
+  for (let start = 0; start < vouchers.length; start += AUDITORS_PER_OCR_CHUNK) {
+    const chunk = vouchers.slice(start, start + AUDITORS_PER_OCR_CHUNK);
+    const prepared = [];
 
-  let imagesByGid = {};
-  if (imagesBySheet) {
-    imagesByGid = null;
-  } else {
-    const gids = vouchers.map((v) => v.gid || matchTabGid(v.sheetName, tabs));
-    imagesByGid = await fetchTabImagesBatch(spreadsheetId, gids);
-  }
-
-  const batches = vouchers.map((voucher) => {
-    const gid = String(voucher.gid || matchTabGid(voucher.sheetName, tabs)).replace(/\D/g, '') || '0';
-    const matrix = matricesBySheet[voucher.sheetName] || [];
-    const cellUrls = extractImageUrlsFromMatrix(matrix);
-    const tabUrls =
-      imagesBySheet?.[voucher.sheetName] ||
-      imagesByGid?.[gid] ||
-      imagesByGid?.[String(gid)] ||
-      [];
-    const cap = travelImageCap(voucher);
-    const imageUrls = [...new Set([...cellUrls, ...tabUrls])].slice(0, cap);
-    return {
-      key: voucher.sheetName,
-      imageUrls,
-      context: {
-        auditorName: voucher.auditorName,
-        employeeNo: voucher.employeeNo,
-        sheetName: voucher.sheetName,
-        voucherMode: voucher.voucherMode,
-      },
-      voucher,
-      gid,
-      matrix,
-    };
-  });
-
-  const totalImages = batches.reduce((s, b) => s + b.imageUrls.length, 0);
-  onProgress?.(0, vouchers.length, `Running Gemini OCR on ${totalImages} bill image(s)…`);
-
-  let byKey = {};
-  let bulkTotals = { uniqueImages: 0, cacheHits: 0 };
-  try {
-    const bulk = await analyzeBillImagesBulk(
-      batches.map(({ key, imageUrls, context }) => ({ key, imageUrls, context })),
-    );
-    byKey = bulk.byKey || {};
-    bulkTotals = bulk.totals || bulkTotals;
-  } catch (e) {
-    byKey = Object.fromEntries(
-      batches.map((b) => [
-        b.key,
-        {
-          bills: [],
-          tickets: [],
-          totalFromTickets: 0,
-          imageCount: b.imageUrls.length,
-          note: e.message,
-          provider: '',
-          cacheHits: 0,
-        },
-      ]),
-    );
-  }
-
-  const out = batches.map((batch, i) => {
-    onProgress?.(i + 1, vouchers.length, batch.voucher.auditorName);
-    const analysis =
-      byKey[batch.key] ||
-      {
-        bills: [],
-        tickets: [],
-        totalFromTickets: 0,
-        imageCount: batch.imageUrls.length,
-        note: 'No bill images found in this tab (paste images in sheet or share as Viewer).',
-        provider: '',
-        cacheHits: 0,
-      };
-    if (!analysis.note && analysis.raw) analysis.note = analysis.raw;
-    if (bulkTotals.cacheHits && i === 0 && analysis.raw) {
-      analysis.note = `${analysis.raw} · workbook cache hits: ${bulkTotals.cacheHits}`;
+    for (const voucher of chunk) {
+      const matrix = matricesBySheet[voucher.sheetName] || [];
+      onProgress?.(
+        out.length + prepared.length + 1,
+        vouchers.length,
+        `${voucher.auditorName} (loading images)…`,
+      );
+      try {
+        const { gid, imageUrls } = await resolveImageUrls(
+          voucher,
+          tabs,
+          spreadsheetId,
+          matrix,
+          imagesBySheet,
+        );
+        prepared.push({
+          voucher,
+          gid,
+          imageUrls,
+          key: voucher.sheetName,
+          context: {
+            auditorName: voucher.auditorName,
+            employeeNo: voucher.employeeNo,
+            sheetName: voucher.sheetName,
+            voucherMode: voucher.voucherMode,
+          },
+        });
+      } catch (e) {
+        prepared.push({
+          voucher,
+          gid: voucher.gid || matchTabGid(voucher.sheetName, tabs),
+          imageUrls: [],
+          key: voucher.sheetName,
+          context: {},
+          loadError: e.message,
+        });
+      }
     }
-    return buildEnrichedVoucher(batch.voucher, batch.gid, batch.imageUrls, analysis);
-  });
+
+    const withImages = prepared.filter((p) => p.imageUrls.length > 0);
+    let byKey = {};
+
+    if (withImages.length) {
+      const names = withImages.map((p) => p.voucher.auditorName).join(', ');
+      onProgress?.(
+        Math.min(start + chunk.length, vouchers.length),
+        vouchers.length,
+        `OCR ${names}…`,
+      );
+      try {
+        const bulk = await analyzeBillImagesBulkWithRetry(
+          withImages.map(({ key, imageUrls, context }) => ({ key, imageUrls, context })),
+        );
+        byKey = bulk.byKey || {};
+        totalCacheHits += bulk.totals?.cacheHits || 0;
+      } catch (e) {
+        ocrFailures += withImages.length;
+        for (const p of withImages) {
+          byKey[p.key] = emptyAnalysis(
+            p.imageUrls.length,
+            `OCR timed out — retry later (${e.message})`,
+          );
+        }
+      }
+    }
+
+    for (const p of prepared) {
+      let analysis = byKey[p.key];
+      if (!analysis) {
+        analysis = emptyAnalysis(
+          p.imageUrls.length,
+          p.loadError ||
+            (p.imageUrls.length
+              ? 'OCR skipped'
+              : 'No bill images found in this tab (paste images in sheet or share as Viewer).'),
+        );
+      }
+      if (!analysis.note && analysis.raw) analysis.note = analysis.raw;
+      out.push(buildEnrichedVoucher(p.voucher, p.gid, p.imageUrls, analysis));
+      onProgress?.(out.length, vouchers.length, p.voucher.auditorName);
+    }
+  }
+
+  if (totalCacheHits > 0 && out[0]?.imageAnalysis) {
+    const note = out[0].imageAnalysis.note || out[0].imageAnalysis.raw || '';
+    out[0].imageAnalysis.note = `${note} · workbook cache hits: ${totalCacheHits}`.trim();
+  }
+  if (ocrFailures > 0 && out[0]?.imageAnalysis) {
+    out[0].imageAnalysis.note = `${out[0].imageAnalysis.note || ''} · ${ocrFailures} auditor OCR chunk(s) failed`
+      .replace(/^\s·\s/, '')
+      .trim();
+  }
 
   const fraudAudit = auditBillsForFraud(out, {
     attendanceRecords: options.attendanceRecords || [],

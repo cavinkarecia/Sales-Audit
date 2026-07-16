@@ -710,7 +710,7 @@ const ExpenseCheck2Page = () => {
       setDateAuditSummary(result.dateAudit || null);
       setSyncError(result.syncError || null);
       setSyncStatus(
-        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. Running fast bulk OCR (up to 8 bill images per auditor)…`,
+        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. OCR in small chunks (2 auditors at a time)…`,
       );
       const enriched = await enrichAllVouchersWithImages(
         result.vouchers,

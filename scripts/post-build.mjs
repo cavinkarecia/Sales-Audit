@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(__dirname, '..');
 const dist = path.join(root, 'dist');
-const BUILD_ID = '2026-06-03-v62-expense-fast-bulk-ocr';
+const BUILD_ID = '2026-06-03-v63-expense-chunked-ocr';
 
 const assetsDir = path.join(dist, 'assets');
 let js = '';

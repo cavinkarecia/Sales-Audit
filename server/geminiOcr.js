@@ -8,8 +8,8 @@ import {
 } from './tabImageCache.js';
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-const OCR_CONCURRENCY = Number(process.env.OCR_CONCURRENCY) || 10;
-const MAX_IMAGES_PER_VOUCHER = Number(process.env.OCR_MAX_IMAGES_PER_TAB) || 8;
+const OCR_CONCURRENCY = Number(process.env.OCR_CONCURRENCY) || 4;
+const MAX_IMAGES_PER_VOUCHER = Number(process.env.OCR_MAX_IMAGES_PER_TAB) || 4;
 const ENABLE_TAMPER = process.env.ENABLE_BILL_TAMPER_SCAN === 'true';
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/;
 
@@ -313,7 +313,7 @@ const preloadEmbeddedUrls = async (urls) => {
   }
   const jobs = [];
   for (const [spreadsheetId, gids] of bySpreadsheet.entries()) {
-    jobs.push(loadTabImagesBatch(spreadsheetId, [...gids], DEFAULT_SHEET_FETCH_HEADERS, 4));
+    jobs.push(loadTabImagesBatch(spreadsheetId, [...gids], DEFAULT_SHEET_FETCH_HEADERS, 2));
   }
   await Promise.all(jobs);
 };
