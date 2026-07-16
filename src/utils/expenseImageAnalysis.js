@@ -100,15 +100,32 @@ const datesMatch = (a, b) => {
 
 export const attachTicketAnalysisToDates = (dateBlocks, tickets) => {
   return dateBlocks.map((block) => {
-    const matched = tickets.filter((t) => datesMatch(t.date, block.date));
+    // Never OCR-match fuel/petrol days
+    if (block.isPetrolDay || block.isKmPetrolDay) {
+      return {
+        ...block,
+        ticketsFromImages: [],
+        ticketAmountFromImages: 0,
+        manualMatchesImages: null,
+        imageCompareTarget: 0,
+      };
+    }
+
+    const matched = tickets.filter((t) => {
+      if (!datesMatch(t.date, block.date)) return false;
+      if (/fuel|petrol|diesel/i.test(String(t.type || ''))) return false;
+      return true;
+    });
     const ticketSum = matched.reduce((s, t) => s + (t.amount || 0), 0);
-    const compareAmount = block.isPetrolDay ? block.petrolTravel : block.travel;
+    const compareAmount = block.travel;
     const compareSubtotal = block.ticketComparable || block.travel + block.localConveyance;
+    const compareStay = Number(block.accommodation) || 0;
     const compareGrand = Number(block.grandTotal) || Number(block.dayTotal) || 0;
     const matches =
       ticketSum > 0
         ? Math.abs(ticketSum - compareAmount) <= 5 ||
           Math.abs(ticketSum - compareSubtotal) <= 5 ||
+          (compareStay > 0 && Math.abs(ticketSum - compareStay) <= 5) ||
           (compareGrand > 0 && Math.abs(ticketSum - compareGrand) <= 5)
         : null;
 
@@ -117,9 +134,7 @@ export const attachTicketAnalysisToDates = (dateBlocks, tickets) => {
       ticketsFromImages: matched,
       ticketAmountFromImages: ticketSum,
       manualMatchesImages: matches,
-      imageCompareTarget: block.isPetrolDay
-        ? compareAmount
-        : compareSubtotal || compareGrand || compareAmount,
+      imageCompareTarget: compareSubtotal || compareStay || compareAmount,
     };
   });
 };

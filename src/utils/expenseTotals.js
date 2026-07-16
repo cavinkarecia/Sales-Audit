@@ -56,7 +56,6 @@ export const computeAuditorAmounts = (voucher) => {
   };
 
   checks.allOk =
-    checks.headerPartsOk &&
     checks.fuelOk &&
     checks.ticketsOk &&
     checks.stayOk &&
@@ -70,14 +69,6 @@ export const computeAuditorAmounts = (voucher) => {
       severity: 'orange',
       code: 'HEADER_AUTO_CORRECT',
       message: `Header amounts adjusted: ${voucher.headerCorrected.join('; ')}`,
-    });
-  }
-
-  if (header.declared > 0 && !checks.headerPartsOk) {
-    issues.push({
-      severity: 'red',
-      code: 'HEADER_FORMULA',
-      message: `Sheet header Total ₹${declaredUsed} ≠ Fuel ₹${header.fuel} + Tickets+Local ₹${header.ticketsLocal} + Stay ₹${header.stay} = ₹${headerPartsSum} (difference ₹${Math.abs(declaredUsed - headerPartsSum)})`,
     });
   }
 

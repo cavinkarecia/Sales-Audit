@@ -105,14 +105,16 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
       }
     }
 
-    if (block.ticketAmountFromImages > 0) {
+    if (block.isPetrolDay || block.isKmPetrolDay) {
+      // Fuel/petrol days are not OCR-validated against bill images
+    } else if (block.ticketAmountFromImages > 0) {
       const target = block.imageCompareTarget ?? block.ticketComparable;
       if (block.manualMatchesImages === false) {
         dayFlags.push(
           flag(
             'red',
             'TICKET_IMAGE_MISMATCH',
-            `${block.date}: Sheet travel ₹${target} ≠ ticket image ₹${block.ticketAmountFromImages}`,
+            `${block.date}: Sheet travel/stay ₹${target} ≠ bill image ₹${block.ticketAmountFromImages}`,
           ),
         );
       } else {
@@ -120,7 +122,7 @@ export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords
           flag(
             'green',
             'TICKET_IMAGE_OK',
-            `${block.date}: Ticket image ₹${block.ticketAmountFromImages} matches sheet travel ₹${target}`,
+            `${block.date}: Bill image ₹${block.ticketAmountFromImages} matches sheet ₹${target}`,
           ),
         );
       }

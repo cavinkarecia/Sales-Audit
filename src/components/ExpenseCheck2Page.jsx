@@ -356,7 +356,7 @@ const SplitAmount = ({ amount, match }) => (
 
 const AuditorTotalSummary = ({ voucher }) => {
   const amounts = computeAuditorAmounts(voucher);
-  const { header, fromDates, checks, headerPartsSum, declaredUsed } = amounts;
+  const { header, fromDates, checks, declaredUsed } = amounts;
   const cols = getAuditorColumnFlags(voucher);
   const activeCols = [
     cols.fuel && { key: 'fuel', label: 'Fuel', header: header.fuel, dates: fromDates.fuel, ok: checks.fuelOk },
@@ -402,6 +402,9 @@ const AuditorTotalSummary = ({ voucher }) => {
   };
   const amtStyle = { padding: '10px 10px', textAlign: 'right', fontSize: '0.85rem' };
 
+  const grandDiff = (declaredUsed || 0) - (fromDates.grand || 0);
+  const headerVsDatesOk = Math.abs(grandDiff) <= 15;
+
   return (
     <div
       style={{
@@ -414,8 +417,8 @@ const AuditorTotalSummary = ({ voucher }) => {
       }}
     >
       <p style={{ margin: '0 0 10px', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-        <strong>How totals are checked:</strong> Sheet header (top of tab) is compared to the sum of all date rows.
-        Grand total = Fuel + Tickets&amp;Local + Stay.
+        <strong>How totals are checked:</strong> Row 1 = sheet header split. Row 2 = sum of all date rows.
+        Row 3 = difference (header − date-wise).
       </p>
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 520 }}>
         <thead>
@@ -447,16 +450,18 @@ const AuditorTotalSummary = ({ voucher }) => {
             <td style={amtStyle}><SplitAmount amount={fromDates.grand} match={checks.grandOk} /></td>
           </tr>
           <tr>
-            <td style={labelStyle}>3. Header parts check (Fuel + Tickets + Stay)</td>
-            <td colSpan={Math.max(1, activeCols.length)} style={{ ...amtStyle, textAlign: 'left', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-              {fmtRs(header.fuel)} + {fmtRs(header.ticketsLocal)} + {fmtRs(header.stay)} ={' '}
-              <strong>{fmtRs(headerPartsSum)}</strong>
-              {!checks.headerPartsOk && declaredUsed > 0 && (
-                <span style={{ color: '#f85149' }}> ≠ declared {fmtRs(declaredUsed)}</span>
-              )}
-            </td>
+            <td style={labelStyle}>3. Difference (header − date-wise)</td>
+            {activeCols.map((col) => {
+              const diff = (col.header || 0) - (col.dates || 0);
+              const ok = Math.abs(diff) <= (col.key === 'fuel' ? 50 : 10);
+              return (
+                <td key={col.key} style={amtStyle}>
+                  <SplitAmount amount={diff} match={ok} />
+                </td>
+              );
+            })}
             <td style={amtStyle}>
-              <SplitAmount amount={headerPartsSum} match={checks.headerPartsOk} />
+              <SplitAmount amount={grandDiff} match={headerVsDatesOk} />
             </td>
           </tr>
         </tbody>
@@ -1166,11 +1171,14 @@ const ExpenseCheck2Page = () => {
           <div style={{ marginTop: 10, fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
             <strong style={{ color: 'var(--text-primary)' }}>OCR checks:</strong>
             <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
-              <li>Bill amount on image matches the amount entered for that date</li>
+              <li>Tickets / local / hotel stay bill amounts vs amounts entered for that date</li>
               <li>If 2+ bills for one date — sum of bill OCR amounts matches entered date total</li>
-              <li>OCR travel/ticket total matches auditor tickets/travel header or date sum</li>
+              <li>OCR ticket/stay total vs auditor tickets/local header or date sum</li>
+              <li>
+                <strong>Fuel / petrol claims are not OCR-checked</strong> (only tickets, stay, local)
+              </li>
               <li>Duplicate bill images / same bill number across auditors</li>
-              <li>GSTIN format / missing GSTIN on high-value bills</li>
+              <li>GSTIN format / missing GSTIN on high-value non-fuel bills</li>
               <li>Unreadable bill images (one-line fail reason below)</li>
             </ul>
           </div>

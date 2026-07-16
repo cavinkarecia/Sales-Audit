@@ -48,16 +48,32 @@ const datesMatchLoose = (a, b) => {
   );
 };
 
+const isFuelBillType = (bill) =>
+  /fuel|petrol|diesel|cng|pump/i.test(String(bill?.billType || '')) ||
+  /fuel|petrol|diesel/i.test(String(bill?.vendorName || ''));
+
+const isNonFuelClaimDay = (block) => {
+  if (!block) return false;
+  if (block.isPetrolDay || block.isKmPetrolDay) return false;
+  const tickets =
+    Number(block.ticketComparable) ||
+    Number(block.travel || 0) +
+      Number(block.localConveyance || 0) +
+      Number(block.conveyance || 0);
+  const stay = Number(block.accommodation) || 0;
+  return tickets > 0 || stay > 0;
+};
+
+/** Amount entered for tickets / local / stay only — never fuel/petrol. */
 const enteredAmountForDate = (block) => {
-  if (!block) return 0;
-  if (block.isPetrolDay || block.isKmPetrolDay) {
-    return Number(block.petrolTravel) || 0;
-  }
+  if (!block || block.isPetrolDay || block.isKmPetrolDay) return 0;
   const ticket =
     Number(block.ticketComparable) ||
-    Number(block.travel || 0) + Number(block.localConveyance || 0) + Number(block.conveyance || 0);
+    Number(block.travel || 0) +
+      Number(block.localConveyance || 0) +
+      Number(block.conveyance || 0);
   if (ticket > 0) return ticket;
-  return Number(block.grandTotal) || Number(block.dayTotal) || 0;
+  return Number(block.accommodation) || 0;
 };
 
 const ocrFailReason = (bill) => {
@@ -79,6 +95,9 @@ export const auditBillsForVoucher = (voucher) => {
   const dateBlocks = voucher?.dateBlocks || [];
 
   for (const bill of bills) {
+    // Skip fuel/petrol receipts — OCR amount checks are tickets / stay / local only
+    if (isFuelBillType(bill)) continue;
+
     const label = bill.date || bill.billNumber || bill.vendorName || 'bill';
 
     if ((bill.ocrConfidence || 0) <= 0 || /OCR failed/i.test(String(bill.suspiciousNotes || ''))) {
@@ -156,13 +175,17 @@ export const auditBillsForVoucher = (voucher) => {
     }
   }
 
-  // Bill upload amount checks: entered date values vs OCR bill amounts
+  // Bill upload amount checks: tickets / local / hotel stay only (never fuel/petrol)
   const readableBills = bills.filter(
-    (b) => (b.amount || 0) > 0 && (b.ocrConfidence || 0) > 0,
+    (b) =>
+      (b.amount || 0) > 0 &&
+      (b.ocrConfidence || 0) > 0 &&
+      !isFuelBillType(b),
   );
   const usedBillUrls = new Set();
 
   for (const block of dateBlocks) {
+    if (!isNonFuelClaimDay(block)) continue;
     const entered = enteredAmountForDate(block);
     if (entered <= 0) continue;
 
@@ -175,21 +198,14 @@ export const auditBillsForVoucher = (voucher) => {
     });
 
     if (!matched.length) {
-      // Prefer tickets/travel days for "missing bill" — skip pure stay-only if no travel
-      const travelish =
-        (block.travel || 0) > 0 ||
-        (block.localConveyance || 0) > 0 ||
-        (block.petrolTravel || 0) > 0;
-      if (travelish) {
-        flags.push(
-          flag(
-            'orange',
-            'NO_BILL_FOR_DATE',
-            `${block.date}: Entered ₹${entered} but no OCR bill amount matched this date`,
-            { entered, date: block.date },
-          ),
-        );
-      }
+      flags.push(
+        flag(
+          'orange',
+          'NO_BILL_FOR_DATE',
+          `${block.date}: Entered tickets/stay ₹${entered} but no OCR bill amount matched this date`,
+          { entered, date: block.date },
+        ),
+      );
       continue;
     }
 
@@ -217,16 +233,16 @@ export const auditBillsForVoucher = (voucher) => {
     }
   }
 
-  // Unmatched OCR bills whose amount does not appear on any date row
+  // Unmatched non-fuel OCR bills whose amount does not appear on any tickets/stay date
   for (const bill of readableBills) {
     if (bill.imageUrl && usedBillUrls.has(bill.imageUrl)) continue;
     const amt = Number(bill.amount) || 0;
     if (amt <= 0) continue;
     const hitsDate = dateBlocks.some((block) => {
+      if (!isNonFuelClaimDay(block)) return false;
       const entered = enteredAmountForDate(block);
       if (entered <= 0) return false;
       if (Math.abs(entered - amt) <= 5) return true;
-      // also allow being part of a multi-bill day already flagged above
       return bill.date && datesMatchLoose(bill.date, block.date);
     });
     if (!hitsDate) {
@@ -235,28 +251,28 @@ export const auditBillsForVoucher = (voucher) => {
         flag(
           'orange',
           'BILL_AMOUNT_NOT_IN_SHEET',
-          `${label}: Bill OCR ₹${amt} not found in any date-entered amount`,
+          `${label}: Bill OCR ₹${amt} not found in any tickets/stay date amount`,
           { amount: amt, imageUrl: bill.imageUrl },
         ),
       );
     }
   }
 
-  // Whole-voucher: OCR bill total vs tickets/travel entered total
-  const ocrTravelTotal = readableBills
-    .filter((b) => /bus|train|taxi|ticket|other/i.test(String(b.billType || 'other')))
+  // Whole-voucher: OCR ticket/hotel bills vs tickets entered (exclude fuel)
+  const ocrNonFuelTotal = readableBills
+    .filter((b) => /bus|train|taxi|ticket|hotel|other/i.test(String(b.billType || 'other')))
     .reduce((s, b) => s + (Number(b.amount) || 0), 0);
   const enteredTravel =
     Number(voucher.dateWiseTicketsSum) ||
     Number(voucher.ticketsTotal) ||
     0;
-  if (ocrTravelTotal > 0 && enteredTravel > 0 && Math.abs(ocrTravelTotal - enteredTravel) > 20) {
+  if (ocrNonFuelTotal > 0 && enteredTravel > 0 && Math.abs(ocrNonFuelTotal - enteredTravel) > 20) {
     flags.push(
       flag(
         'red',
         'OCR_TOTAL_VS_ENTERED',
-        `Tickets/travel entered ₹${enteredTravel} ≠ OCR bill total ₹${ocrTravelTotal}`,
-        { enteredTravel, ocrTravelTotal },
+        `Tickets/local entered ₹${enteredTravel} ≠ OCR ticket/stay bill total ₹${ocrNonFuelTotal}`,
+        { enteredTravel, ocrNonFuelTotal },
       ),
     );
   }
@@ -333,7 +349,9 @@ export const auditBillsForFraud = (vouchers, { attendanceRecords = [], pjpRecord
 
   // ROUND_NUMBER_PATTERN per auditor
   for (const v of vouchers || []) {
-    const bills = (v.imageAnalysis?.bills || []).filter((b) => (b.amount || 0) > 0);
+    const bills = (v.imageAnalysis?.bills || []).filter(
+      (b) => (b.amount || 0) > 0 && !isFuelBillType(b),
+    );
     if (bills.length < 4) continue;
     const roundish = bills.filter((b) => {
       const a = Math.round(b.amount || 0);
@@ -355,6 +373,7 @@ export const auditBillsForFraud = (vouchers, { attendanceRecords = [], pjpRecord
   // ROUTE_INFEASIBLE — bill location vs attendance/PJP that day
   for (const v of vouchers || []) {
     for (const bill of v.imageAnalysis?.bills || []) {
+      if (isFuelBillType(bill)) continue;
       if (!bill.date || (!bill.fromLocation && !bill.toLocation)) continue;
       const billDigits = String(bill.date).replace(/[^0-9]/g, '');
       const att = (attendanceRecords || []).find((r) => {
