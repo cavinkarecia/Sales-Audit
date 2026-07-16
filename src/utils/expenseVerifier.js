@@ -20,6 +20,8 @@ const flag = (severity, code, message, detail = {}) => ({
   ...detail,
 });
 
+export { flag, townsMatch };
+
 export const verifyExpenseVoucher = (voucher, attendanceRecords = [], pjpRecords = []) => {
   const flags = [];
   const dateResults = [];

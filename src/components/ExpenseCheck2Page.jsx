@@ -7,6 +7,10 @@ import SheetLinkUpload from './SheetLinkUpload';
 import { fetchAllExpenseVouchers } from '../utils/expenseVoucherParser';
 import { enrichAllVouchersWithImages } from '../utils/expenseImageAnalysis';
 import {
+  auditBillsForFraud,
+  attachFraudFlagsToVouchers,
+} from '../utils/expenseFraudAudit';
+import {
   verifyAllExpenseVouchers,
   buildExpenseAIPayload,
 } from '../utils/expenseVerifier';
@@ -489,6 +493,8 @@ const collectAuditorMistakes = (result, tabAudit) => {
   // Page-level total mismatches only (declared vs header vs date sums)
   amounts.issues.forEach((issue) => add(issue.severity, issue.message));
 
+  (result.voucher?.fraudFlags || []).forEach((f) => add(f.severity, f.message));
+
   (tabAudit?.headerIssues || []).forEach((h) => {
     if (!amounts.issues.some((i) => i.message === h.message)) {
       add('red', h.message);
@@ -612,8 +618,9 @@ const ExpenseCheck2Page = () => {
       result.spreadsheetId,
       result.matricesBySheet,
       (n, total, name) => {
-        setSyncStatus(`${partLabel}: analyzing bill images (${n}/${total}): ${name}…`);
+        setSyncStatus(`${partLabel}: OCR bill images (${n}/${total}): ${name}…`);
       },
+      { attendanceRecords, pjpRecords },
     );
     return { result, enriched };
   };
@@ -645,6 +652,8 @@ const ExpenseCheck2Page = () => {
       const p2 = await fetchAndEnrichPart(url2, 'Part 2 (days 16–end)');
 
       const merged = mergeExpenseVoucherParts(p1.enriched, p2.enriched);
+      const fraudAudit = auditBillsForFraud(merged, { attendanceRecords, pjpRecords });
+      const mergedWithFraud = attachFraudFlagsToVouchers(merged, fraudAudit);
       const mergedSummary = mergeSheetSummaries(
         p1.result.sheetSummary || [],
         p2.result.sheetSummary || [],
@@ -653,7 +662,7 @@ const ExpenseCheck2Page = () => {
 
       setExpenseSheetSummary(mergedSummary);
       setDateAuditSummary(mergedAudit);
-      setExpenseVouchers(merged);
+      setExpenseVouchers(mergedWithFraud);
       setSyncError(p1.result.syncError || p2.result.syncError || null);
       if (mergedAudit) {
         localStorage.setItem(AUDIT_STORAGE_KEYS.expenseDateAudit, JSON.stringify(mergedAudit));
@@ -701,7 +710,7 @@ const ExpenseCheck2Page = () => {
       setDateAuditSummary(result.dateAudit || null);
       setSyncError(result.syncError || null);
       setSyncStatus(
-        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. Analyzing bill images…`,
+        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. Running Gemini OCR on bill images…`,
       );
       const enriched = await enrichAllVouchersWithImages(
         result.vouchers,
@@ -709,8 +718,9 @@ const ExpenseCheck2Page = () => {
         result.spreadsheetId,
         result.matricesBySheet,
         (n, total, name) => {
-          setSyncStatus(`Analyzing bill images (${n}/${total}): ${name}…`);
+          setSyncStatus(`OCR bill images (${n}/${total}): ${name}…`);
         },
+        { attendanceRecords, pjpRecords },
       );
       setExpenseVouchers(enriched);
       localStorage.setItem('sales_audit_expense_v5_build', result.build || liveBuild || '');
@@ -743,6 +753,28 @@ const ExpenseCheck2Page = () => {
     if (uploadMode !== 'single' || !expenseVouchers.length) return null;
     return getExpenseDateRange(expenseVouchers);
   }, [uploadMode, expenseVouchers]);
+
+  const fraudWorkbookSummary = useMemo(() => {
+    if (!expenseVouchers.length) return null;
+    let red = 0;
+    let orange = 0;
+    let duplicateBills = 0;
+    let tamperedImages = 0;
+    let missingGstin = 0;
+    let ocrBills = 0;
+    for (const v of expenseVouchers) {
+      ocrBills += v.imageAnalysis?.bills?.length || 0;
+      for (const f of v.fraudFlags || []) {
+        if (f.severity === 'red') red += 1;
+        if (f.severity === 'orange') orange += 1;
+        if (f.code === 'DUPLICATE_BILL_IMAGE') duplicateBills += 1;
+        if (f.code === 'TAMPERED_IMAGE') tamperedImages += 1;
+        if (f.code === 'GSTIN_MISSING_HIGH_VALUE') missingGstin += 1;
+      }
+    }
+    if (!ocrBills && !red && !orange) return null;
+    return { red, orange, duplicateBills, tamperedImages, missingGstin, ocrBills };
+  }, [expenseVouchers]);
   const monthMismatch = useMemo(
     () =>
       expenseVouchers.length > 0 &&
@@ -1032,6 +1064,40 @@ const ExpenseCheck2Page = () => {
             <span>Dates checked: <strong>{dateAuditSummary.summary.totalDates}</strong></span>
             <span style={{ color: '#3fb950' }}>OK: <strong>{dateAuditSummary.summary.passedDates}</strong></span>
             <span style={{ color: '#f85149' }}>Flags: <strong>{dateAuditSummary.summary.flaggedDates}</strong></span>
+          </div>
+        </div>
+      )}
+
+      {fraudWorkbookSummary && (
+        <div
+          className="glass-card"
+          style={{
+            padding: '1rem',
+            marginBottom: '1rem',
+            fontSize: '0.8rem',
+            borderLeft: `4px solid ${fraudWorkbookSummary.red > 0 ? '#f85149' : fraudWorkbookSummary.orange > 0 ? '#d29922' : '#3fb950'}`,
+          }}
+        >
+          <h3 style={{ margin: '0 0 8px', fontSize: '0.9rem' }}>Bill OCR & fraud check</h3>
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+            <span>
+              Bills OCR'd: <strong>{fraudWorkbookSummary.ocrBills}</strong>
+            </span>
+            <span style={{ color: '#f85149' }}>
+              Red flags: <strong>{fraudWorkbookSummary.red}</strong>
+            </span>
+            <span style={{ color: '#d29922' }}>
+              Orange flags: <strong>{fraudWorkbookSummary.orange}</strong>
+            </span>
+            <span>
+              Duplicates: <strong>{fraudWorkbookSummary.duplicateBills}</strong>
+            </span>
+            <span>
+              Tampered: <strong>{fraudWorkbookSummary.tamperedImages}</strong>
+            </span>
+            <span>
+              Missing GSTIN: <strong>{fraudWorkbookSummary.missingGstin}</strong>
+            </span>
           </div>
         </div>
       )}
@@ -1380,7 +1446,14 @@ const ExpenseCheck2Page = () => {
 
                 {result.voucher.imageUrls?.length > 0 && (
                   <div style={{ marginTop: 10 }}>
-                    <h4 style={{ fontSize: '0.8rem' }}>Bill images ({result.voucher.imageUrls.length})</h4>
+                    <h4 style={{ fontSize: '0.8rem' }}>
+                      Bill images ({result.voucher.imageUrls.length})
+                      {result.voucher.imageAnalysis?.provider === 'gemini' ? (
+                        <span style={{ marginLeft: 8, color: 'var(--text-secondary)', fontWeight: 500 }}>
+                          · Gemini OCR
+                        </span>
+                      ) : null}
+                    </h4>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
                       {result.voucher.imageUrls.slice(0, 4).map((src) => (
                         <a key={src} href={src} target="_blank" rel="noreferrer">
@@ -1398,8 +1471,66 @@ const ExpenseCheck2Page = () => {
                         </a>
                       ))}
                     </div>
+                    {(result.voucher.fraudFlags || []).length > 0 && (
+                      <div style={{ marginTop: 10 }}>
+                        <div
+                          style={{
+                            fontSize: '0.72rem',
+                            fontWeight: 700,
+                            color: '#f85149',
+                            marginBottom: 6,
+                          }}
+                        >
+                          Fraud / OCR flags ({result.voucher.fraudFlags.length})
+                        </div>
+                        <ul style={{ margin: 0, paddingLeft: 18, fontSize: '0.75rem' }}>
+                          {result.voucher.fraudFlags.slice(0, 12).map((f, i) => (
+                            <li
+                              key={`${f.code}-${i}`}
+                              style={{
+                                color: severityColor(f.severity === 'orange' ? 'orange' : 'red'),
+                                marginBottom: 4,
+                              }}
+                            >
+                              <strong>{f.code}</strong>: {f.message}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {(result.voucher.fraudFlags || []).length > 0 &&
+                  !(result.voucher.imageUrls?.length > 0) && (
+                    <div
+                      style={{
+                        marginTop: 10,
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '1px solid #f85149',
+                        background: 'rgba(248,81,73,0.08)',
+                        fontSize: '0.75rem',
+                      }}
+                    >
+                      <strong style={{ color: '#f85149' }}>
+                        Fraud / OCR flags ({result.voucher.fraudFlags.length})
+                      </strong>
+                      <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                        {result.voucher.fraudFlags.slice(0, 12).map((f, i) => (
+                          <li
+                            key={`${f.code}-${i}`}
+                            style={{
+                              color: severityColor(f.severity === 'orange' ? 'orange' : 'red'),
+                              marginBottom: 4,
+                            }}
+                          >
+                            <strong>{f.code}</strong>: {f.message}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                 {result.dateResults.length > 0 && (
                   <div style={{ marginTop: 12 }}>

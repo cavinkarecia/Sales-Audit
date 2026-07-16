@@ -10,6 +10,10 @@ import {
   mergeSheetSummaries,
   mergeDateAuditSummaries,
 } from '../utils/expenseMerge.js';
+import {
+  auditBillsForFraud,
+  attachFraudFlagsToVouchers,
+} from '../utils/expenseFraudAudit.js';
 import { normalizeAttendanceRecords } from '../utils/attendanceProcessor.js';
 import {
   AUDIT_STORAGE_KEYS,
@@ -141,10 +145,11 @@ export const AuditDataProvider = ({ children }) => {
           (n, total) => {
             setHardRefreshStatus({
               running: true,
-              step: `Expense ${label} — bill images (${n}/${total})…`,
+              step: `Expense ${label} — OCR bills (${n}/${total})…`,
               error: '',
             });
           },
+          { attendanceRecords, pjpRecords },
         );
         return { r, enriched };
       };
@@ -158,7 +163,12 @@ export const AuditDataProvider = ({ children }) => {
             mergeSheetSummaries(p1.r.sheetSummary || [], p2.r.sheetSummary || []),
           );
           const mergedAudit = mergeDateAuditSummaries(p1.r.dateAudit, p2.r.dateAudit);
-          setExpenseVouchers(mergeExpenseVoucherParts(p1.enriched, p2.enriched));
+          const merged = mergeExpenseVoucherParts(p1.enriched, p2.enriched);
+          const fraudAudit = auditBillsForFraud(merged, {
+            attendanceRecords,
+            pjpRecords,
+          });
+          setExpenseVouchers(attachFraudFlagsToVouchers(merged, fraudAudit));
           if (mergedAudit) {
             try {
               localStorage.setItem(
@@ -198,7 +208,7 @@ export const AuditDataProvider = ({ children }) => {
         /* ignore */
       }
     }
-  }, [pjpSpreadsheetUrl, expenseSpreadsheetUrl]);
+  }, [pjpSpreadsheetUrl, expenseSpreadsheetUrl, attendanceRecords, pjpRecords]);
 
   /** Wipe every upload, link, and cached result — fresh empty state. */
   const removeAllFiles = useCallback(() => {

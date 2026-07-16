@@ -7,3 +7,4 @@ scratch
 build_output.txt
 .DS_Store
 .mingit
+server/data/

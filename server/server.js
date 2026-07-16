@@ -6,6 +6,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import XLSX from 'xlsx';
 import { syncExpenseWorkbook } from './expenseSync.js';
+import { analyzeBillsWithGemini } from './geminiOcr.js';
 import { geocodeOnlineMulti } from '../src/utils/geocodeProviders.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +17,7 @@ const PORT = Number(process.env.PORT) || 5175;
 const HOST = process.env.HOST || '0.0.0.0';
 const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY || '';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 
 const app = express();
 app.use(compression());
@@ -40,6 +42,7 @@ app.get('/api/health', (_req, res) => {
     uptimeSec: Math.round(process.uptime()),
     node: process.version,
     aiConfigured: Boolean(DEEPSEEK_API_KEY),
+    ocrConfigured: Boolean(GEMINI_API_KEY),
     time: new Date().toISOString(),
   });
 });
@@ -495,79 +498,28 @@ const parseTicketJsonFromAi = (text) => {
 };
 
 app.post('/api/ai/analyze-bill-images', async (req, res) => {
-  if (!DEEPSEEK_API_KEY) {
-    return res.status(503).json({ error: 'Set DEEPSEEK_API_KEY on Render for image analysis.' });
-  }
   const { imageUrls = [], context = {} } = req.body || {};
   if (!imageUrls.length) {
-    return res.json({ tickets: [], totalFromTickets: 0, raw: 'No images' });
-  }
-
-  const allTickets = [];
-  const batches = [];
-  for (let i = 0; i < imageUrls.length; i += 2) {
-    batches.push(imageUrls.slice(i, i + 2));
+    return res.json({
+      bills: [],
+      tickets: [],
+      totalFromTickets: 0,
+      imageCount: 0,
+      raw: 'No images',
+    });
   }
 
   try {
-    for (const batch of batches) {
-      const content = [
-        {
-          type: 'text',
-          text: `Analyze bus/train ticket images for auditor ${context.auditorName || 'unknown'}.
-Extract each ticket: type (bus|train), amount in INR (number only), date (DD/MM/YY), from, to.
-Return ONLY a JSON array like [{"type":"bus","amount":330,"date":"01/04/26","from":"Kurnool","to":"Wanaparthi"}].
-If not a ticket, skip it.`,
-        },
-        ...batch.map((url) => ({
-          type: 'image_url',
-          image_url: { url },
-        })),
-      ];
-
-      const response = await fetch(DEEPSEEK_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
-        },
-        body: JSON.stringify({
-          model: process.env.DEEPSEEK_VISION_MODEL || 'deepseek-chat',
-          messages: [
-            {
-              role: 'system',
-              content: 'You read Indian bus and train tickets. Return strict JSON only.',
-            },
-            { role: 'user', content },
-          ],
-          temperature: 0.1,
-          max_tokens: 1500,
-        }),
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        return res.status(response.status).json({
-          error: `Vision API failed: ${errText.slice(0, 300)}`,
-          tickets: allTickets,
-          totalFromTickets: allTickets.reduce((s, t) => s + t.amount, 0),
-        });
-      }
-
-      const result = await response.json();
-      const raw = result.choices?.[0]?.message?.content || '';
-      allTickets.push(...parseTicketJsonFromAi(raw));
-    }
-
-    const totalFromTickets = allTickets.reduce((s, t) => s + (t.amount || 0), 0);
-    res.json({
-      tickets: allTickets,
-      totalFromTickets,
-      imageCount: imageUrls.length,
-      raw: `Analyzed ${imageUrls.length} image(s), found ${allTickets.length} ticket amount(s)`,
-    });
+    const result = await analyzeBillsWithGemini(imageUrls, context);
+    res.json(result);
   } catch (err) {
-    res.status(502).json({ error: String(err?.message || err) });
+    const status = err?.status || 502;
+    res.status(status).json({
+      error: String(err?.message || err),
+      bills: [],
+      tickets: [],
+      totalFromTickets: 0,
+    });
   }
 });
 

@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v58-expense-period-main-month-only
+            build: v59-expense-gemini-ocr-fraud
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />

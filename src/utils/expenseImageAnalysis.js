@@ -1,4 +1,8 @@
 import { fetchTabImages, matchTabGid } from './sheetTabsApi.js';
+import {
+  auditBillsForFraud,
+  attachFraudFlagsToVouchers,
+} from './expenseFraudAudit.js';
 
 const parseMoney = (val) => {
   const n = parseFloat(String(val ?? '').replace(/[^\d.-]/g, ''));
@@ -21,11 +25,13 @@ export const extractImageUrlsFromMatrix = (matrix) => {
 };
 
 export const analyzeBillImages = async (imageUrls, context = {}) => {
-  if (!imageUrls?.length) return { tickets: [], totalFromTickets: 0, raw: '' };
+  if (!imageUrls?.length) {
+    return { bills: [], tickets: [], totalFromTickets: 0, imageCount: 0, raw: '' };
+  }
   const res = await fetch('/api/ai/analyze-bill-images', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ imageUrls: imageUrls.slice(0, 12), context }),
+    body: JSON.stringify({ imageUrls: imageUrls.slice(0, 24), context }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -70,7 +76,15 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
   const { images: htmlImages = [] } = await fetchTabImages(spreadsheetId, gid);
   const imageUrls = [...new Set([...cellUrls, ...htmlImages])];
 
-  let analysis = { tickets: [], totalFromTickets: 0, imageCount: imageUrls.length, note: '' };
+  let analysis = {
+    bills: [],
+    tickets: [],
+    totalFromTickets: 0,
+    imageCount: imageUrls.length,
+    note: '',
+    provider: '',
+    cacheHits: 0,
+  };
   if (imageUrls.length > 0) {
     try {
       analysis = await analyzeBillImages(imageUrls, {
@@ -79,6 +93,7 @@ export const enrichVoucherWithImages = async (voucher, tabs, spreadsheetId, matr
         sheetName: voucher.sheetName,
         voucherMode: voucher.voucherMode,
       });
+      if (!analysis.note && analysis.raw) analysis.note = analysis.raw;
     } catch (e) {
       analysis.note = e.message;
     }
@@ -140,6 +155,7 @@ export const enrichAllVouchersWithImages = async (
   spreadsheetId,
   matricesBySheet,
   onProgress,
+  options = {},
 ) => {
   const out = [];
   for (let i = 0; i < vouchers.length; i++) {
@@ -148,5 +164,13 @@ export const enrichAllVouchersWithImages = async (
     onProgress?.(i + 1, vouchers.length, v.auditorName);
     out.push(await enrichVoucherWithImages(v, tabs, spreadsheetId, matrix));
   }
-  return out;
+
+  const fraudAudit = auditBillsForFraud(out, {
+    attendanceRecords: options.attendanceRecords || [],
+    pjpRecords: options.pjpRecords || [],
+  });
+  return attachFraudFlagsToVouchers(out, fraudAudit);
 };
+
+export { auditBillsForFraud, attachFraudFlagsToVouchers };
+export { parseMoney };

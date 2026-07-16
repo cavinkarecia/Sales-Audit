@@ -77,12 +77,18 @@ const mergeTwoVouchers = (a, b) => {
     imageUrls: [...new Set([...(a.imageUrls || []), ...(b.imageUrls || [])])],
     voucherMode: a.voucherMode === b.voucherMode ? a.voucherMode : 'mixed',
     imageAnalysis: {
+      bills: [
+        ...((a.imageAnalysis && a.imageAnalysis.bills) || []),
+        ...((b.imageAnalysis && b.imageAnalysis.bills) || []),
+      ],
       tickets: [
         ...((a.imageAnalysis && a.imageAnalysis.tickets) || []),
         ...((b.imageAnalysis && b.imageAnalysis.tickets) || []),
       ],
       totalFromTickets: sum(a.imageAnalysis?.totalFromTickets, b.imageAnalysis?.totalFromTickets),
       imageCount: sum(a.imageAnalysis?.imageCount, b.imageAnalysis?.imageCount),
+      cacheHits: sum(a.imageAnalysis?.cacheHits, b.imageAnalysis?.cacheHits),
+      provider: a.imageAnalysis?.provider || b.imageAnalysis?.provider || '',
       note: [a.imageAnalysis?.note, b.imageAnalysis?.note].filter(Boolean).join(' | '),
     },
     _mergedParts: (a._mergedParts || 1) + (b._mergedParts || 1),

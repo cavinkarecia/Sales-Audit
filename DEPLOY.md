@@ -26,9 +26,13 @@ In [Render Dashboard](https://dashboard.render.com/) → **sales-audit-2-0** →
 
 | Key | Value |
 |-----|--------|
-| `DEEPSEEK_API_KEY` | Your DeepSeek API key (server-side only) |
+| `DEEPSEEK_API_KEY` | Your DeepSeek API key (server-side only — text insights) |
+| `GEMINI_API_KEY` | Your Google AI Studio key for bill OCR (Gemini 2.0 Flash) |
+| `GEMINI_MODEL` | Optional — defaults to `gemini-2.0-flash` |
 
-Do **not** commit the key to Git.
+Do **not** commit the keys to Git.
+
+Get a free Gemini key at [Google AI Studio](https://aistudio.google.com/apikey). Without `GEMINI_API_KEY`, expense sync still works but bill OCR / fraud checks will show an error note.
 
 ## Local build test
 
