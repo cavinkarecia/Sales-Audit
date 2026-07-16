@@ -2,7 +2,6 @@ import XLSX from 'xlsx';
 import { parseVoucherSheet, inferWorkbookPeriod } from '../src/utils/expenseVoucherParser.js';
 import { extractSpreadsheetId } from '../src/utils/spreadsheetUrl.js';
 import { auditAllVouchers } from '../src/utils/expenseDateAudit.js';
-import { buildEmbeddedImageUrls, loadTabImagesFromXlsx } from './tabImageCache.js';
 
 const matrixFromCsv = (csv) => {
   const parsed = XLSX.read(csv, { type: 'string' });
@@ -136,26 +135,10 @@ export const syncExpenseWorkbook = async (urlOrId, listWorkbookTabs, options = {
 
   const dateAudit = auditAllVouchers(vouchers);
 
-  const loadedSheets = sheetSummary.filter((s) => s.status === 'loaded');
-  const imagesBySheet = {};
-  await runPool(loadedSheets, async (sheet) => {
-    try {
-      const entry = await loadTabImagesFromXlsx(spreadsheetId, sheet.gid);
-      imagesBySheet[sheet.sheetName] = buildEmbeddedImageUrls(
-        spreadsheetId,
-        sheet.gid,
-        entry.images.length,
-      );
-    } catch {
-      imagesBySheet[sheet.sheetName] = [];
-    }
-  }, 3);
-
   return {
     vouchers,
     sheetSummary,
     matricesBySheet,
-    imagesBySheet,
     tabs,
     spreadsheetId,
     totalSheets: loadedTabs,

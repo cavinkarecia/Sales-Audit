@@ -1,6 +1,7 @@
 import { extractMediaFromXlsxBuffer, DEFAULT_SHEET_FETCH_HEADERS } from './xlsxMediaExtract.js';
 
 const CACHE_TTL_MS = 45 * 60 * 1000;
+const CACHE_MAX_TABS = 8;
 const cache = new Map();
 
 const cacheKey = (spreadsheetId, gid) => `${spreadsheetId}:${gid}`;
@@ -9,6 +10,11 @@ const pruneCache = () => {
   const now = Date.now();
   for (const [key, entry] of cache.entries()) {
     if (now - entry.at > CACHE_TTL_MS) cache.delete(key);
+  }
+  while (cache.size > CACHE_MAX_TABS) {
+    const oldestKey = [...cache.entries()].sort((a, b) => a[1].at - b[1].at)[0]?.[0];
+    if (!oldestKey) break;
+    cache.delete(oldestKey);
   }
 };
 

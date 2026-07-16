@@ -710,7 +710,7 @@ const ExpenseCheck2Page = () => {
       setDateAuditSummary(result.dateAudit || null);
       setSyncError(result.syncError || null);
       setSyncStatus(
-        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. Running Gemini OCR on bill images…`,
+        `Parsed ${result.totalAuditors} auditor(s), ${result.dateAudit?.summary?.totalDates ?? 0} dates checked. Running Gemini OCR on bill images (large workbooks may take several minutes)…`,
       );
       const enriched = await enrichAllVouchersWithImages(
         result.vouchers,

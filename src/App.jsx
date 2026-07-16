@@ -77,7 +77,7 @@ function App() {
               opacity: 0.7,
             }}
           >
-            build: v60-expense-xlsx-bill-images
+            build: v61-expense-sync-fix-503
           </span>
           <RemoveFilesButton />
           <HardRefreshButton />

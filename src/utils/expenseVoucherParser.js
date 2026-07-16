@@ -1210,7 +1210,12 @@ export const fetchAllExpenseVouchers = async (url) => {
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.error || `Sync failed (HTTP ${res.status})`);
+    const base = err.error || `Sync failed (HTTP ${res.status})`;
+    const hint =
+      res.status === 503
+        ? ' The server was busy or timed out — wait 30 seconds and try again.'
+        : '';
+    throw new Error(`${base}${hint}`);
   }
 
   return res.json();
